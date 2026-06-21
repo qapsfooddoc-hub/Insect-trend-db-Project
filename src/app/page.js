@@ -751,7 +751,7 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', maxHeight: '380px' }}>
-          <BarChart width={780} height={350} data={chartData} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
+          <BarChart width={1009} height={350} data={chartData} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
             <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} />
@@ -923,11 +923,11 @@ export default function DashboardPage() {
                 </div>
                 
                 <div style={{ height: '270px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={470} height={250} data={trapData} margin={{ top: 18, right: 35, left: 35, bottom: 0 }} style={{ overflow: 'visible' }}>
+                  <LineChart width={477} height={250} data={trapData} margin={{ top: 18, right: 5, left: 25, bottom: 0 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
                     <YAxis stroke="#64748b" fontSize={8} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
-                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -26, style: { fontSize: 10.5, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
+                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -22, style: { fontSize: 10.5, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
                     />
                     <Legend
                       wrapperStyle={{ fontSize: '12.5px', paddingTop: '4px' }}
@@ -1975,29 +1975,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans">
-      <div className="screen-content max-w-7xl mx-auto px-4 sm:px-6 py-10">
+      <div className="screen-content max-w-7xl mx-auto px-4 sm:px-6 py-4">
         
         {/* Header Section */}
-        <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-200 dark:border-slate-855 pb-5">
-          <div>
-            <Link 
-              href="/"
-              className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-905 dark:text-slate-400 dark:hover:text-white transition-colors mb-2 font-semibold"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>ย้อนกลับไปหน้าแรก</span>
-            </Link>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              รายงานการตรวจนับจำนวนแมลง
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500 font-semibold mt-0.5">
-              บริษัท พี.เอ.ฟู้ด โปรดักส์ จำกัด
-            </p>
-            <p className="text-[10px] sm:text-xs text-slate-550 font-semibold mt-0.5">
-              (FM-QC - 08/03 Rev.07)
-            </p>
-          </div>
-
+        <div className="mb-2 flex flex-col lg:flex-row lg:items-center justify-end gap-4">
           {/* Top Status & Sync Action */}
           <div className="flex flex-wrap items-center gap-3">
             <div className={`px-4 py-2 border rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm bg-white dark:bg-slate-900 ${
