@@ -784,34 +784,21 @@ export default function SupervisorPortal() {
       }
     }
     
-    // 2. Insect recommendations
-    const recParts = [];
+    // 2. Insect recommendations (Select only the most relevant, non-redundant recommendation to avoid duplication and keep original length)
+    let rec = '';
     if (totalFlies > 0) {
-      recParts.push('ทำความสะอาดพื้นที่ลดการสะสมของแหล่งอาหาร');
-    }
-    if (totalMosquitoes > 0) {
-      recParts.push('รีดน้ำขังออกจากพื้นที่แจ้งบริษัทกำจัดแมลงเข้าทำบริการ');
-    }
-    if (totalAnts > 0) {
-      recParts.push('ตรวจสอบหาสาเหตุที่แท้จริงลดการสะสมของแหล่งอาหาร');
-    }
-    
-    if (totalOthers > 0) {
+      rec = 'ทำความสะอาดพื้นที่ลดการสะสมของแหล่งอาหาร';
+    } else if (totalMosquitoes > 0) {
+      rec = 'รีดน้ำขังออกจากพื้นที่แจ้งบริษัทกำจัดแมลงเข้าทำบริการ';
+    } else if (totalAnts > 0) {
+      rec = 'ตรวจสอบหาสาเหตุที่แท้จริงลดการสะสมของแหล่งอาหาร';
+    } else if (totalOthers > 0) {
       let hasMidge = false;
-      let hasButterfly = false;
       Object.keys(othersBreakdown).forEach(k => {
         if (k.includes('แมลงหวี่')) hasMidge = true;
-        if (k.includes('ผีเสื้อ')) hasButterfly = true;
       });
-
       if (hasMidge) {
-        recParts.push('รีดน้ำขังออกจากพื้นที่ปิดม่านประตูทุกครั้ง');
-      }
-      if (hasButterfly) {
-        recParts.push('ปิดม่าน ปิดประตูทุกครั้ง');
-      }
-      if (!hasMidge && !hasButterfly) {
-        recParts.push('ปิดม่าน ปิดประตูทุกครั้ง');
+        rec = 'รีดน้ำขังออกจากพื้นที่';
       }
     }
 
@@ -845,8 +832,8 @@ export default function SupervisorPortal() {
       keyKeyword = 'ดังนั้นเนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิด-ปิด ประตูเป็นประจำ จึงควรระมัดระวังปิดม่านและประตูทุกครั้ง';
     }
     
-    if (recParts.length > 0) {
-      recsText = `${keyKeyword} (โดยเฉพาะ:${recParts.join(', ')}) ทั้งนี้ ${goalPhrase}อย่างมีประสิทธิภาพสูงสุด`;
+    if (rec) {
+      recsText = `${keyKeyword} และควร${rec} ทั้งนี้ ${goalPhrase}อย่างมีประสิทธิภาพสูงสุด`;
     } else {
       recsText = `${keyKeyword} ทั้งนี้ ${goalPhrase}อย่างมีประสิทธิภาพสูงสุด`;
     }
