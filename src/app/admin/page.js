@@ -213,10 +213,45 @@ export default function AdminPage() {
     }
   };
 
-  if (!mounted || !currentUser) {
+  if (!mounted) {
     return (
-      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-955">
         <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  // If not logged in
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-10 transition-colors duration-300 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl animate-pulse">
+              🚫
+            </div>
+            <h3 className="text-sm sm:text-base font-extrabold text-red-650 dark:text-red-400 mb-2 font-sans">
+              ปฏิเสธการเข้าถึง - กรุณาเข้าสู่ระบบก่อนใช้งาน
+            </h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-md mx-auto mb-6 leading-relaxed font-sans">
+              หน้านี้สำหรับผู้ดูแลระบบ (Admin) ในการจัดการบัญชีผู้ใช้งานระบบหลังบ้าน กรุณาเข้าสู่ระบบเพื่อเข้าถึงข้อมูลและดำเนินการ
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link 
+                href="/login"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              >
+                <span>เข้าสู่ระบบ (Login)</span>
+              </Link>
+              <Link 
+                href="/"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black rounded-2xl transition-all shadow-sm cursor-pointer"
+              >
+                <span>กลับไปหน้าแดชบอร์ดหลัก</span>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -235,15 +270,23 @@ export default function AdminPage() {
             <h3 className="text-sm sm:text-base font-extrabold text-red-650 dark:text-red-400 mb-2">
               ปฏิเสธการเข้าถึง - เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น
             </h3>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold max-w-md mx-auto mb-5 leading-relaxed">
-              บัญชีปัจจุบันของคุณคือ <strong>{currentUser?.full_name || 'ไม่ระบุ'}</strong> (บทบาท: {currentUser?.role || 'พนักงานทั่วไป'}) ซึ่งไม่มีสิทธิ์เข้าใช้งานระบบจัดการผู้ใช้ระบบหลังบ้าน กรุณาสลับผู้ใช้งานจำลองในแถบเมนูด้านบนเป็น แอดมิน หรือเข้าสู่หน้าอื่น
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-md mx-auto mb-6 leading-relaxed">
+              บัญชีปัจจุบันของคุณคือ <strong>{currentUser?.full_name || 'ไม่ระบุ'}</strong> (บทบาท: {currentUser?.role || 'พนักงานทั่วไป'}) ซึ่งไม่มีสิทธิ์เข้าใช้งานระบบจัดการผู้ใช้ระบบหลังบ้าน กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบเพื่อดำเนินการ
             </p>
-            <Link 
-              href="/"
-              className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
-            >
-              <span>กลับไปหน้าแดชบอร์ดหลัก</span>
-            </Link>
+            <div className="flex justify-center gap-3">
+              <Link 
+                href="/login"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              >
+                <span>เข้าสู่ระบบด้วยบัญชีอื่น</span>
+              </Link>
+              <Link 
+                href="/"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black rounded-2xl transition-all shadow-sm cursor-pointer"
+              >
+                <span>กลับไปหน้าแดชบอร์ดหลัก</span>
+              </Link>
+            </div>
           </div>
         ) : (
           <>

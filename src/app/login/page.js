@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Lock, User, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -122,11 +123,11 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div>
+          <div className="flex flex-col gap-3">
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-black rounded-2xl text-white bg-indigo-650 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-black rounded-2xl text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-md active:scale-[0.98] cursor-pointer"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -134,6 +135,13 @@ export default function LoginPage() {
                 'เข้าสู่ระบบ'
               )}
             </button>
+
+            <Link
+              href="/"
+              className="w-full flex justify-center items-center py-3 px-4 border border-slate-200 dark:border-slate-800 text-sm font-bold rounded-2xl text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-855 transition-all shadow-sm cursor-pointer"
+            >
+              📊 เข้าดูแดชบอร์ดโดยไม่เข้าสู่ระบบ
+            </Link>
           </div>
         </form>
 

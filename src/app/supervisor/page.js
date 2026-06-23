@@ -343,7 +343,7 @@ export default function SupervisorPortal() {
       if (saved) {
         try { setCurrentUser(JSON.parse(saved)); } catch {}
       } else {
-        window.location.href = '/login';
+        setCurrentUser(null);
       }
     }
   };
@@ -627,10 +627,80 @@ export default function SupervisorPortal() {
     localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
   };
 
-  if (!mounted || !currentUser) {
+  if (!mounted) {
     return (
-      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-955">
         <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  // If not logged in
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-10 transition-colors duration-300 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl animate-pulse">
+              🚫
+            </div>
+            <h3 className="text-sm sm:text-base font-extrabold text-red-650 dark:text-red-400 mb-2 font-sans">
+              ปฏิเสธการเข้าถึง - กรุณาเข้าสู่ระบบก่อนใช้งาน
+            </h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-md mx-auto mb-6 leading-relaxed font-sans">
+              หน้าบันทึกการรับทราบรายงานข้อมูลแมลงประจำเดือนสงวนสิทธิ์เฉพาะผู้รับผิดชอบแผนก (Supervisor), ฝ่ายประกันคุณภาพ (QA Manager) หรือผู้ดูแลระบบ (Admin) เท่านั้น กรุณาเข้าสู่ระบบเพื่อดำเนินการ
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link 
+                href="/login"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              >
+                <span>เข้าสู่ระบบ (Login)</span>
+              </Link>
+              <Link 
+                href="/"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black rounded-2xl transition-all shadow-sm cursor-pointer"
+              >
+                <span>กลับไปหน้าแดชบอร์ดหลัก</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isAllowed = isSupervisor || isQA || isAdmin;
+  if (!isAllowed) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 py-10 transition-colors duration-300 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
+            <div className="w-16 h-16 bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl animate-pulse">
+              🚫
+            </div>
+            <h3 className="text-sm sm:text-base font-extrabold text-red-650 dark:text-red-400 mb-2 font-sans">
+              ปฏิเสธการเข้าถึง - เฉพาะผู้รับผิดชอบหรือฝ่ายประกันคุณภาพเท่านั้น
+            </h3>
+            <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-md mx-auto mb-6 leading-relaxed font-sans">
+              บัญชีปัจจุบันของคุณคือ <strong>{currentUser?.full_name || 'ไม่ระบุ'}</strong> (บทบาท: {currentUser?.role || 'พนักงานทั่วไป'}) ซึ่งไม่มีสิทธิ์เข้าใช้หน้าบันทึกการรับทราบรายงาน หน้านี้อนุญาตให้เข้าถึงเฉพาะแผนกรับผิดชอบ (Supervisor), QA Manager หรือ Admin เท่านั้น
+            </p>
+            <div className="flex justify-center gap-3">
+              <Link 
+                href="/login"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
+              >
+                <span>เข้าสู่ระบบด้วยบัญชีอื่น</span>
+              </Link>
+              <Link 
+                href="/"
+                className="inline-flex items-center gap-1.5 px-6 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-black rounded-2xl transition-all shadow-sm cursor-pointer"
+              >
+                <span>กลับไปหน้าแดชบอร์ดหลัก</span>
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
