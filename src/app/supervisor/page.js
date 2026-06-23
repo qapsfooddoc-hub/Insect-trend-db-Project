@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, Layers, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Layers, ShieldCheck, RefreshCw } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
@@ -341,6 +341,8 @@ export default function SupervisorPortal() {
       const saved = localStorage.getItem('currentSimulatedUser');
       if (saved) {
         try { setCurrentUser(JSON.parse(saved)); } catch {}
+      } else {
+        window.location.href = '/login';
       }
     }
   };
@@ -623,6 +625,14 @@ export default function SupervisorPortal() {
     const status = (data.deptApproved && data.qaApproved) ? 'Approved' : (data.deptApproved || data.qaApproved) ? 'Pending' : 'Draft';
     localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
   };
+
+  if (!mounted || !currentUser) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (

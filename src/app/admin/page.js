@@ -64,6 +64,8 @@ export default function AdminPage() {
         try {
           setCurrentUser(JSON.parse(saved));
         } catch (e) {}
+      } else {
+        window.location.href = '/login';
       }
     }
   };
@@ -210,6 +212,14 @@ export default function AdminPage() {
       setAdminMessage({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', type: 'error' });
     }
   };
+
+  if (!mounted || !currentUser) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
 
   const userRoleLower = currentUser?.role?.toLowerCase() || '';
   const isAdmin = userRoleLower === 'admin';

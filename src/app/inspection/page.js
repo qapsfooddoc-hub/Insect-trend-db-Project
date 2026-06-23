@@ -147,6 +147,8 @@ export default function InspectionPage() {
         try {
           setCurrentUser(JSON.parse(saved));
         } catch (e) {}
+      } else {
+        window.location.href = '/login';
       }
     }
   };
@@ -589,10 +591,10 @@ export default function InspectionPage() {
   const userRoleLower = currentUser?.role?.toLowerCase() || '';
   const isAllowed = userRoleLower === 'admin' || userRoleLower === 'operator' || userRoleLower === 'qa manager';
 
-  if (!mounted) {
+  if (!mounted || !currentUser) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center font-sans">
-        <div className="text-slate-400 font-extrabold text-sm animate-pulse">กำลังโหลดข้อมูลผู้ใช้จำลอง...</div>
+        <div className="text-slate-400 font-extrabold text-sm animate-pulse">กำลังโหลดข้อมูลผู้ใช้...</div>
       </div>
     );
   }

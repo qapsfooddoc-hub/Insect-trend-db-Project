@@ -80,6 +80,8 @@ export default function Navbar() {
     return `${baseClass} bg-white hover:bg-slate-50 border-slate-200 text-slate-550 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-400`;
   };
 
+  if (pathname === '/login') return null;
+
   return (
     <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -129,21 +131,26 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* User simulation selector */}
-          <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1 rounded-2xl w-full sm:w-auto">
-            <Users className="w-3.5 h-3.5 text-indigo-500" />
-            <select
-              value={currentUser?.id || ''}
-              onChange={(e) => handleUserChange(e.target.value)}
-              className="text-[11px] font-extrabold bg-transparent focus:outline-none cursor-pointer text-indigo-950 dark:text-slate-200 max-w-[180px] truncate"
-            >
-              {users.map(u => (
-                <option key={u.id} value={u.id} className="dark:bg-slate-900 text-slate-800 dark:text-slate-200">
-                  {u.full_name} ({u.role})
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* User Profile & Logout */}
+          {currentUser && (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1 rounded-2xl w-full sm:w-auto">
+                <Users className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">
+                  คุณ {currentUser.full_name} ({currentUser.role})
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  localStorage.removeItem('currentSimulatedUser');
+                  window.location.href = '/login';
+                }}
+                className="px-3 py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-650 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              >
+                ออกจากระบบ
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

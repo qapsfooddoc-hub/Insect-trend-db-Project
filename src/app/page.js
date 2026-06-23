@@ -397,6 +397,8 @@ export default function DashboardPage() {
         try {
           setCurrentUser(JSON.parse(saved));
         } catch (e) {}
+      } else {
+        window.location.href = '/login';
       }
     }
   };
@@ -1972,6 +1974,52 @@ export default function DashboardPage() {
       return part;
     });
   };
+
+  if (!mounted || !currentUser) {
+    return (
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+        <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
+      </div>
+    );
+  }
+
+  if (!isDemo && rawData.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-12 text-center shadow-sm max-w-3xl mx-auto my-12">
+            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-950/30 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl animate-bounce">
+              📊
+            </div>
+            <h3 className="text-lg font-black text-slate-850 dark:text-white mb-3">
+              ยังไม่มีข้อมูลการตรวจนับแมลงในระบบ
+            </h3>
+            <p className="text-xs text-slate-505 dark:text-slate-400 font-semibold max-w-md mx-auto mb-8 leading-relaxed">
+              ยินดีต้อนรับเข้าสู่ระบบจัดการแมลง ขณะนี้ระบบเชื่อมต่อกับฐานข้อมูล Supabase สำเร็จแล้ว แต่ยังไม่มีบันทึกข้อมูลผลการตรวจนับแมลงใดๆ ในระบบ
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              {currentUser?.role?.toLowerCase() !== 'department supervisor' && (
+                <Link 
+                  href="/inspection"
+                  className="inline-flex items-center gap-2 px-6 py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-xs font-black rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
+                >
+                  📝 ไปหน้าบันทึกผลตรวจสัปดาห์แรก
+                </Link>
+              )}
+              <button
+                onClick={fetchData}
+                disabled={isLoading}
+                className="inline-flex items-center gap-2 px-5 py-3.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-2xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>รีเฟรชข้อมูล</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans">
