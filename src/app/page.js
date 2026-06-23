@@ -2118,9 +2118,12 @@ export default function DashboardPage() {
   };
 
   // --- TAB 1: AI SUMMARY BOX AUTO GENERATION ---
+  // Only re-fetch when the user changes a filter (year/quarter/month), not on every rawData update
   useEffect(() => {
+    if (!mounted) return;
     const fetchAiReport = async () => {
       setAiReportLoading(true);
+      setAiReport('');
       try {
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -2178,12 +2181,15 @@ export default function DashboardPage() {
     };
 
     fetchAiReport();
-  }, [selectedYear, selectedQuarter, selectedMonth, rawData, isDemo, activeData]);
+  }, [selectedYear, selectedQuarter, selectedMonth, mounted]);
 
   // --- TAB 2: DEPARTMENT AI SUMMARY AUTO GENERATION ---
+  // Only re-fetch when user changes dept/month/year filter, not on every data reload
   useEffect(() => {
+    if (!mounted) return;
     const fetchDeptReport = async () => {
       setDeptReportLoading(true);
+      setDeptReportText('');
       try {
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -2213,7 +2219,7 @@ export default function DashboardPage() {
     };
 
     fetchDeptReport();
-  }, [selectedDept, selectedMonth, selectedYear, rawData, isDemo]);
+  }, [selectedDept, selectedMonth, selectedYear, mounted]);
 
   // --- CUSTOM MARKDOWN RENDERER ---
   const renderMarkdown = (text) => {
@@ -2528,11 +2534,37 @@ export default function DashboardPage() {
               {/* AI Analysis narrative box (4 Cols) */}
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-5 h-5 text-yellow-500 flex-shrink-0 animate-pulse" />
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                      รายงานสรุปวิเคราะห์จาก AI
-                    </h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                      <h3 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                        รายงานสรุปภาพรวมโรงงาน
+                      </h3>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-yellow-400/15 border border-yellow-400/30 text-[10px] font-bold text-yellow-700 dark:text-yellow-400">✨ Gemini AI</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAiReport('');
+                        setAiReportLoading(true);
+                        fetch('/api/analyze', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ deptName: 'ALL', month: selectedMonth, quarter: selectedQuarter, year: selectedYear })
+                        }).then(r => r.ok ? r.json() : null)
+                          .then(result => {
+                            setAiReport(result?.report || 'ไม่สามารถดึงข้อมูล AI ได้ในขณะนี้');
+                            setAiReportLoading(false);
+                          })
+                          .catch(() => {
+                            setAiReport('ไม่สามารถเชื่อมต่อ AI ได้ในขณะนี้');
+                            setAiReportLoading(false);
+                          });
+                      }}
+                      title="วิเคราะห์ใหม่"
+                      className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-500 transition-colors"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${aiReportLoading ? 'animate-spin' : ''}`} />
+                    </button>
                   </div>
                   <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-5 relative overflow-hidden h-full">
                     <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-500/20 font-bold">
@@ -2542,7 +2574,7 @@ export default function DashboardPage() {
                     <div className="space-y-2 mt-2 font-medium">
                       {aiReportLoading ? (
                         <div className="flex items-center gap-2 text-slate-450 dark:text-slate-400 text-xs py-4">
-                          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping flex-shrink-0" />
+                          <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full animate-ping flex-shrink-0" />
                           กำลังวิเคราะห์ภาพรวมโรงงานด้วย AI...
                         </div>
                       ) : (
@@ -2692,15 +2724,50 @@ export default function DashboardPage() {
 
                   {/* QA Narrative Report Box */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm">
-                    <div className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
-                      {deptReportLoading ? (
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span className="w-2.5 h-2.5 bg-blue-650 rounded-full animate-ping" />
-                          กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
-                        </div>
-                      ) : (
-                        renderMarkdown(deptReportText)
-                      )}
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                        <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">วิเคราะห์รายแผนกด้วย AI</span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-yellow-400/15 border border-yellow-400/30 text-[10px] font-bold text-yellow-700 dark:text-yellow-400">✨ Gemini AI</span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDeptReportText('');
+                          setDeptReportLoading(true);
+                          fetch('/api/analyze', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ deptName: selectedDept, month: selectedMonth, year: selectedYear })
+                          }).then(r => r.ok ? r.json() : null)
+                            .then(result => {
+                              if (result?.report) { setDeptReportText(result.report); }
+                              else { setDeptReportText(getDeptAnalysisReport(selectedDept, selectedMonth, getDisplayYear(selectedYear))); }
+                              setDeptReportLoading(false);
+                            })
+                            .catch(() => {
+                              setDeptReportText(getDeptAnalysisReport(selectedDept, selectedMonth, getDisplayYear(selectedYear)));
+                              setDeptReportLoading(false);
+                            });
+                        }}
+                        title="วิเคราะห์ใหม่"
+                        className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-500 transition-colors"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${deptReportLoading ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
+                    {/* Content */}
+                    <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-4">
+                      <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                        {deptReportLoading ? (
+                          <div className="flex items-center gap-2 text-slate-400 py-2">
+                            <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full animate-ping flex-shrink-0" />
+                            กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
+                          </div>
+                        ) : (
+                          renderMarkdown(deptReportText)
+                        )}
+                      </div>
                     </div>
                   </div>
 

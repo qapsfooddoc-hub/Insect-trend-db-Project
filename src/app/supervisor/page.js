@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, AlertCircle, Layers, ShieldCheck, RefreshCw } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Layers, ShieldCheck, RefreshCw, Sparkles } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
@@ -570,10 +570,12 @@ export default function SupervisorPortal() {
     }
   }, [rawData, selectedDept]);
 
-  // Fetch AI Analysis Report
+  // Fetch AI Analysis Report — only re-fetch when filters change, not on every data reload
   useEffect(() => {
+    if (!mounted) return;
     const fetchDeptReport = async () => {
       setDeptReportLoading(true);
+      setDeptReportText('');
       try {
         const res = await fetch('/api/analyze', {
           method: 'POST',
@@ -602,10 +604,8 @@ export default function SupervisorPortal() {
       setDeptReportLoading(false);
     };
 
-    if (mounted) {
-      fetchDeptReport();
-    }
-  }, [selectedDept, selectedMonth, selectedYear, rawData, isDemo, mounted]);
+    fetchDeptReport();
+  }, [selectedDept, selectedMonth, selectedYear, mounted]);
 
   const fetchData = async () => {
     try {
@@ -1083,18 +1083,52 @@ export default function SupervisorPortal() {
 
           {/* QA Narrative Report Box */}
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm">
-            <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-              <span>📝 วิเคราะห์ข้อมูลประจำเดือน</span>
-            </h4>
-            <div className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
-              {deptReportLoading ? (
-                <div className="flex items-center gap-2 text-slate-400">
-                  <span className="w-2.5 h-2.5 bg-blue-650 rounded-full animate-ping" />
-                  กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
-                </div>
-              ) : (
-                renderMarkdown(deptReportText)
-              )}
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-yellow-500 flex-shrink-0" />
+                <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">วิเคราะห์ข้อมูลประจำเดือนด้วย AI</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-yellow-400/15 border border-yellow-400/30 text-[10px] font-bold text-yellow-700 dark:text-yellow-400">✨ Gemini AI</span>
+              </div>
+              <button
+                onClick={() => {
+                  setDeptReportText('');
+                  setDeptReportLoading(true);
+                  const beYear = parseInt(selectedYear, 10) + 543;
+                  fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ deptName: selectedDept, month: selectedMonth, year: selectedYear })
+                  }).then(r => r.ok ? r.json() : null)
+                    .then(result => {
+                      if (result?.report) { setDeptReportText(result.report); }
+                      else { setDeptReportText(getDeptAnalysisReport(selectedDept, selectedMonth, beYear)); }
+                      setDeptReportLoading(false);
+                    })
+                    .catch(() => {
+                      const beYear2 = parseInt(selectedYear, 10) + 543;
+                      setDeptReportText(getDeptAnalysisReport(selectedDept, selectedMonth, beYear2));
+                      setDeptReportLoading(false);
+                    });
+                }}
+                title="วิเคราะห์ใหม่"
+                className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-500 transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${deptReportLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+            {/* Content */}
+            <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-4">
+              <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
+                {deptReportLoading ? (
+                  <div className="flex items-center gap-2 text-slate-400 py-2">
+                    <span className="w-2.5 h-2.5 bg-yellow-500 rounded-full animate-ping flex-shrink-0" />
+                    กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
+                  </div>
+                ) : (
+                  renderMarkdown(deptReportText)
+                )}
+              </div>
             </div>
           </div>
 
