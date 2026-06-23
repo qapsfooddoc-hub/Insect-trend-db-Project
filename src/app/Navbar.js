@@ -49,13 +49,8 @@ export default function Navbar() {
           }
         } catch (e) {}
       }
-      // Default to Admin, then Supervisor, then QA Manager, then first user
-      const adminUser = users.find(u => u.role?.toLowerCase() === 'admin');
-      const supervisorUser = users.find(u => u.role?.toLowerCase() === 'department supervisor');
-      const qaUser = users.find(u => u.role?.toLowerCase() === 'qa manager');
-      const defaultUser = adminUser || supervisorUser || qaUser || users[0];
-      setCurrentUser(defaultUser);
-      localStorage.setItem('currentSimulatedUser', JSON.stringify(defaultUser));
+      // DO NOT auto-login! Leave currentUser as null if not logged in.
+      setCurrentUser(null);
     }
   }, [users]);
 
@@ -131,8 +126,8 @@ export default function Navbar() {
             </Link>
           </div>
 
-          {/* User Profile & Logout */}
-          {currentUser && (
+          {/* User Profile & Logout / Login */}
+          {currentUser ? (
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1 rounded-2xl w-full sm:w-auto">
                 <Users className="w-3.5 h-3.5 text-indigo-500" />
@@ -150,6 +145,13 @@ export default function Navbar() {
                 ออกจากระบบ
               </button>
             </div>
+          ) : (
+            <Link
+              href="/login"
+              className="px-3 py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+            >
+              เข้าสู่ระบบ (Login)
+            </Link>
           )}
         </div>
 

@@ -240,7 +240,7 @@ export default function AdminPage() {
             </p>
             <Link 
               href="/"
-              className="inline-flex items-center gap-1.5 px-6 py-3 bg-slate-955 hover:bg-blue-600 text-white dark:bg-white dark:text-slate-950 dark:hover:bg-blue-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md active:scale-[0.98] cursor-pointer"
             >
               <span>กลับไปหน้าแดชบอร์ดหลัก</span>
             </Link>
