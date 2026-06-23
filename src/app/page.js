@@ -358,6 +358,47 @@ function RenderCustomLegend(props) {
   );
 }
 
+// Custom Tooltip component to show details of other insects (Option 1)
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 border border-slate-800 text-slate-100 p-4 rounded-2xl shadow-xl text-xs font-sans max-w-[280px]">
+        <p className="font-extrabold text-slate-400 mb-2 border-b border-slate-850 pb-1">{label}</p>
+        <div className="space-y-1.5 font-semibold">
+          {payload.map((entry) => {
+            const isOthers = entry.dataKey === 'others';
+            const breakdown = data.othersBreakdown;
+            const hasBreakdown = isOthers && breakdown && Object.keys(breakdown).length > 0;
+            return (
+              <div key={entry.dataKey} className="flex flex-col gap-0.5">
+                <div className="flex justify-between items-center gap-6">
+                  <span className="flex items-center gap-1.5 font-bold animate-in fade-in" style={{ color: entry.color }}>
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                    {entry.name}:
+                  </span>
+                  <span className="font-extrabold font-mono text-slate-200">{entry.value} ตัว</span>
+                </div>
+                {hasBreakdown && (
+                  <div className="pl-4 text-[10px] text-slate-400 border-l border-slate-700 space-y-0.5 mt-0.5 font-bold">
+                    {Object.entries(breakdown).map(([name, count]) => (
+                      <div key={name} className="flex justify-between gap-4">
+                        <span>• {name}:</span>
+                        <span className="font-mono text-slate-300">{count} ตัว</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function DashboardPage() {
   const [rawData, setRawData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -637,7 +678,8 @@ export default function DashboardPage() {
           flies: Math.max(0, Math.round(baseFlies + r1)),
           mosquitoes: Math.max(0, Math.round(baseMosquitoes + r2)),
           ants: Math.max(0, Math.round(baseAnts - r1)),
-          others: Math.max(0, Math.round(baseOthers))
+          others: Math.max(0, Math.round(baseOthers)),
+          othersBreakdown: baseOthers > 0 ? { 'ผีเสื้อ': Math.max(1, Math.floor(baseOthers / 2)), 'แมลงสาบ': Math.max(0, Math.ceil(baseOthers / 2)) } : {}
         };
       });
     }
@@ -660,6 +702,7 @@ export default function DashboardPage() {
 
     return monthsInfo.map((m) => {
       const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+      const othersBreakdown = {};
       
       trapRecords.forEach(item => {
         const date = new Date(item.inspected_at);
@@ -669,7 +712,27 @@ export default function DashboardPage() {
           if (type.includes('Flies')) totals.flies += count;
           else if (type.includes('Mosquitoes')) totals.mosquitoes += count;
           else if (type.includes('Ants')) totals.ants += count;
-          else totals.others += count;
+          else {
+            totals.others += count;
+            let detailsList = [];
+            if (item.details) {
+              try {
+                detailsList = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
+              } catch (e) {
+                console.error('Failed to parse details:', e);
+              }
+            }
+            if (Array.isArray(detailsList)) {
+              detailsList.forEach(det => {
+                const name = det.name || 'ไม่ระบุ';
+                const countVal = Number(det.count) || 0;
+                if (!othersBreakdown[name]) {
+                  othersBreakdown[name] = 0;
+                }
+                othersBreakdown[name] += countVal;
+              });
+            }
+          }
         }
       });
 
@@ -678,7 +741,8 @@ export default function DashboardPage() {
         flies: totals.flies,
         mosquitoes: totals.mosquitoes,
         ants: totals.ants,
-        others: totals.others
+        others: totals.others,
+        othersBreakdown
       };
     });
   };
@@ -1159,6 +1223,7 @@ export default function DashboardPage() {
           mosquitoes: 0,
           ants: 0,
           others: 0,
+          othersBreakdown: {},
           total: 0
         };
       }
@@ -1169,6 +1234,27 @@ export default function DashboardPage() {
       
       monthlyGroups[yearMonthKey][dataKey] += count;
       monthlyGroups[yearMonthKey].total += count;
+
+      if (dataKey === 'others') {
+        let detailsList = [];
+        if (item.details) {
+          try {
+            detailsList = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
+          } catch (e) {
+            console.error('Failed to parse details:', e);
+          }
+        }
+        if (Array.isArray(detailsList)) {
+          detailsList.forEach(det => {
+            const name = det.name || 'ไม่ระบุ';
+            const countVal = Number(det.count) || 0;
+            if (!monthlyGroups[yearMonthKey].othersBreakdown[name]) {
+              monthlyGroups[yearMonthKey].othersBreakdown[name] = 0;
+            }
+            monthlyGroups[yearMonthKey].othersBreakdown[name] += countVal;
+          });
+        }
+      }
     });
 
     return Object.values(monthlyGroups).sort((a, b) => a.key.localeCompare(b.key));
@@ -1250,14 +1336,14 @@ export default function DashboardPage() {
 
         return traps.map(trap => {
           const label = trap;
-          
           const vals = exactValues[trap] || { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
           return {
             name: label,
             flies: vals.flies,
             mosquitoes: vals.mosquitoes,
             ants: vals.ants,
-            others: vals.others
+            others: vals.others,
+            othersBreakdown: vals.others > 0 ? { 'ผีเสื้อ': Math.max(1, Math.floor(vals.others / 2)), 'แมลงสาบ': Math.max(0, Math.ceil(vals.others / 2)) } : {}
           };
         });
       }
@@ -1277,7 +1363,8 @@ export default function DashboardPage() {
           flies,
           mosquitoes,
           ants,
-          others
+          others,
+          othersBreakdown: others > 0 ? { 'ผีเสื้อ': Math.max(1, Math.floor(others / 2)), 'แมลงสาบ': Math.max(0, Math.ceil(others / 2)) } : {}
         };
       });
     }
@@ -1288,6 +1375,7 @@ export default function DashboardPage() {
       const label = trap;
 
       const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+      const othersBreakdown = {};
       
       rawData.forEach(item => {
         const date = new Date(item.inspected_at);
@@ -1301,7 +1389,27 @@ export default function DashboardPage() {
           if (type.includes('Flies')) totals.flies += count;
           else if (type.includes('Mosquitoes')) totals.mosquitoes += count;
           else if (type.includes('Ants')) totals.ants += count;
-          else totals.others += count;
+          else {
+            totals.others += count;
+            let detailsList = [];
+            if (item.details) {
+              try {
+                detailsList = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
+              } catch (e) {
+                console.error('Failed to parse details:', e);
+              }
+            }
+            if (Array.isArray(detailsList)) {
+              detailsList.forEach(det => {
+                const name = det.name || 'ไม่ระบุ';
+                const countVal = Number(det.count) || 0;
+                if (!othersBreakdown[name]) {
+                  othersBreakdown[name] = 0;
+                }
+                othersBreakdown[name] += countVal;
+              });
+            }
+          }
         }
       });
 
@@ -1310,7 +1418,8 @@ export default function DashboardPage() {
         flies: totals.flies,
         mosquitoes: totals.mosquitoes,
         ants: totals.ants,
-        others: totals.others
+        others: totals.others,
+        othersBreakdown
       };
     });
   };
@@ -2232,15 +2341,7 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#0f172a', 
-                            borderColor: '#1e293b',
-                            borderRadius: '16px',
-                            color: '#f8fafc',
-                            fontFamily: 'inherit'
-                          }} 
-                        />
+                        <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
                         <Bar dataKey="flies" name="แมลงวัน" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="flies" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
@@ -2397,15 +2498,7 @@ export default function DashboardPage() {
                                 style: { fontSize: 11, fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } 
                               }}
                             />
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: '#0f172a', 
-                                borderColor: '#1e293b',
-                                borderRadius: '16px',
-                                color: '#f8fafc',
-                                fontFamily: 'inherit'
-                              }} 
-                            />
+                            <Tooltip content={<CustomTooltip />} />
                             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                             
                             <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies}>
@@ -2602,15 +2695,7 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#0f172a', 
-                            borderColor: '#1e293b',
-                            borderRadius: '16px',
-                            color: '#f8fafc',
-                            fontFamily: 'inherit'
-                          }} 
-                        />
+                        <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
                         <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke="#3b82f6" strokeWidth={2.5} activeDot={{ r: 5 }}>
                           <LabelList dataKey="flies" position="top" style={{ fill: '#3b82f6', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />

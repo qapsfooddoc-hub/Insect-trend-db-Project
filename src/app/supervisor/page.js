@@ -84,22 +84,32 @@ function genMockTrapData(deptName, month, year) {
       '(12) ห้องช็อต/แทงคอ/ลวกซาก':                { flies: 22, mosquitoes:  43, ants: 37, others: 198 },
       '(30) ห้องแพ็คเครื่องใน/ล้างเครื่องใน':      { flies:  3, mosquitoes:   5, ants:  0, others:  14 }
     };
-    return traps.map(trap => ({
-      name: trap,
-      flies:      exactValues[trap]?.flies      || 0,
-      mosquitoes: exactValues[trap]?.mosquitoes || 0,
-      ants:       exactValues[trap]?.ants       || 0,
-      others:     exactValues[trap]?.others     || 0
-    }));
+    return traps.map(trap => {
+      const vals = exactValues[trap] || { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+      const othersVal = vals.others || 0;
+      return {
+        name: trap,
+        flies:      vals.flies,
+        mosquitoes: vals.mosquitoes,
+        ants:       vals.ants,
+        others:     othersVal,
+        othersBreakdown: othersVal > 0 ? { 'ผีเสื้อ': Math.max(1, Math.floor(othersVal / 2)), 'แมลงสาบ': Math.max(0, Math.ceil(othersVal / 2)) } : {}
+      };
+    });
   }
   return traps.map((trap, idx) => {
     const seed = idx + deptName.length + month.length + parseInt(year, 10);
+    const flies = Math.max(0, (seed % 5 === 0 ? 35 : 3)  + (seed % 3) * 3);
+    const mosquitoes = Math.max(0, (seed % 7 === 0 ? 60 : 4)  + (seed % 4) * 4);
+    const ants = Math.max(0, (seed % 6 === 0 ? 15 : 1)  + (seed % 2) * 2);
+    const othersVal = Math.max(0, (seed % 8 === 0 ? 40 : 2)  + (seed % 5) * 5);
     return {
       name: trap,
-      flies:      Math.max(0, (seed % 5 === 0 ? 35 : 3)  + (seed % 3) * 3),
-      mosquitoes: Math.max(0, (seed % 7 === 0 ? 60 : 4)  + (seed % 4) * 4),
-      ants:       Math.max(0, (seed % 6 === 0 ? 15 : 1)  + (seed % 2) * 2),
-      others:     Math.max(0, (seed % 8 === 0 ? 40 : 2)  + (seed % 5) * 5)
+      flies,
+      mosquitoes,
+      ants,
+      others:     othersVal,
+      othersBreakdown: othersVal > 0 ? { 'ผีเสื้อ': Math.max(1, Math.floor(othersVal / 2)), 'แมลงสาบ': Math.max(0, Math.ceil(othersVal / 2)) } : {}
     };
   });
 }
@@ -313,6 +323,47 @@ function RenderCustomLegend(props) {
   );
 }
 
+// Custom Tooltip component to show details of other insects (Option 1)
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-slate-900 border border-slate-800 text-slate-100 p-4 rounded-2xl shadow-xl text-xs font-sans max-w-[280px]">
+        <p className="font-extrabold text-slate-400 mb-2 border-b border-slate-850 pb-1">{label}</p>
+        <div className="space-y-1.5 font-semibold">
+          {payload.map((entry) => {
+            const isOthers = entry.dataKey === 'others';
+            const breakdown = data.othersBreakdown;
+            const hasBreakdown = isOthers && breakdown && Object.keys(breakdown).length > 0;
+            return (
+              <div key={entry.dataKey} className="flex flex-col gap-0.5">
+                <div className="flex justify-between items-center gap-6">
+                  <span className="flex items-center gap-1.5 font-bold animate-in fade-in" style={{ color: entry.color }}>
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                    {entry.name}:
+                  </span>
+                  <span className="font-extrabold font-mono text-slate-200">{entry.value} ตัว</span>
+                </div>
+                {hasBreakdown && (
+                  <div className="pl-4 text-[10px] text-slate-400 border-l border-slate-700 space-y-0.5 mt-0.5 font-bold">
+                    {Object.entries(breakdown).map(([name, count]) => (
+                      <div key={name} className="flex justify-between gap-4">
+                        <span>• {name}:</span>
+                        <span className="font-mono text-slate-300">{count} ตัว</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function SupervisorPortal() {
   const [rawData, setRawData]       = useState([]);
@@ -435,6 +486,8 @@ export default function SupervisorPortal() {
     const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
     return traps.map(trap => {
       const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+      const othersBreakdown = {};
+      
       rawData.forEach(item => {
         const d = new Date(item.inspected_at);
         if (months[d.getMonth()] !== month) return;
@@ -443,10 +496,30 @@ export default function SupervisorPortal() {
           if (t.includes('Flies')) totals.flies += c;
           else if (t.includes('Mosquitoes')) totals.mosquitoes += c;
           else if (t.includes('Ants')) totals.ants += c;
-          else totals.others += c;
+          else {
+            totals.others += c;
+            let detailsList = [];
+            if (item.details) {
+              try {
+                detailsList = typeof item.details === 'string' ? JSON.parse(item.details) : item.details;
+              } catch (e) {
+                console.error('Failed to parse details:', e);
+              }
+            }
+            if (Array.isArray(detailsList)) {
+              detailsList.forEach(det => {
+                const name = det.name || 'ไม่ระบุ';
+                const countVal = Number(det.count) || 0;
+                if (!othersBreakdown[name]) {
+                  othersBreakdown[name] = 0;
+                }
+                othersBreakdown[name] += countVal;
+              });
+            }
+          }
         }
       });
-      return { name: trap, ...totals };
+      return { name: trap, ...totals, othersBreakdown };
     });
   };
 
@@ -773,7 +846,7 @@ export default function SupervisorPortal() {
                         tick={<CustomTick />} />
                       <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} style={{ fontFamily: 'inherit' }}
                         label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } }} />
-                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '16px', color: '#f8fafc', fontFamily: 'inherit' }} />
+                      <Tooltip content={<CustomTooltip />} />
                       <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                       <Bar dataKey="flies"      name="แมลงวัน" fill={INSECT_CHART_COLORS.flies}>
                         <LabelList dataKey="flies"      position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />

@@ -32,13 +32,12 @@ export async function POST(request) {
         const countValue = parseInt(row[type], 10);
         const count = isNaN(countValue) ? 0 : Math.max(0, countValue);
         
-        // We only insert if the count is greater than 0 to save space, or insert everything to maintain a full history.
-        // Let's insert all to make sure reporting gets zero counts too.
         records.push({
           inspected_at: weekDate,
           area: areaName,
           insect_type: insectDisplayNames[type] || type,
-          count: count
+          count: count,
+          details: type === 'others' ? (row.othersDetails || []) : null
         });
       }
     }
@@ -151,6 +150,10 @@ function generateMockData() {
           area,
           insect_type: insect,
           count,
+          details: insect.includes('Others') ? [
+            { name: 'ผีเสื้อ', count: Math.max(1, Math.floor(count / 2)) },
+            { name: 'แมลงสาบ', count: Math.max(0, Math.ceil(count / 2)) }
+          ] : null,
           created_at: new Date().toISOString()
         });
       });

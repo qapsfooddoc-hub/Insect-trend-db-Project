@@ -267,7 +267,14 @@ export default function InspectionPage() {
       const res = await fetch('/api/insect-types');
       const result = await res.json();
       if (res.ok && result.data) {
-        setCustomInsectTypes(result.data.map(item => item.name));
+        const excluded = ['flies', 'mosquitoes', 'ants', 'others', 'other', 'แมลงวัน', 'ยุง', 'มด', 'แมลงอื่นๆ'];
+        const filtered = result.data
+          .map(item => item.name)
+          .filter(name => {
+            const lowerName = name.toLowerCase();
+            return !excluded.some(ex => lowerName.includes(ex));
+          });
+        setCustomInsectTypes(filtered);
       }
     } catch (error) {
       console.error('Error fetching custom insect types:', error);
