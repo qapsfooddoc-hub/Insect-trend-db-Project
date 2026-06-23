@@ -54,7 +54,7 @@ export default function Navbar() {
             🐜
           </div>
           <div>
-            <h2 className="text-base font-extrabold text-slate-900 dark:text-white">รายงานการตรวจนับจำนวนแมลง</h2>
+            <h2 className="text-base font-extrabold text-slate-900 dark:text-white whitespace-nowrap">รายงานการตรวจนับจำนวนแมลง</h2>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
               บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด
             </p>

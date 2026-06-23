@@ -132,10 +132,7 @@ const DEPTS_LIST = Object.keys(DEPT_CONFIGS);
 const DEFAULT_INSECT_TYPES = ['ผีเสื้อ', 'แมลงหวี่', 'แมลงสาบ'];
 
 export default function InspectionPage() {
-  const [weekDate, setWeekDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [weekDate, setWeekDate] = useState('');
   const [rows, setRows] = useState([]);
   const [role, setRole] = useState('operator'); // 'operator' or 'admin'
   const [currentUser, setCurrentUser] = useState(null);
@@ -212,12 +209,16 @@ export default function InspectionPage() {
   };
 
   const isAutoApprovedDate = (dateStr) => {
-    return new Date(dateStr) < new Date('2026-06-01');
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    return d < new Date('2026-06-01');
   };
 
   const getThaiMonthName = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
     const months = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
@@ -537,6 +538,11 @@ export default function InspectionPage() {
 
   // Save weekly checklist
   const handleSubmit = async () => {
+    if (!weekDate) {
+      showNotification('error', 'กรุณาเลือกวันที่ตรวจนับก่อนทำการบันทึกข้อมูล');
+      showWarningDialog('กรุณาเลือกวันที่', 'กรุณาระบุวันที่ทำการตรวจนับก่อนบันทึกข้อมูล');
+      return;
+    }
     const emptyAreas = rows.some(r => !r.area.trim());
     if (emptyAreas) {
       showNotification('error', 'กรุณาระบุชื่อตำแหน่งเครื่องดักแมลงให้ครบถ้วนก่อนบันทึก');
@@ -623,6 +629,7 @@ export default function InspectionPage() {
               othersDetails: []
             }));
             setRows(cleared);
+            setWeekDate('');
           }
         );
       } else {
@@ -725,7 +732,7 @@ export default function InspectionPage() {
             {/* Navigation & Header */}
             <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white whitespace-nowrap">
                   รายงานการตรวจนับจำนวนแมลง
                 </h1>
               </div>
@@ -754,7 +761,13 @@ export default function InspectionPage() {
                 value={weekDate}
                 onChange={(e) => setWeekDate(e.target.value)}
                 className="bg-transparent text-xs font-bold text-slate-850 dark:text-slate-100 focus:outline-none"
+                required
               />
+              {weekDate && (
+                <span className="text-xs font-extrabold text-indigo-650 dark:text-indigo-400 ml-2 whitespace-nowrap">
+                  ({weekDate.split('-').reverse().join('/')})
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -791,12 +804,12 @@ export default function InspectionPage() {
         )}
 
         {/* Month Completeness Check Panel */}
-        {mounted && !isAutoApprovedDate(weekDate) && (
+        {mounted && weekDate && !isAutoApprovedDate(weekDate) && (
           <div className="mb-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div className="space-y-1">
               <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                 <Sparkles className="w-4.5 h-4.5 text-blue-500 flex-shrink-0" />
-                <span>ตรวจสอบความครบถ้วนประจำเดือน: {getThaiMonthName(weekDate)} {parseInt(new Date(weekDate).getFullYear()) + 543}</span>
+                <span>ตรวจสอบความครบถ้วนประจำเดือน: {weekDate ? `${getThaiMonthName(weekDate)} ${parseInt(new Date(weekDate).getFullYear()) + 543}` : '(กรุณาเลือกวันที่ตรวจนับ)'}</span>
               </h3>
               <p className="text-[10px] text-slate-450 dark:text-slate-400 font-bold">
                 เดือนนี้ต้องการข้อมูลทั้งหมด {completeness.requiredWeeks} สัปดาห์ (สถานะปัจจุบัน: <span className={`font-black px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-wider ${
@@ -840,7 +853,7 @@ export default function InspectionPage() {
         )}
 
         {/* Auto-approved historical message banner */}
-        {mounted && isAutoApprovedDate(weekDate) && (
+        {mounted && weekDate && isAutoApprovedDate(weekDate) && (
           <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-3xl flex items-center gap-2 text-xs font-bold shadow-sm">
             <span>✅</span>
             <p>ข้อมูลนี้เป็นข้อมูลย้อนหลัง (Auto-Approved) ข้อมูลถูกอนุมัติและปล่อยไปพล็อตบนหน้าแดชบอร์ดหลักแล้วเรียบร้อย</p>

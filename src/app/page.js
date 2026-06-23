@@ -1424,28 +1424,109 @@ export default function DashboardPage() {
     });
   };
 
-  // --- TAB 2: DETAILED QA COMPLIANCE NARRATIVE REPORT ---
   const getDeptAnalysisReport = (deptName, month, yearBe) => {
     const yearText = `${yearBe}`;
+    const chartData = getDepartmentDetailedData(deptName, month, selectedYear);
+    if (!chartData || chartData.length === 0) {
+      return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} ไม่พบข้อมูลสถิติในระบบ`;
+    }
+    
+    let maxFliesVal = -1, maxFliesTrap = '';
+    let maxMosquitoesVal = -1, maxMosquitoesTrap = '';
+    let maxAntsVal = -1, maxAntsTrap = '';
+    let maxOthersVal = -1, maxOthersTrap = '';
+    
+    let totalFlies = 0, totalMosquitoes = 0, totalAnts = 0, totalOthers = 0;
+    
+    chartData.forEach(item => {
+      const flies = Number(item.flies) || 0;
+      const mosquitoes = Number(item.mosquitoes) || 0;
+      const ants = Number(item.ants) || 0;
+      const others = Number(item.others) || 0;
+      
+      totalFlies += flies;
+      totalMosquitoes += mosquitoes;
+      totalAnts += ants;
+      totalOthers += others;
+      
+      if (flies > maxFliesVal) { maxFliesVal = flies; maxFliesTrap = item.name; }
+      if (mosquitoes > maxMosquitoesVal) { maxMosquitoesVal = mosquitoes; maxMosquitoesTrap = item.name; }
+      if (ants > maxAntsVal) { maxAntsVal = ants; maxAntsTrap = item.name; }
+      if (others > maxOthersVal) { maxOthersVal = others; maxOthersTrap = item.name; }
+    });
+    
+    const cleanTrap = (name) => {
+      if (!name) return '-';
+      return name.replace(/.*:\s*/, '');
+    };
+    
+    const trapF = cleanTrap(maxFliesTrap);
+    const trapM = cleanTrap(maxMosquitoesTrap);
+    const trapA = cleanTrap(maxAntsTrap);
+    const trapO = cleanTrap(maxOthersTrap);
+    
+    let insectSummary = '';
+    if (maxFliesVal > 0) {
+      insectSummary += `เครื่องดักแมลงหมายเลข ${trapF} พบแมลงวันติดมากที่สุด (${maxFliesVal} ตัว) `;
+    } else {
+      insectSummary += `ไม่พบแมลงวันในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+    }
+    
+    if (maxMosquitoesVal > 0) {
+      insectSummary += `เครื่องดักแมลงหมายเลข ${trapM} พบยุงติดมากที่สุด (${maxMosquitoesVal} ตัว) `;
+    } else {
+      insectSummary += `ไม่พบยุงในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+    }
+    
+    if (maxAntsVal > 0 || maxOthersVal > 0) {
+      const parts = [];
+      if (maxAntsVal > 0) parts.push(`มดในเครื่องดักหมายเลข ${trapA} (${maxAntsVal} ตัว)`);
+      if (maxOthersVal > 0) parts.push(`แมลงอื่นๆ ในเครื่องดักหมายเลข ${trapO} (${maxOthersVal} ตัว)`);
+      insectSummary += `และตรวจพบ ${parts.join(' และ')} ติดสะสมนำโดดเด่นตามลำดับ`;
+    } else {
+      insectSummary += `และไม่พบมดหรือแมลงอื่นๆ ติดสะสม`;
+    }
+    
+    let rootCause = '';
+    if (deptName === 'โรงฆ่า') {
+      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูดแมลงวันและแมลงอื่นๆ`;
+    } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
+      rootCause = `เนื่องจากพื้นที่เชื่อมต่อโดยตรงกับบริเวณลานโหลดสินค้าภายนอกอาคารโรงงาน ซึ่งมีการเปิด-ปิดประตูลานโหลดสินค้าและม่านริ้วพลาสติกเป็นประจำในจังหวะเทียบรถขนส่ง ทำให้แมลงจากภายนอกบินเข้ามาได้ง่าย`;
+    } else if (deptName === 'หมูบด') {
+      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูดมดเข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
+    } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
+      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ยุงและแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
+    } else {
+      rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและรถขนถ่ายตะกร้า/อุปกรณ์การผลิตอย่างต่อเนื่องระหว่างวันทำงาน`;
+    }
+    
+    let recommendations = '';
+    const zeroKeywords = [];
+    if (totalFlies === 0) zeroKeywords.push('แมลงวัน');
+    if (totalMosquitoes === 0) zeroKeywords.push('ยุง');
+    if (totalAnts === 0) zeroKeywords.push('มด');
+    if (totalOthers === 0) zeroKeywords.push('แมลงอื่นๆ');
+    
+    let zeroPhrase = '';
+    if (zeroKeywords.length > 0) {
+      zeroPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroKeywords.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
+    }
     
     if (deptName === 'โรงฆ่า') {
-      return `จากการตรวจนับจำนวนแมลง ของทีมโรงฆ่า ประจำเดือน ${month} ${yearText} พบว่า เครื่องดักแมลงหมายเลข 07 (ลานโหลดสินค้าหน้าร้าน) พบแมลงวันติดมากที่สุด เครื่องดักแมลง 10 (ลานโหลดสินค้าห้องเลือด) พบยุงติดมากที่สุด เครื่องดักแมลงหมายเลข 12 (ห้องช็อต/แทงคอ/ลวกซาก) พบมดและแมลงอื่น ๆ ติดมากที่สุด อาจเนื่องมาจากเครื่องหมายเลข 10 ติดตั้งอยู่ในจุดที่ใกล้ลานโหลดสินค้า ซึ่งมีการเปิดปิดประตูเป็นประจำ จึงทำให้พบแมลงวันและแมลงอื่น ๆ มากกว่าบริเวณอื่น ดังนั้นควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้ง ภายหลังจากการใช้งาน เพื่อป้องกัน`;
+      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${zeroPhrase}`;
+    } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
+      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${zeroPhrase}`;
+    } else if (deptName === 'หมูบด') {
+      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${zeroPhrase}`;
+    } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
+      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${zeroPhrase}`;
+    } else {
+      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${zeroPhrase}`;
     }
     
-    if (deptName === 'หน้าร้านใหม่') {
-      return `จากการตรวจนับจำนวนแมลง ของทีมหน้าร้านใหม่ ประจำเดือน ${month} ${yearText} พบว่า เครื่องดักแมลงหมายเลข 07 (ลานโหลดสินค้าหน้าร้าน) พบสถิติจำนวนแมลงวันสะสมเฉลี่ยในเกณฑ์เฝ้าระวัง เนื่องจากตั้งอยู่ในทำเลเชื่อมต่อโดยตรงกับภายนอกอาคารโรงงาน สำหรับแมลงปีกแข็งอื่น ๆ มีแนวโน้มทรงตัวเมื่อเทียบกับเดือนก่อนหน้า ข้อเสนอแนะเบื้องต้น: กำชับให้พนักงานขนส่งรูดปิดม่านริ้วพลาสติกทุกครั้งที่รถเทียบเสร็จสิ้น และทำความสะอาดคราบน้ำหวานบริเวณพื้นลานโหลดสินค้า`;
-    }
-
-    if (deptName === 'หมูบด') {
-      return `จากการตรวจนับจำนวนแมลง ของทีมหมูบด ประจำเดือน ${month} ${yearText} พบว่า เครื่องดักแมลงหมายเลข 17 และ 18 (บริเวณทางเข้า-ออก และเครื่องบดหมู) มีดัชนีสะสมของมดสูงขึ้นผิดปกติ คาดว่าเกิดจากเศษผลิตภัณฑ์บดละเอียดสะสมใต้โครงแท่นเครื่องจักรและกล่องควบคุมระบบไฟ แนะนำให้ประสานงานล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้น้ำร้อนพ่นขจัดคราบไขมัน และสุ่มตรวจความสะอาดซอกอับทุกสัปดาห์`;
-    }
-    
-    if (deptName === 'Slice ผลิต') {
-      return `จากการตรวจนับจำนวนแมลง ของทีม Slice ผลิต ประจำเดือน ${month} ${yearText} พบสถิติดัชนีตรวจจับยุงปะปนบริเวณเครื่องดักหมายเลข 22 และ 23 (ทางเข้า-ออก ฝั่ง Chill 3) สูงกว่าเกณฑ์เฝ้าระวังเล็กน้อย คาดว่าเกิดจากการเสื่อมสภาพของม่านริ้วพลาสติกที่เริ่มบิดเบี้ยว ทำให้ยุงจากโถงทางเดินเล็ดลอดเข้ามา แนะนำให้ซ่อมบำรุงเปลี่ยนม่านริ้วพลาสติกที่บิดงอ และทำความสะอาดคราบน้ำขังในท่อระบายน้ำทิ้ง`;
-    }
-
-    return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} พบว่า ดัชนีภาพรวมของแมลงวัน ยุง มด และแมลงอื่น ๆ อยู่ในเกณฑ์มาตรฐานปลอดภัย (Safe Zone) ไม่พบจุดสะสมวิกฤตที่มีนัยสำคัญ อย่างไรก็ดี แนะนำให้รักษามาตรฐานการทำความสะอาดตามเกณฑ์ GMP/HACCP โดยเน้นตรวจสอบระบบปิดประตูอัตโนมัติ และสลับสีกระดาษกาวดักจับตามวงรอบที่ระบุในแผนงานหลัก`;
+    return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
   };
+
 
   // --- TAB 3: TRAP TREND LINE CHART (ignores Tab 1 Month Selector) ---
   const getDeviceFilteredData = () => {
@@ -2343,16 +2424,16 @@ export default function DashboardPage() {
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
-                        <Bar dataKey="flies" name="แมลงวัน" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="flies" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="mosquitoes" name="ยุง" fill="#06b6d4" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="ants" name="มด" fill="#f59e0b" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="ants" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="others" name="แมลงอื่นๆ" fill="#a1a1aa" radius={[4, 4, 0, 0]}>
+                        <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} radius={[4, 4, 0, 0]}>
                           <LabelList dataKey="others" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
                       </BarChart>
@@ -2697,17 +2778,17 @@ export default function DashboardPage() {
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
-                        <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke="#3b82f6" strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="flies" position="top" style={{ fill: '#3b82f6', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={2.5} activeDot={{ r: 5 }}>
+                          <LabelList dataKey="flies" position="top" style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke="#06b6d4" strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#06b6d4', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={2.5} activeDot={{ r: 5 }}>
+                          <LabelList dataKey="mosquitoes" position="top" style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="ants" name="มด" stroke="#f59e0b" strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="ants" position="top" style={{ fill: '#f59e0b', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={2.5} activeDot={{ r: 5 }}>
+                          <LabelList dataKey="ants" position="top" style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke="#a1a1aa" strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="others" position="top" style={{ fill: '#71717a', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={2.5} activeDot={{ r: 5 }}>
+                          <LabelList dataKey="others" position="top" style={{ fill: INSECT_CHART_COLORS.others, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>
