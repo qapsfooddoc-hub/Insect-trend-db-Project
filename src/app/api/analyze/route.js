@@ -338,10 +338,10 @@ ${Object.entries(DEPT_SPECIAL_CONTEXTS).map(([d, ctx]) => `- แผนก **${d}
         isAiGenerated = true;
       } catch (geminiError) {
         console.error('Gemini API call failed, falling back to local summary:', geminiError);
-        reportText = generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown);
+        reportText = generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown, summaryByDept);
       }
     } else {
-      reportText = generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown);
+      reportText = generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown, summaryByDept);
     }
 
     return NextResponse.json({
@@ -360,17 +360,55 @@ ${Object.entries(DEPT_SPECIAL_CONTEXTS).map(([d, ctx]) => `- แผนก **${d}
 }
 
 // Generate matching local report if API is offline
-function generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown = {}) {
+function generateLocalSummary(deptName, month, year, summaryByType, summaryByTrap, othersBreakdown = {}, summaryByDept = {}) {
   const beYear = parseInt(year, 10) + 543;
   const yearText = `${beYear}`;
   
   if (deptName === 'ALL') {
+    // 1. Find the highest insect type
+    let maxInsectType = 'แมลงวัน';
+    let maxInsectCount = -1;
+    const insectNameMapping = {
+      'Flies (แมลงวัน)': 'แมลงวัน',
+      'Mosquitoes (ยุง)': 'ยุง',
+      'Ants (มด)': 'มด',
+      'Others (แมลงอื่นๆ)': 'แมลงอื่นๆ'
+    };
+    Object.entries(summaryByType || {}).forEach(([type, count]) => {
+      if (count > maxInsectCount) {
+        maxInsectCount = count;
+        maxInsectType = insectNameMapping[type] || type;
+      }
+    });
+
+    // 2. Find the department with the highest insect count
+    let maxDeptName = 'หน้าร้านใหม่';
+    let maxDeptCount = -1;
+    Object.entries(summaryByDept || {}).forEach(([dept, count]) => {
+      if (count > maxDeptCount) {
+        maxDeptCount = count;
+        maxDeptName = dept;
+      }
+    });
+
+    // 3. Department specific warning context for the highest department
+    const DEPT_SPECIAL_CONTEXTS = {
+      'หน้าร้านใหม่': 'มีประตูเปิด-ปิดบ่อยรับสินค้าจากภายนอก— เสี่ยงแมลงจากภายนอก แนะนำให้ตรวจม่าน ปิดม่านพลาสติกทุกครั้ง',
+      'โรงฆ่า': 'ควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ปิดม่านประตูทุกครั้ง ภายหลังการใช้งาน และทำความสะอาดห้องน้ำไม่ให้มีน้ำขังเพื่อป้องกันไม่ให้แมลงบินเข้าสู่พื้นที่ผลิต',
+      'ตัดแต่ง': 'ควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ และปิดม่านประตูทุกครั้งภายหลังการใช้งาน',
+      'โหลด': 'ซึ่งติดตั้งใกล้จุดลานโหลดสินค้าที่มีการเปิด-ปิดประตูเป็นประจำ แนะนำให้ระมัดระวังปิดม่านและประตูทุกครั้ง',
+      'โหลด เฟส 5': 'ซึ่งติดตั้งใกล้จุดลานโหลดสินค้าที่มีการเปิด-ปิดประตูเป็นประจำ แนะนำให้ระมัดระวังปิดม่านและประตูทุกครั้ง',
+      'เฟส 6': 'ซึ่งติดตั้งใกล้จุดลานโหลดสินค้าที่มีการเปิด-ปิดประตูเป็นประจำ แนะนำให้ระมัดระวังปิดม่านและประตูทุกครั้ง'
+    };
+    
+    const warningText = DEPT_SPECIAL_CONTEXTS[maxDeptName] || `ควรหมั่นตรวจสอบความพร้อมของม่านประตูและสุขอนามัยในพื้นที่สม่ำเสมอ`;
+
     return `### 📊 รายงานวิเคราะห์แนวโน้มแมลงในภาพรวมโรงงาน (ระบบประมวลผลภายใน)
 
 จากการประมวลผลข้อมูลรอบเวลา ${month !== 'ALL' ? `เดือน ${month}` : 'ประจำปี'} ${yearText} พบข้อสังเกตและแนวทางแก้ไขด้านสุขาภิบาลดังนี้:
 
-*   **วิเคราะห์แนวโน้มภาพรวม:** ชนิดแมลงที่ตรวจพบสะสมสูงที่สุดคือ **แมลงวัน** และจุดที่มีระดับตรวจจับสะสมนำโดดเด่นคือโซนด้านนอกอาคารลานโหลดสินค้า
-*   **แผนกเฝ้าระวัง:** แผนก **หน้าร้านใหม่** มีประตูเปิด-ปิดบ่อยรับสินค้าจากภายนอก— เสี่ยงแมลงจากภายนอก แนะนำให้ตรวจม่าน ปิดม่านพลาสติกทุกครั้ง
+*   **วิเคราะห์แนวโน้มภาพรวม:** ชนิดแมลงที่ตรวจพบสะสมสูงที่สุดคือ **${maxInsectType}** และจุดที่มีระดับตรวจจับสะสมนำโดดเด่นคือแผนก **${maxDeptName}**
+*   **แผนกเฝ้าระวัง:** แผนก **${maxDeptName}** ซึ่ง${warningText}
 *   **มาตรการแนะนำ:** ดังนั้นควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้ง ภายหลังจากใช้งาน เพื่อป้องกันไม่ให้แมลงบินต่างๆ บินเข้าสู่พื้นที่การผลิตได้`;
   }
   
