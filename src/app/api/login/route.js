@@ -18,7 +18,7 @@ export async function POST(request) {
       const mockUsers = [
         { id: 'mock-12', full_name: 'แอดมิน สูงสุด', username: 'admin', password: 'adminpassword', role: 'Admin', department: 'ไอที' },
         { id: 'mock-1', full_name: 'สมชาย รักดี', username: 'emp001', password: 'password123', role: 'Department Supervisor', department: 'หน้าร้านใหม่' },
-        { id: 'mock-13', full_name: 'สมบัติ ใจดี', username: 'emp013', password: 'password123', role: 'Operator', department: 'โหลด' },
+        { id: 'mock-13', full_name: 'สมบัติ ใจดี', username: 'emp013', password: 'password123', role: 'Operator', department: 'โหลด เฟส 5' },
         { id: 'mock-11', full_name: 'สมศรี มีสุข', username: 'emp011', password: 'password123', role: 'QA Manager', department: 'ฝ่ายประกันคุณภาพระบบ' }
       ];
       const found = mockUsers.find(u => u.username === username && u.password === password);

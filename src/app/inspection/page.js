@@ -26,10 +26,10 @@ const INITIAL_AREAS = [
   { dept: 'ตัดแต่ง', area: '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   { dept: 'ตัดแต่ง', area: '(31) ห้องล้างมัน/คัดแยกเศษ', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   
-  // โหลด (สีเหลืองทองสว่าง)
-  { dept: 'โหลด', area: '(01) ลานโหลดของตัดแต่งและ Makro', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
-  { dept: 'โหลด', area: '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
-  { dept: 'โหลด', area: '(06) ลานโหลดของตัดแต่งและ Makro', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
+  // โหลด เฟส 5 (สีเหลืองทองสว่าง)
+  { dept: 'โหลด เฟส 5', area: '(01) ลานโหลดของตัดแต่งและ Makro', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
+  { dept: 'โหลด เฟส 5', area: '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
+  { dept: 'โหลด เฟส 5', area: '(06) ลานโหลดของตัดแต่งและ Makro', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   
   // เฟส 6 (สีส้มสว่าง)
   { dept: 'เฟส 6', area: '(13) ห้อง Pack A บริเวณหน้าประตูทางเชื่อมอาคาร', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
@@ -83,7 +83,7 @@ const DEPT_CONFIGS = {
     borderStrip: 'border-l-lime-400',
     badge: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-300 border border-lime-200 dark:border-lime-900'
   },
-  'โหลด': {
+  'โหลด เฟส 5': {
     bg: 'bg-amber-50/30 dark:bg-amber-950/5 hover:bg-amber-100/20 dark:hover:bg-amber-950/10',
     border: 'border-l-4 border-l-amber-450',
     borderStrip: 'border-l-amber-450',
@@ -584,7 +584,7 @@ export default function InspectionPage() {
             localStorage.setItem(statusKey, 'Approved');
             // Auto approve supervisor stamps for all depts
             const deptsList = [
-              'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6', 
+              'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
               'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
             ];
             const timestampStr = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });

@@ -16,29 +16,58 @@ import {
 function parseArea(areaString) {
   if (!areaString) return { dept: 'อื่นๆ', location: '-' };
   
+  let deptResult = 'อื่นๆ';
+  let locationResult = areaString;
+
   if (areaString.includes(': ')) {
     const parts = areaString.split(': ');
-    return { dept: parts[0], location: parts[1] };
-  }
-  
-  const depts = [
-    'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6', 
-    'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
-  ];
-  for (const d of depts) {
-    if (areaString.startsWith(d)) {
-      return { 
-        dept: d, 
-        location: areaString.replace(d, '').replace(/^\s*[:\-]\s*/, '').trim() 
-      };
+    deptResult = parts[0];
+    locationResult = parts[1];
+  } else {
+    // Fallback check if it starts with department keywords
+    const depts = [
+      'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'โหลด', 'เฟส 6', 
+      'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
+    ];
+    for (const d of depts) {
+      if (areaString.startsWith(d)) {
+        deptResult = d;
+        locationResult = areaString.replace(d, '').replace(/^\s*[:\-]\s*/, '').trim();
+        break;
+      }
     }
   }
-  
-  return { dept: 'อื่นๆ', location: areaString };
+
+  // Normalize "โหลด" to "โหลด เฟส 5"
+  if (deptResult === 'โหลด') {
+    deptResult = 'โหลด เฟส 5';
+  }
+
+  return { dept: deptResult, location: locationResult };
 }
 
+// Custom Label List Renderer to force display of 0 values
+const renderCustomLabel = (fillColor = '#475569', fontSize = 9) => (props) => {
+  const { x, y, width, value } = props;
+  if (value === undefined || value === null) return null;
+  return (
+    <text
+      x={x + (width || 0) / 2}
+      y={y - 6}
+      fill={fillColor}
+      textAnchor="middle"
+      dominantBaseline="middle"
+      fontSize={fontSize}
+      fontWeight="bold"
+      style={{ fontFamily: 'inherit' }}
+    >
+      {value}
+    </text>
+  );
+};
+
 const DEPTS_LIST = [
-  'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6', 
+  'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
   'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
 ];
 
@@ -47,7 +76,7 @@ const DEPT_COLORS = {
   'หน้าร้านใหม่': '#60a5fa',  // สีฟ้าพาสเทล
   'โรงฆ่า': '#fb923c',      // สีส้มพาสเทล
   'ตัดแต่ง': '#4ade80',      // สีเขียวพาสเทล
-  'โหลด': '#f472b6',       // สีชมพูพาสเทล
+  'โหลด เฟส 5': '#f472b6',   // สีชมพูพาสเทล
   'เฟส 6': '#c084fc',      // สีม่วงพาสเทล
   'คลัง3': '#fbbf24',      // สีเหลืองครีมพาสเทล
   'หมูบด': '#f87171',      // สีแดงพาสเทล
@@ -61,7 +90,7 @@ const DEPT_DARK_COLORS = {
   'หน้าร้านใหม่': '#2563eb',  // Deep Blue
   'โรงฆ่า': '#ea580c',      // Deep Orange
   'ตัดแต่ง': '#16a34a',      // Deep Green
-  'โหลด': '#db2777',       // Deep Pink
+  'โหลด เฟส 5': '#db2777',   // Deep Pink
   'เฟส 6': '#9333ea',      // Deep Purple
   'คลัง3': '#d97706',      // Deep Amber/Brown
   'หมูบด': '#dc2626',      // Deep Red
@@ -90,7 +119,7 @@ const DEPT_CONFIGS = {
     badge: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
     colors: ['#34d399', '#6ee7b7', '#10b981', '#047857']
   },
-  'โหลด': {
+  'โหลด เฟส 5': {
     border: 'border-pink-200 dark:border-pink-900/50',
     bg: 'bg-pink-50/20 dark:bg-pink-950/10',
     badge: 'bg-pink-100 text-pink-855 dark:bg-pink-900/40 dark:text-pink-300',
@@ -187,7 +216,7 @@ const DEPT_TRAPS_MAPPING = {
     '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง',
     '(31) ห้องล้างมัน/คัดแยกเศษ'
   ],
-  'โหลด': [
+  'โหลด เฟส 5': [
     '(01) ลานโหลดของตัดแต่งและ Makro',
     '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง',
     '(06) ลานโหลดของตัดแต่งและ Makro'
@@ -439,7 +468,11 @@ export default function DashboardPage() {
       const saved = localStorage.getItem('currentSimulatedUser');
       if (saved) {
         try {
-          setCurrentUser(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (parsed.department === 'โหลด') {
+            parsed.department = 'โหลด เฟส 5';
+          }
+          setCurrentUser(parsed);
         } catch (e) {}
       } else {
         setCurrentUser(null);
@@ -832,16 +865,16 @@ export default function DashboardPage() {
             <Tooltip />
             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
             <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
-              <LabelList dataKey="flies" position="top" style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+              <LabelList dataKey="flies" content={renderCustomLabel('#475569', 8)} />
             </Bar>
             <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
-              <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+              <LabelList dataKey="mosquitoes" content={renderCustomLabel('#475569', 8)} />
             </Bar>
             <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
-              <LabelList dataKey="ants" position="top" style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+              <LabelList dataKey="ants" content={renderCustomLabel('#475569', 8)} />
             </Bar>
             <Bar dataKey="others" name="อื่นๆ" fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
-              <LabelList dataKey="others" position="top" style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+              <LabelList dataKey="others" content={renderCustomLabel('#475569', 8)} />
             </Bar>
           </BarChart>
         </div>
@@ -1011,16 +1044,16 @@ export default function DashboardPage() {
                       ]}
                     />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
-                      <LabelList dataKey="flies" position="top" style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 7, fontWeight: 'bold' }} />
+                      <LabelList dataKey="flies" content={renderCustomLabel(INSECT_CHART_COLORS.flies, 7)} />
                     </Line>
                     <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.mosquitoes }} isAnimationActive={false}>
-                      <LabelList dataKey="mosquitoes" position="top" style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 7, fontWeight: 'bold' }} />
+                      <LabelList dataKey="mosquitoes" content={renderCustomLabel(INSECT_CHART_COLORS.mosquitoes, 7)} />
                     </Line>
                     <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.ants }} isAnimationActive={false}>
-                      <LabelList dataKey="ants" position="top" style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 7, fontWeight: 'bold' }} />
+                      <LabelList dataKey="ants" content={renderCustomLabel(INSECT_CHART_COLORS.ants, 7)} />
                     </Line>
                     <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.others }} isAnimationActive={false}>
-                      <LabelList dataKey="others" position="top" style={{ fill: INSECT_CHART_COLORS.others, fontSize: 7, fontWeight: 'bold' }} />
+                      <LabelList dataKey="others" content={renderCustomLabel(INSECT_CHART_COLORS.others, 7)} />
                     </Line>
                   </LineChart>
                 </div>
@@ -2575,16 +2608,16 @@ export default function DashboardPage() {
                           ]}
                         />
                         <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                          <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="flies" content={renderCustomLabel('#475569', 9)} />
                         </Bar>
                         <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                          <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="mosquitoes" content={renderCustomLabel('#475569', 9)} />
                         </Bar>
                         <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                          <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="ants" content={renderCustomLabel('#475569', 9)} />
                         </Bar>
                         <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} radius={[4, 4, 0, 0]} isAnimationActive={false}>
-                          <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="others" content={renderCustomLabel('#475569', 9)} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -2773,16 +2806,16 @@ export default function DashboardPage() {
                             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                             
                             <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
-                              <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                              <LabelList dataKey="flies" content={renderCustomLabel('#475569', 9)} />
                             </Bar>
                             <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
-                              <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                              <LabelList dataKey="mosquitoes" content={renderCustomLabel('#475569', 9)} />
                             </Bar>
                             <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
-                              <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                              <LabelList dataKey="ants" content={renderCustomLabel('#475569', 9)} />
                             </Bar>
                             <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
-                              <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                              <LabelList dataKey="others" content={renderCustomLabel('#475569', 9)} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -3026,16 +3059,16 @@ export default function DashboardPage() {
                           ]}
                         />
                         <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
-                          <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="flies" content={renderCustomLabel(INSECT_CHART_COLORS.flies, 9)} />
                         </Line>
                         <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
-                          <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="mosquitoes" content={renderCustomLabel(INSECT_CHART_COLORS.mosquitoes, 9)} />
                         </Line>
                         <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
-                          <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="ants" content={renderCustomLabel(INSECT_CHART_COLORS.ants, 9)} />
                         </Line>
                         <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
-                          <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                          <LabelList dataKey="others" content={renderCustomLabel(INSECT_CHART_COLORS.others, 9)} />
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>

@@ -11,26 +11,34 @@ const genAI = hasGeminiKey ? new GoogleGenerativeAI(apiKey) : null;
 function parseArea(areaString) {
   if (!areaString) return { dept: 'อื่นๆ', location: '-' };
   
+  let deptResult = 'อื่นๆ';
+  let locationResult = areaString;
+
   if (areaString.includes(': ')) {
     const parts = areaString.split(': ');
-    return { dept: parts[0], location: parts[1] };
-  }
-  
-  // Fallback check if it starts with department keywords
-  const depts = [
-    'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6', 
-    'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
-  ];
-  for (const d of depts) {
-    if (areaString.startsWith(d)) {
-      return { 
-        dept: d, 
-        location: areaString.replace(d, '').replace(/^\s*[:\-]\s*/, '').trim() 
-      };
+    deptResult = parts[0];
+    locationResult = parts[1];
+  } else {
+    // Fallback check if it starts with department keywords
+    const depts = [
+      'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'โหลด', 'เฟส 6', 
+      'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
+    ];
+    for (const d of depts) {
+      if (areaString.startsWith(d)) {
+        deptResult = d;
+        locationResult = areaString.replace(d, '').replace(/^\s*[:\-]\s*/, '').trim();
+        break;
+      }
     }
   }
-  
-  return { dept: 'อื่นๆ', location: areaString };
+
+  // Normalize "โหลด" to "โหลด เฟส 5"
+  if (deptResult === 'โหลด') {
+    deptResult = 'โหลด เฟส 5';
+  }
+
+  return { dept: deptResult, location: locationResult };
 }
 
 export async function POST(request) {
@@ -443,7 +451,7 @@ function generateLocalSummary(deptName, month, year, summaryByType, summaryByTra
       rootCause = `เนื่องจากมีประตูเปิด-ปิดบ่อยรับสินค้าจากภายนอก— เสี่ยงแมลงจากภายนอก`;
     } else if (deptName === 'ตัดแต่ง') {
       rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานอย่างต่อเนื่อง`;
-    } else if (deptName === 'โหลด' || deptName === 'เฟส 6') {
+    } else if (deptName === 'โหลด' || deptName === 'เฟส 6' || deptName === 'โหลด เฟส 5') {
       rootCause = `เนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิด-ปิด ประตูเป็นประจำ`;
     } else {
       rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและวัตถุดิบเป็นระยะ`;
@@ -513,7 +521,7 @@ function generateLocalSummary(deptName, month, year, summaryByType, summaryByTra
 function generateMockDataForAnalysis() {
   const data = [];
   const depts = [
-    'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6', 
+    'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
     'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
   ];
   const insects = ['Flies (แมลงวัน)', 'Mosquitoes (ยุง)', 'Ants (มด)', 'Others (แมลงอื่นๆ)'];

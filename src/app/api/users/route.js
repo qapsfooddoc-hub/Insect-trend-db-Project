@@ -36,7 +36,7 @@ const DEFAULT_MOCK_USERS = [
     username: 'emp004',
     password: 'password123',
     role: 'Department Supervisor',
-    department: 'โหลด',
+    department: 'โหลด เฟส 5',
     created_at: new Date().toISOString()
   },
   {
@@ -117,7 +117,7 @@ const DEFAULT_MOCK_USERS = [
     username: 'emp013',
     password: 'password123',
     role: 'Operator',
-    department: 'โหลด',
+    department: 'โหลด เฟส 5',
     created_at: new Date().toISOString()
   }
 ];

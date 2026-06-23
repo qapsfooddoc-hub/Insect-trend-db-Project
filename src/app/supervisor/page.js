@@ -8,9 +8,29 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, LabelList
 } from 'recharts';
 
+// Custom Label List Renderer to force display of 0 values
+const renderCustomLabel = (fillColor = '#475569', fontSize = 9) => (props) => {
+  const { x, y, width, value } = props;
+  if (value === undefined || value === null) return null;
+  return (
+    <text
+      x={x + (width || 0) / 2}
+      y={y - 6}
+      fill={fillColor}
+      textAnchor="middle"
+      dominantBaseline="middle"
+      fontSize={fontSize}
+      fontWeight="bold"
+      style={{ fontFamily: 'inherit' }}
+    >
+      {value}
+    </text>
+  );
+};
+
 // ─── Department / Trap mapping ─────────────────────────────────────────────────
 const DEPTS_LIST = [
-  'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด', 'เฟส 6',
+  'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6',
   'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
 ];
 
@@ -30,7 +50,7 @@ const DEPT_TRAPS_MAPPING = {
     '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง',
     '(31) ห้องล้างมัน/คัดแยกเศษ'
   ],
-  'โหลด': [
+  'โหลด เฟส 5': [
     '(01) ลานโหลดของตัดแต่งและ Makro',
     '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง',
     '(06) ลานโหลดของตัดแต่งและ Makro'
@@ -422,7 +442,13 @@ export default function SupervisorPortal() {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('currentSimulatedUser');
       if (saved) {
-        try { setCurrentUser(JSON.parse(saved)); } catch {}
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.department === 'โหลด') {
+            parsed.department = 'โหลด เฟส 5';
+          }
+          setCurrentUser(parsed);
+        } catch {}
       } else {
         setCurrentUser(null);
       }
@@ -1115,16 +1141,16 @@ export default function SupervisorPortal() {
                       <Tooltip content={<CustomTooltip />} />
                       <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                       <Bar dataKey="flies"      name="แมลงวัน" fill={INSECT_CHART_COLORS.flies}>
-                        <LabelList dataKey="flies"      position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <LabelList dataKey="flies"      content={renderCustomLabel('#475569', 9)} />
                       </Bar>
                       <Bar dataKey="mosquitoes" name="ยุง"      fill={INSECT_CHART_COLORS.mosquitoes}>
-                        <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <LabelList dataKey="mosquitoes" content={renderCustomLabel('#475569', 9)} />
                       </Bar>
                       <Bar dataKey="ants"       name="มด"       fill={INSECT_CHART_COLORS.ants}>
-                        <LabelList dataKey="ants"       position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <LabelList dataKey="ants"       content={renderCustomLabel('#475569', 9)} />
                       </Bar>
                       <Bar dataKey="others"     name="อื่นๆ"   fill={INSECT_CHART_COLORS.others}>
-                        <LabelList dataKey="others"     position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <LabelList dataKey="others"     content={renderCustomLabel('#475569', 9)} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
