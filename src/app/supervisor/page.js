@@ -583,7 +583,9 @@ export default function SupervisorPortal() {
           body: JSON.stringify({
             deptName: selectedDept,
             month: selectedMonth,
-            year: selectedYear
+            year: selectedYear,
+            records: rawData,
+            isDemo: isDemo
           })
         });
         if (res.ok) {
@@ -672,11 +674,17 @@ export default function SupervisorPortal() {
     }
     
     let totalFlies = 0, totalMosquitoes = 0, totalAnts = 0, totalOthers = 0;
+    const othersBreakdown = {};
     chartData.forEach(item => {
       totalFlies += Number(item.flies) || 0;
       totalMosquitoes += Number(item.mosquitoes) || 0;
       totalAnts += Number(item.ants) || 0;
       totalOthers += Number(item.others) || 0;
+      if (item.othersBreakdown) {
+        Object.entries(item.othersBreakdown).forEach(([k, v]) => {
+          othersBreakdown[k] = (othersBreakdown[k] || 0) + v;
+        });
+      }
     });
 
     const cleanTrap = (name) => {
@@ -742,20 +750,72 @@ export default function SupervisorPortal() {
       }
     }
     
+    // 1. Root Cause based on Trap numbers and department
     let rootCause = '';
-    if (deptName === 'โรงฆ่า') {
-      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูด **แมลงวัน** และ **แมลงอื่นๆ**`;
-    } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
-      rootCause = `เนื่องจากพื้นที่เชื่อมต่อโดยตรงกับบริเวณลานโหลดสินค้าภายนอกอาคารโรงงาน ซึ่งมีการเปิด-ปิดประตูลานโหลดสินค้าและม่านริ้วพลาสติกเป็นประจำในจังหวะเทียบรถขนส่ง ทำให้แมลงจากภายนอกบินเข้ามาได้ง่าย`;
-    } else if (deptName === 'หมูบด') {
-      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูด **มด** เข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
-    } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ **ยุง** และแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
+    const trapCauses = [];
+    chartData.forEach(item => {
+      const match = item.name.match(/\d+/);
+      const numStr = match ? parseInt(match[0], 10).toString() : '';
+      if (numStr === '10') trapCauses.push('เนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิดปิด ประตูเป็นประจำ');
+      else if (numStr === '12') trapCauses.push('เนื่องจากเชื่อมต่อกับคอกพักสุกร');
+      else if (['17', '20', '21'].includes(numStr)) {
+        if (!trapCauses.some(c => c.includes('ทางเข้า-ออกของพนักงาน'))) {
+          trapCauses.push('อาจเนื่องจากเป็นทางเข้า-ออกของพนักงาน เชื่อมต่อกับนอกพื้นที่การผลิตเป็นโถงทางเดิน และห้องแต่งตัว ซึ่งอาจทำให้มีแมลงบินเข้าพื้นที่ได้');
+        }
+      }
+      else if (numStr === '28') trapCauses.push('อาจเนื่องจากบริเวณดังกล่าวเชื่อมต่อกับนอกพื้นที่การผลิต ใกล้กับประตูทางเข้า-ออก พื้นที่การผลิต อาจทำให้แมลงบินเข้าสู่พื้นที่การผลิตได้');
+      else if (numStr === '1') trapCauses.push('เนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิด-ปิด ประตูเป็นประจำ');
+    });
+
+    if (trapCauses.length > 0) {
+      rootCause = trapCauses.join(' ');
     } else {
-      rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและรถขนถ่ายตะกร้า/อุปกรณ์การผลิตอย่างต่อเนื่องระหว่างวันทำงาน`;
+      // Fallback to department default root cause
+      if (deptName === 'โรงฆ่า') {
+        rootCause = `เนื่องจากบริเวณผลิตโรงฆ่าเป็นทางผ่านและปฏิบัติงานสัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้`;
+      } else if (deptName === 'หน้าร้านใหม่') {
+        rootCause = `เนื่องจากมีประตูเปิด-ปิดบ่อยรับสินค้าจากภายนอก— เสี่ยงแมลงจากภายนอก`;
+      } else if (deptName === 'ตัดแต่ง') {
+        rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานอย่างต่อเนื่อง`;
+      } else if (deptName === 'โหลด' || deptName === 'เฟส 6' || deptName === 'โหลด เฟส 5') {
+        rootCause = `เนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิด-ปิด ประตูเป็นประจำ`;
+      } else {
+        rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและวัตถุดิบเป็นระยะ`;
+      }
     }
     
-    // recommendations closing sentence logic:
+    // 2. Insect recommendations
+    const recParts = [];
+    if (totalFlies > 0) {
+      recParts.push('ทำความสะอาดพื้นที่ลดการสะสมของแหล่งอาหาร');
+    }
+    if (totalMosquitoes > 0) {
+      recParts.push('รีดน้ำขังออกจากพื้นที่แจ้งบริษัทกำจัดแมลงเข้าทำบริการ');
+    }
+    if (totalAnts > 0) {
+      recParts.push('ตรวจสอบหาสาเหตุที่แท้จริงลดการสะสมของแหล่งอาหาร');
+    }
+    
+    if (totalOthers > 0) {
+      let hasMidge = false;
+      let hasButterfly = false;
+      Object.keys(othersBreakdown).forEach(k => {
+        if (k.includes('แมลงหวี่')) hasMidge = true;
+        if (k.includes('ผีเสื้อ')) hasButterfly = true;
+      });
+
+      if (hasMidge) {
+        recParts.push('รีดน้ำขังออกจากพื้นที่ปิดม่านประตูทุกครั้ง');
+      }
+      if (hasButterfly) {
+        recParts.push('ปิดม่าน ปิดประตูทุกครั้ง');
+      }
+      if (!hasMidge && !hasButterfly) {
+        recParts.push('ปิดม่าน ปิดประตูทุกครั้ง');
+      }
+    }
+
+    // 3. Goal Phrase closing logic
     const zeroInsects = [];
     const positiveInsects = [];
     
@@ -766,27 +826,32 @@ export default function SupervisorPortal() {
     
     let goalPhrase = '';
     if (zeroInsects.length > 0 && positiveInsects.length > 0) {
-      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไป และเพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+      goalPhrase = `เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไป และเพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงาน`;
     } else if (zeroInsects.length > 0) {
-      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
+      goalPhrase = `เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไป`;
     } else if (positiveInsects.length > 0) {
-      goalPhrase = ` ทั้งนี้ เพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+      goalPhrase = `เพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงาน`;
+    }
+
+    // Combine recommendations
+    let recsText = '';
+    let keyKeyword = 'ดังนั้นควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้ง ภายหลังจากใช้งาน เพื่อป้องกันไม่ให้แมลงบินต่างๆ บินเข้าสู่พื้นที่การผลิตได้';
+    
+    if (deptName === 'หน้าร้านใหม่') {
+      keyKeyword = 'ดังนั้นเนื่องจากมีประตูเปิด-ปิดบ่อยรับสินค้าจากภายนอก— เสี่ยงแมลงจากภายนอก จึงควรตรวจม่าน ปิดม่านพลาสติกทุกครั้ง';
+    } else if (deptName === 'ตัดแต่ง') {
+      keyKeyword = 'ดังนั้นควรเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ปิดม่านประตูทุกครั้ง ภายหลังจากใช้งาน';
+    } else if (deptName === 'โหลด' || deptName === 'เฟส 6' || deptName === 'โหลด เฟส 5') {
+      keyKeyword = 'ดังนั้นเนื่องจากติดตั้งอยู่ในจุดที่ใกล้กับลานโหลดสินค้า ซึ่งมีการเปิด-ปิด ประตูเป็นประจำ จึงควรระมัดระวังปิดม่านและประตูทุกครั้ง';
     }
     
-    let recommendations = '';
-    if (deptName === 'โรงฆ่า') {
-      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${goalPhrase}`;
-    } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
-      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${goalPhrase}`;
-    } else if (deptName === 'หมูบด') {
-      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${goalPhrase}`;
-    } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${goalPhrase}`;
+    if (recParts.length > 0) {
+      recsText = `${keyKeyword} (โดยเฉพาะ:${recParts.join(', ')}) ทั้งนี้ ${goalPhrase}อย่างมีประสิทธิภาพสูงสุด`;
     } else {
-      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${goalPhrase}`;
+      recsText = `${keyKeyword} ทั้งนี้ ${goalPhrase}อย่างมีประสิทธิภาพสูงสุด`;
     }
     
-    return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
+    return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recsText}`;
   };
 
   // ── Role flags ──
@@ -1098,7 +1163,13 @@ export default function SupervisorPortal() {
                   fetch('/api/analyze', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ deptName: selectedDept, month: selectedMonth, year: selectedYear })
+                    body: JSON.stringify({
+                      deptName: selectedDept,
+                      month: selectedMonth,
+                      year: selectedYear,
+                      records: rawData,
+                      isDemo: isDemo
+                    })
                   }).then(r => r.ok ? r.json() : null)
                     .then(result => {
                       if (result?.report) { setDeptReportText(result.report); }
