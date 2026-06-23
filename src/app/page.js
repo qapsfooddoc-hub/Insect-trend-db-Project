@@ -851,9 +851,7 @@ export default function DashboardPage() {
             <div style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '12px', backgroundColor: '#f8fafc', color: '#334155' }}>
               <p style={{ lineHeight: '1.4', margin: 0, fontSize: '15px' }}>{parseInlineStylesPrint(reportText)}</p>
             </div>
-            <div style={{ textAlign: 'right', fontSize: '10px', color: '#64748b', marginTop: '2px', fontWeight: 'bold' }}>
-              📝 วิเคราะห์ข้อมูลโดย AI
-            </div>
+
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
@@ -2512,18 +2510,27 @@ export default function DashboardPage() {
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
-                        <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="flies" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Legend
+                          iconType="circle"
+                          wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }}
+                          payload={[
+                            { value: 'แมลงวัน',   color: INSECT_CHART_COLORS.flies,       type: 'circle' },
+                            { value: 'ยุง',        color: INSECT_CHART_COLORS.mosquitoes,  type: 'circle' },
+                            { value: 'มด',         color: INSECT_CHART_COLORS.ants,        type: 'circle' },
+                            { value: 'แมลงอื่นๆ', color: INSECT_CHART_COLORS.others,      type: 'circle' },
+                          ]}
+                        />
+                        <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                          <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                          <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="ants" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                          <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
-                        <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} radius={[4, 4, 0, 0]}>
-                          <LabelList dataKey="others" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                          <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -2566,7 +2573,7 @@ export default function DashboardPage() {
                       <RefreshCw className={`w-3.5 h-3.5 ${aiReportLoading ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-5 relative overflow-hidden h-full">
+                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-5 overflow-auto">
                     <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-500/20 font-bold">
                       <CheckIcon className="w-3 h-3" />
                       <span>GMP / HACCP Verified Feedback Report</span>
@@ -2704,17 +2711,17 @@ export default function DashboardPage() {
                             <Tooltip content={<CustomTooltip />} />
                             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                             
-                            <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies}>
-                              <LabelList dataKey="flies" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                            <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
+                              <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                             </Bar>
-                            <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes}>
-                              <LabelList dataKey="mosquitoes" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                            <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
+                              <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                             </Bar>
-                            <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants}>
-                              <LabelList dataKey="ants" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                            <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
+                              <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                             </Bar>
-                            <Bar dataKey="others" name="อื่นๆ" fill={INSECT_CHART_COLORS.others}>
-                              <LabelList dataKey="others" position="top" style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                            <Bar dataKey="others" name="แมลงอื่นๆ" fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
+                              <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
@@ -2941,18 +2948,27 @@ export default function DashboardPage() {
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend iconType="circle" wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }} />
-                        <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="flies" position="top" style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Legend
+                          iconType="circle"
+                          wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }}
+                          payload={[
+                            { value: 'แมลงวัน',   color: INSECT_CHART_COLORS.flies,       type: 'circle' },
+                            { value: 'ยุง',        color: INSECT_CHART_COLORS.mosquitoes,  type: 'circle' },
+                            { value: 'มด',         color: INSECT_CHART_COLORS.ants,        type: 'circle' },
+                            { value: 'แมลงอื่นๆ', color: INSECT_CHART_COLORS.others,      type: 'circle' },
+                          ]}
+                        />
+                        <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="mosquitoes" position="top" style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="ants" position="top" style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
-                        <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={2.5} activeDot={{ r: 5 }}>
-                          <LabelList dataKey="others" position="top" style={{ fill: INSECT_CHART_COLORS.others, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                        <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
+                          <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>
