@@ -7,62 +7,29 @@ import { Users } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch('/api/users');
-        const result = await res.json();
-        // Handle mock users logic in demo mode
-        if (result.isDemo) {
-          const local = localStorage.getItem('users_profile_mock');
-          if (local && JSON.parse(local).length >= 10) {
-            setUsers(JSON.parse(local));
-          } else {
-            setUsers(result.data);
-            localStorage.setItem('users_profile_mock', JSON.stringify(result.data));
+    const syncUser = () => {
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('currentSimulatedUser');
+        if (saved) {
+          try {
+            setCurrentUser(JSON.parse(saved));
+          } catch (e) {
+            setCurrentUser(null);
           }
         } else {
-          setUsers(result.data || []);
+          setCurrentUser(null);
         }
-      } catch (err) {
-        console.error('Navbar failed to fetch users:', err);
-        const local = localStorage.getItem('users_profile_mock');
-        if (local) setUsers(JSON.parse(local));
       }
     };
-    fetchUsers();
+    syncUser();
+    window.addEventListener('currentSimulatedUserChanged', syncUser);
+    return () => {
+      window.removeEventListener('currentSimulatedUserChanged', syncUser);
+    };
   }, []);
-
-  useEffect(() => {
-    if (users.length > 0) {
-      const saved = localStorage.getItem('currentSimulatedUser');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          const found = users.find(u => String(u.id) === String(parsed.id));
-          if (found) {
-            setCurrentUser(found);
-            return;
-          }
-        } catch (e) {}
-      }
-      // DO NOT auto-login! Leave currentUser as null if not logged in.
-      setCurrentUser(null);
-    }
-  }, [users]);
-
-  const handleUserChange = (userId) => {
-    const user = users.find(u => String(u.id) === String(userId));
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('currentSimulatedUser', JSON.stringify(user));
-      // Dispatch a custom event to notify other components reactively
-      window.dispatchEvent(new Event('currentSimulatedUserChanged'));
-    }
-  };
 
   // Helper to determine active link styles
   const getLinkClass = (path, activeColorClass) => {

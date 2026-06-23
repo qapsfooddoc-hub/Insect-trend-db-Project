@@ -398,7 +398,7 @@ export default function DashboardPage() {
           setCurrentUser(JSON.parse(saved));
         } catch (e) {}
       } else {
-        window.location.href = '/login';
+        setCurrentUser(null);
       }
     }
   };
@@ -574,6 +574,11 @@ export default function DashboardPage() {
   };
 
   const handlePrint = (jobType) => {
+    if (!currentUser) {
+      alert('กรุณาเข้าสู่ระบบก่อนพิมพ์รายงาน');
+      window.location.href = '/login';
+      return;
+    }
     setPrintJob(jobType);
     setTimeout(() => {
       window.print();
@@ -1975,7 +1980,7 @@ export default function DashboardPage() {
     });
   };
 
-  if (!mounted || !currentUser) {
+  if (!mounted) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
         <RefreshCw className="w-6 h-6 animate-spin text-indigo-500" />
@@ -2713,6 +2718,21 @@ export default function DashboardPage() {
                         >
                           💾 บันทึกการอนุมัติรับทราบไตรมาส
                         </button>
+                      </div>
+                    ) : !currentUser ? (
+                      <div className="flex flex-col gap-2 p-4 bg-indigo-50/20 dark:bg-slate-900/50 border border-indigo-100/50 dark:border-slate-800 rounded-2xl max-w-md">
+                        <div className="flex items-center gap-2">
+                          <Info className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+                          <p className="text-[11px] font-extrabold text-slate-600 dark:text-slate-450">
+                            กรุณาเข้าสู่ระบบเพื่อลงนามอนุมัติรายงานไตรมาส
+                          </p>
+                        </div>
+                        <Link
+                          href="/login"
+                          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all shadow-sm max-w-xs cursor-pointer"
+                        >
+                          เข้าสู่ระบบ (Login)
+                        </Link>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-805 rounded-2xl">

@@ -55,40 +55,40 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-gradient-to-tr from-slate-900 via-indigo-950 to-slate-900 py-12 px-4 sm:px-6 lg:px-8 min-h-screen">
-      <div className="max-w-md w-full space-y-8 bg-white/10 dark:bg-black/20 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
+    <div className="flex-1 flex items-center justify-center bg-slate-50 dark:bg-slate-955 py-12 px-4 sm:px-6 lg:px-8 min-h-screen transition-colors duration-300">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-8 rounded-3xl shadow-sm relative overflow-hidden">
         
-        {/* Decorative Gradients */}
-        <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/30 rounded-full blur-3xl" />
-        <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/30 rounded-full blur-3xl" />
+        {/* Subtle Decorative Gradients */}
+        <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl" />
         
         <div className="text-center relative">
           <div className="mx-auto h-16 w-16 bg-gradient-to-tr from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 text-3xl">
             🐜
           </div>
-          <h2 className="mt-6 text-2xl font-black text-white tracking-tight">
+          <h2 className="mt-6 text-2xl font-black text-slate-800 dark:text-white tracking-tight font-sans">
             ระบบรายงานตรวจนับจำนวนแมลง
           </h2>
-          <p className="mt-2 text-xs font-bold text-slate-300">
+          <p className="mt-2 text-xs font-bold text-slate-500 dark:text-slate-400">
             บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด
           </p>
         </div>
 
         <form className="mt-8 space-y-6 relative" onSubmit={handleSubmit}>
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-3 rounded-2xl flex items-center gap-2.5 text-xs font-semibold animate-pulse">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <div className="bg-red-500/10 border border-red-500/20 text-red-700 dark:text-red-200 px-4 py-3 rounded-2xl flex items-center gap-2.5 text-xs font-semibold animate-pulse">
+              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-extrabold text-slate-200 mb-1.5">
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
                 ชื่อผู้ใช้งาน
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-450">
                   <User className="h-4 w-4" />
                 </div>
                 <input
@@ -96,18 +96,18 @@ export default function LoginPage() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-3 border border-white/10 bg-white/5 rounded-2xl text-white placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                  className="block w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all font-semibold"
                   placeholder="เช่น emp001 หรือ admin"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-extrabold text-slate-200 mb-1.5">
+              <label className="block text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-1.5">
                 รหัสผ่าน
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-455">
                   <Lock className="h-4 w-4" />
                 </div>
                 <input
@@ -115,7 +115,7 @@ export default function LoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full pl-10 pr-4 py-3 border border-white/10 bg-white/5 rounded-2xl text-white placeholder-slate-450 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all"
+                  className="block w-full pl-10 pr-4 py-3 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-955 rounded-2xl text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm transition-all font-semibold"
                   placeholder="กรอกรหัสผ่านของคุณ"
                 />
               </div>
@@ -126,7 +126,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-black rounded-2xl text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-lg shadow-indigo-500/20 active:scale-[0.98]"
+              className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-black rounded-2xl text-white bg-indigo-650 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all shadow-md active:scale-[0.98] cursor-pointer"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

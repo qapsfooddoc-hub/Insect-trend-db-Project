@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { CheckCircle2, AlertCircle, Layers, ShieldCheck, RefreshCw } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar,
