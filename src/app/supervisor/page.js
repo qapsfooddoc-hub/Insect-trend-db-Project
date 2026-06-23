@@ -364,6 +364,33 @@ function CustomTooltip({ active, payload, label }) {
   return null;
 }
 
+// --- CUSTOM MARKDOWN RENDERER ---
+const parseInlineStyles = (text) => {
+  const parts = text.split(/\*\*([^*]+)\*\*/g);
+  return parts.map((part, index) => {
+    if (index % 2 === 1) {
+      return <strong key={index} className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1 rounded">{part}</strong>;
+    }
+    return part;
+  });
+};
+
+const renderMarkdown = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, idx) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('###')) {
+      return <h3 key={idx} className="text-base font-bold text-slate-850 dark:text-white mt-4 mb-2">{trimmed.replace('###', '').trim()}</h3>;
+    }
+    if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+      const content = trimmed.substring(1).trim();
+      return <li key={idx} className="ml-4 list-disc text-xs text-slate-655 dark:text-slate-350 my-1">{parseInlineStyles(content)}</li>;
+    }
+    return <p key={idx} className="text-xs text-slate-650 dark:text-slate-355 leading-relaxed my-1">{parseInlineStyles(trimmed)}</p>;
+  });
+};
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function SupervisorPortal() {
   const [rawData, setRawData]       = useState([]);
@@ -374,6 +401,9 @@ export default function SupervisorPortal() {
   // Chart filters
   const [selectedDept, setSelectedDept]   = useState('โรงฆ่า');
   const [selectedMonth, setSelectedMonth] = useState('มกราคม');
+  const [selectedYear, setSelectedYear]   = useState('2026');
+  const [deptReportText, setDeptReportText] = useState('');
+  const [deptReportLoading, setDeptReportLoading] = useState(false);
 
   // ── Supervisor sign-off state ──
   const [supApproved, setSupApproved]       = useState(false);
@@ -399,6 +429,67 @@ export default function SupervisorPortal() {
     }
   };
 
+  // Auto-select latest month with data that is not approved yet
+  const autoSelectLatestUnapproved = (data, dept) => {
+    if (!data || data.length === 0) return;
+    
+    const thaiMonths = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    
+    const combos = [];
+    data.forEach(item => {
+      const traps = DEPT_TRAPS_MAPPING[dept] || [];
+      const belongs = traps.some(trap => item.area && item.area.includes(trap));
+      if (!belongs) return;
+      
+      const date = new Date(item.inspected_at);
+      if (isNaN(date.getTime())) return;
+      const y = String(date.getFullYear());
+      const m = thaiMonths[date.getMonth()];
+      
+      const exists = combos.some(c => c.year === y && c.month === m);
+      if (!exists) {
+        combos.push({ year: y, month: m, dateVal: date.getTime() });
+      }
+    });
+    
+    if (combos.length === 0) return;
+    
+    // Sort descending (latest date first)
+    combos.sort((a, b) => b.dateVal - a.dateVal);
+    
+    let selectedCombo = null;
+    for (const combo of combos) {
+      const beYear = parseInt(combo.year, 10) + 543;
+      const key = `approval_${dept}_${combo.month}_${beYear}`;
+      const saved = localStorage.getItem(key);
+      let isApproved = false;
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          isApproved = parsed.deptApproved || false;
+        } catch {}
+      }
+      
+      if (!isApproved) {
+        selectedCombo = combo;
+        break;
+      }
+    }
+    
+    // Fallback to latest combo if all approved
+    if (!selectedCombo) {
+      selectedCombo = combos[0];
+    }
+    
+    if (selectedCombo) {
+      setSelectedYear(selectedCombo.year);
+      setSelectedMonth(selectedCombo.month);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     fetchData();
@@ -408,13 +499,14 @@ export default function SupervisorPortal() {
     return () => window.removeEventListener('currentSimulatedUserChanged', syncCurrentUser);
   }, []);
 
-  // Sync Sign-off Data for Selected Department and Month
+  // Sync Sign-off Data for Selected Department, Month, and Year
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const key = `approval_${selectedDept}_${selectedMonth}_2569`;
+      const beYear = parseInt(selectedYear, 10) + 543;
+      const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
       
-      // If demo mode is active and it's 'โรงฆ่า' and 'มกราคม', initialize it as pre-approved
-      if (isDemo && selectedDept === 'โรงฆ่า' && selectedMonth === 'มกราคม') {
+      // If demo mode is active and it's 'โรงฆ่า' and 'มกราคม' 2569, initialize it as pre-approved
+      if (isDemo && selectedDept === 'โรงฆ่า' && selectedMonth === 'มกราคม' && beYear === 2569) {
         const existing = localStorage.getItem(key);
         if (!existing) {
           const defaultApproval = {
@@ -451,7 +543,7 @@ export default function SupervisorPortal() {
         resetStates();
       }
     }
-  }, [selectedDept, selectedMonth, isDemo]);
+  }, [selectedDept, selectedMonth, selectedYear, isDemo]);
 
   const resetStates = () => {
     setSupApproved(false);
@@ -471,6 +563,50 @@ export default function SupervisorPortal() {
     }
   }, [currentUser]);
 
+  // Auto-select latest month with data that is not approved yet
+  useEffect(() => {
+    if (rawData && rawData.length > 0 && selectedDept) {
+      autoSelectLatestUnapproved(rawData, selectedDept);
+    }
+  }, [rawData, selectedDept]);
+
+  // Fetch AI Analysis Report
+  useEffect(() => {
+    const fetchDeptReport = async () => {
+      setDeptReportLoading(true);
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deptName: selectedDept,
+            month: selectedMonth,
+            year: selectedYear
+          })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.report) {
+            setDeptReportText(result.report);
+            setDeptReportLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching supervisor AI report:', err);
+      }
+      
+      const beYear = parseInt(selectedYear, 10) + 543;
+      const localReport = getDeptAnalysisReport(selectedDept, selectedMonth, beYear);
+      setDeptReportText(localReport);
+      setDeptReportLoading(false);
+    };
+
+    if (mounted) {
+      fetchDeptReport();
+    }
+  }, [selectedDept, selectedMonth, selectedYear, rawData, isDemo, mounted]);
+
   const fetchData = async () => {
     try {
       const res = await fetch('/api/inspection');
@@ -480,8 +616,9 @@ export default function SupervisorPortal() {
   };
 
   // ── Chart data ──
-  const getChartData = (deptName, month) => {
-    if (isDemo || rawData.length === 0) return genMockTrapData(deptName, month, '2026');
+  const getChartData = (deptName, month, year) => {
+    const yearStr = String(year || selectedYear);
+    if (isDemo || rawData.length === 0) return genMockTrapData(deptName, month, yearStr);
     const traps = DEPT_TRAPS_MAPPING[deptName] || [];
     const months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
     return traps.map(trap => {
@@ -490,6 +627,8 @@ export default function SupervisorPortal() {
       
       rawData.forEach(item => {
         const d = new Date(item.inspected_at);
+        const itemYear = String(d.getFullYear());
+        if (itemYear !== yearStr) return;
         if (months[d.getMonth()] !== month) return;
         if (item.area && item.area.includes(trap)) {
           const t = item.insect_type; const c = Number(item.count) || 0;
@@ -526,105 +665,128 @@ export default function SupervisorPortal() {
   // --- TAB 2: DETAILED QA COMPLIANCE NARRATIVE REPORT ---
   const getDeptAnalysisReport = (deptName, month, yearBe) => {
     const yearText = `${yearBe}`;
-    const chartData = getChartData(deptName, month);
+    const normalYear = String(parseInt(yearBe, 10) - 543);
+    const chartData = getChartData(deptName, month, normalYear);
     if (!chartData || chartData.length === 0) {
-      return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} ไม่พบข้อมูลสถิติในระบบ`;
+      return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} ไม่พบข้อมูลสถิติในระบบ`;
     }
     
-    let maxFliesVal = -1, maxFliesTrap = '';
-    let maxMosquitoesVal = -1, maxMosquitoesTrap = '';
-    let maxAntsVal = -1, maxAntsTrap = '';
-    let maxOthersVal = -1, maxOthersTrap = '';
-    
     let totalFlies = 0, totalMosquitoes = 0, totalAnts = 0, totalOthers = 0;
-    
     chartData.forEach(item => {
-      const flies = Number(item.flies) || 0;
-      const mosquitoes = Number(item.mosquitoes) || 0;
-      const ants = Number(item.ants) || 0;
-      const others = Number(item.others) || 0;
-      
-      totalFlies += flies;
-      totalMosquitoes += mosquitoes;
-      totalAnts += ants;
-      totalOthers += others;
-      
-      if (flies > maxFliesVal) { maxFliesVal = flies; maxFliesTrap = item.name; }
-      if (mosquitoes > maxMosquitoesVal) { maxMosquitoesVal = mosquitoes; maxMosquitoesTrap = item.name; }
-      if (ants > maxAntsVal) { maxAntsVal = ants; maxAntsTrap = item.name; }
-      if (others > maxOthersVal) { maxOthersVal = others; maxOthersTrap = item.name; }
+      totalFlies += Number(item.flies) || 0;
+      totalMosquitoes += Number(item.mosquitoes) || 0;
+      totalAnts += Number(item.ants) || 0;
+      totalOthers += Number(item.others) || 0;
     });
-    
+
     const cleanTrap = (name) => {
       if (!name) return '-';
       return name.replace(/.*:\s*/, '');
     };
-    
-    const trapF = cleanTrap(maxFliesTrap);
-    const trapM = cleanTrap(maxMosquitoesTrap);
-    const trapA = cleanTrap(maxAntsTrap);
-    const trapO = cleanTrap(maxOthersTrap);
-    
+
     let insectSummary = '';
-    if (maxFliesVal > 0) {
-      insectSummary += `เครื่องดักแมลงหมายเลข ${trapF} พบแมลงวันติดมากที่สุด (${maxFliesVal} ตัว) `;
+
+    if (chartData.length === 1) {
+      // Single trap department
+      const singleItem = chartData[0];
+      const trapName = cleanTrap(singleItem.name);
+      const fCount = Number(singleItem.flies) || 0;
+      const mCount = Number(singleItem.mosquitoes) || 0;
+      const aCount = Number(singleItem.ants) || 0;
+      const oCount = Number(singleItem.others) || 0;
+      
+      insectSummary = `เครื่องดักแมลงหมายเลข ${trapName} ตรวจพบ **แมลงวัน** จำนวน ${fCount} ตัว, **ยุง** จำนวน ${mCount} ตัว, **มด** จำนวน ${aCount} ตัว และ **แมลงอื่นๆ** จำนวน ${oCount} ตัว`;
     } else {
-      insectSummary += `ไม่พบแมลงวันในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
-    }
-    
-    if (maxMosquitoesVal > 0) {
-      insectSummary += `เครื่องดักแมลงหมายเลข ${trapM} พบยุงติดมากที่สุด (${maxMosquitoesVal} ตัว) `;
-    } else {
-      insectSummary += `ไม่พบยุงในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
-    }
-    
-    if (maxAntsVal > 0 || maxOthersVal > 0) {
-      const parts = [];
-      if (maxAntsVal > 0) parts.push(`มดในเครื่องดักหมายเลข ${trapA} (${maxAntsVal} ตัว)`);
-      if (maxOthersVal > 0) parts.push(`แมลงอื่นๆ ในเครื่องดักหมายเลข ${trapO} (${maxOthersVal} ตัว)`);
-      insectSummary += `และตรวจพบ ${parts.join(' และ')} ติดสะสมนำโดดเด่นตามลำดับ`;
-    } else {
-      insectSummary += `และไม่พบมดหรือแมลงอื่นๆ ติดสะสม`;
+      // Multiple traps department
+      let maxFliesVal = -1, maxFliesTrap = '';
+      let maxMosquitoesVal = -1, maxMosquitoesTrap = '';
+      let maxAntsVal = -1, maxAntsTrap = '';
+      let maxOthersVal = -1, maxOthersTrap = '';
+
+      chartData.forEach(item => {
+        const flies = Number(item.flies) || 0;
+        const mosquitoes = Number(item.mosquitoes) || 0;
+        const ants = Number(item.ants) || 0;
+        const others = Number(item.others) || 0;
+
+        if (flies > maxFliesVal) { maxFliesVal = flies; maxFliesTrap = item.name; }
+        if (mosquitoes > maxMosquitoesVal) { maxMosquitoesVal = mosquitoes; maxMosquitoesTrap = item.name; }
+        if (ants > maxAntsVal) { maxAntsVal = ants; maxAntsTrap = item.name; }
+        if (others > maxOthersVal) { maxOthersVal = others; maxOthersTrap = item.name; }
+      });
+
+      const trapF = cleanTrap(maxFliesTrap);
+      const trapM = cleanTrap(maxMosquitoesTrap);
+      const trapA = cleanTrap(maxAntsTrap);
+      const trapO = cleanTrap(maxOthersTrap);
+
+      if (maxFliesVal > 0) {
+        insectSummary += `เครื่องดักแมลงหมายเลข ${trapF} พบ **แมลงวัน** ติดมากที่สุด จำนวน ${maxFliesVal} ตัว `;
+      } else {
+        insectSummary += `ไม่พบ **แมลงวัน** ในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+      }
+
+      if (maxMosquitoesVal > 0) {
+        insectSummary += `เครื่องดักแมลงหมายเลข ${trapM} พบ **ยุง** ติดมากที่สุด จำนวน ${maxMosquitoesVal} ตัว `;
+      } else {
+        insectSummary += `ไม่พบ **ยุง** ในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+      }
+
+      if (maxAntsVal > 0 || maxOthersVal > 0) {
+        const parts = [];
+        if (maxAntsVal > 0) parts.push(`**มด** ในเครื่องดักหมายเลข ${trapA} จำนวน ${maxAntsVal} ตัว`);
+        if (maxOthersVal > 0) parts.push(`**แมลงอื่นๆ** ในเครื่องดักหมายเลข ${trapO} จำนวน ${maxOthersVal} ตัว`);
+        insectSummary += `และตรวจพบ ${parts.join(' และ')} ติดสะสมนำโดดเด่นตามลำดับ`;
+      } else {
+        insectSummary += `และไม่พบ **มด** หรือ **แมลงอื่นๆ** ติดสะสม`;
+      }
     }
     
     let rootCause = '';
     if (deptName === 'โรงฆ่า') {
-      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูดแมลงวันและแมลงอื่นๆ`;
+      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูด **แมลงวัน** และ **แมลงอื่นๆ**`;
     } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
       rootCause = `เนื่องจากพื้นที่เชื่อมต่อโดยตรงกับบริเวณลานโหลดสินค้าภายนอกอาคารโรงงาน ซึ่งมีการเปิด-ปิดประตูลานโหลดสินค้าและม่านริ้วพลาสติกเป็นประจำในจังหวะเทียบรถขนส่ง ทำให้แมลงจากภายนอกบินเข้ามาได้ง่าย`;
     } else if (deptName === 'หมูบด') {
-      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูดมดเข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
+      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูด **มด** เข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
     } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ยุงและแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
+      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ **ยุง** และแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
     } else {
       rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและรถขนถ่ายตะกร้า/อุปกรณ์การผลิตอย่างต่อเนื่องระหว่างวันทำงาน`;
     }
     
+    // recommendations closing sentence logic:
+    const zeroInsects = [];
+    const positiveInsects = [];
+    
+    if (totalFlies === 0) zeroInsects.push('**แมลงวัน**'); else positiveInsects.push('**แมลงวัน**');
+    if (totalMosquitoes === 0) zeroInsects.push('**ยุง**'); else positiveInsects.push('**ยุง**');
+    if (totalAnts === 0) zeroInsects.push('**มด**'); else positiveInsects.push('**มด**');
+    if (totalOthers === 0) zeroInsects.push('**แมลงอื่นๆ**'); else positiveInsects.push('**แมลงอื่นๆ**');
+    
+    let goalPhrase = '';
+    if (zeroInsects.length > 0 && positiveInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไป และเพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+    } else if (zeroInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
+    } else if (positiveInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+    }
+    
     let recommendations = '';
-    const zeroKeywords = [];
-    if (totalFlies === 0) zeroKeywords.push('แมลงวัน');
-    if (totalMosquitoes === 0) zeroKeywords.push('ยุง');
-    if (totalAnts === 0) zeroKeywords.push('มด');
-    if (totalOthers === 0) zeroKeywords.push('แมลงอื่นๆ');
-    
-    let zeroPhrase = '';
-    if (zeroKeywords.length > 0) {
-      zeroPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroKeywords.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
-    }
-    
     if (deptName === 'โรงฆ่า') {
-      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${goalPhrase}`;
     } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
-      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${goalPhrase}`;
     } else if (deptName === 'หมูบด') {
-      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${goalPhrase}`;
     } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${goalPhrase}`;
     } else {
-      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${goalPhrase}`;
     }
     
-    return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
+    return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
   };
 
   // ── Role flags ──
@@ -648,7 +810,8 @@ export default function SupervisorPortal() {
     
     setSupApproved(true); setSupApprovedAt(now); setSupApproverName(name); setSupComment(cmt);
     
-    const key = `approval_${selectedDept}_${selectedMonth}_2569`;
+    const beYear = parseInt(selectedYear, 10) + 543;
+    const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
     const saved = localStorage.getItem(key);
     let data = {};
     if (saved) {
@@ -662,7 +825,7 @@ export default function SupervisorPortal() {
     
     // Update global month status key
     const status = (data.deptApproved && data.qaApproved) ? 'Approved' : 'Pending';
-    localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
+    localStorage.setItem(`monthStatus_${selectedMonth}_${selectedYear}`, status);
     
     if (el) el.value = '';
   };
@@ -671,7 +834,8 @@ export default function SupervisorPortal() {
     if (!confirm('ยืนยันการยกเลิกการลงนามรับทราบ (Supervisor)?')) return;
     setSupApproved(false); setSupApprovedAt(''); setSupApproverName(''); setSupComment('');
     
-    const key = `approval_${selectedDept}_${selectedMonth}_2569`;
+    const beYear = parseInt(selectedYear, 10) + 543;
+    const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
     const saved = localStorage.getItem(key);
     let data = {};
     if (saved) {
@@ -685,7 +849,7 @@ export default function SupervisorPortal() {
     
     // Update global month status key
     const status = (data.deptApproved && data.qaApproved) ? 'Approved' : (data.deptApproved || data.qaApproved) ? 'Pending' : 'Draft';
-    localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
+    localStorage.setItem(`monthStatus_${selectedMonth}_${selectedYear}`, status);
   };
 
   // ── Handlers: QA ──
@@ -697,7 +861,8 @@ export default function SupervisorPortal() {
     
     setQaApproved(true); setQaApprovedAt(now); setQaApproverName(name); setQaComment(cmt);
     
-    const key = `approval_${selectedDept}_${selectedMonth}_2569`;
+    const beYear = parseInt(selectedYear, 10) + 543;
+    const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
     const saved = localStorage.getItem(key);
     let data = {};
     if (saved) {
@@ -711,7 +876,7 @@ export default function SupervisorPortal() {
     
     // Update global month status key
     const status = (data.deptApproved && data.qaApproved) ? 'Approved' : 'Pending';
-    localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
+    localStorage.setItem(`monthStatus_${selectedMonth}_${selectedYear}`, status);
     
     if (el) el.value = '';
   };
@@ -720,7 +885,8 @@ export default function SupervisorPortal() {
     if (!confirm('ยืนยันการยกเลิกการลงนามรับทราบ (QA)?')) return;
     setQaApproved(false); setQaApprovedAt(''); setQaApproverName(''); setQaComment('');
     
-    const key = `approval_${selectedDept}_${selectedMonth}_2569`;
+    const beYear = parseInt(selectedYear, 10) + 543;
+    const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
     const saved = localStorage.getItem(key);
     let data = {};
     if (saved) {
@@ -734,7 +900,7 @@ export default function SupervisorPortal() {
     
     // Update global month status key
     const status = (data.deptApproved && data.qaApproved) ? 'Approved' : (data.deptApproved || data.qaApproved) ? 'Pending' : 'Draft';
-    localStorage.setItem(`monthStatus_${selectedMonth}_2026`, status);
+    localStorage.setItem(`monthStatus_${selectedMonth}_${selectedYear}`, status);
   };
 
   if (!mounted) {
@@ -869,6 +1035,17 @@ export default function SupervisorPortal() {
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
+
+                {/* Year selector */}
+                <select
+                  value={selectedYear}
+                  onChange={e => setSelectedYear(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-850 focus:outline-none cursor-pointer"
+                >
+                  {['2025', '2026'].map(y => (
+                    <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -876,7 +1053,7 @@ export default function SupervisorPortal() {
               {mounted && (
                 <div className="h-full min-w-[1300px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={getChartData(selectedDept, selectedMonth)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
+                    <BarChart data={getChartData(selectedDept, selectedMonth, selectedYear)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                       <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} tickLine={false} style={{ fontFamily: 'inherit' }} interval={0} height={40}
@@ -909,9 +1086,16 @@ export default function SupervisorPortal() {
             <h4 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
               <span>📝 วิเคราะห์ข้อมูลประจำเดือน</span>
             </h4>
-            <p className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
-              {getDeptAnalysisReport(selectedDept, selectedMonth, 2569)}
-            </p>
+            <div className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
+              {deptReportLoading ? (
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="w-2.5 h-2.5 bg-blue-650 rounded-full animate-ping" />
+                  กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
+                </div>
+              ) : (
+                renderMarkdown(deptReportText)
+              )}
+            </div>
           </div>
 
           {/* ── Dual Sign-off Panel ── */}

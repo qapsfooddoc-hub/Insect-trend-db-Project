@@ -424,6 +424,9 @@ export default function DashboardPage() {
 
   // AI Insights State
   const [aiReport, setAiReport] = useState('');
+  const [aiReportLoading, setAiReportLoading] = useState(false);
+  const [deptReportText, setDeptReportText] = useState('');
+  const [deptReportLoading, setDeptReportLoading] = useState(false);
 
   // --- PRINT JOB STATE ---
   const [printJob, setPrintJob] = useState('none'); // 'none', 'monthly', 'monthly-all', 'quarterly', 'quarterly-all'
@@ -846,7 +849,7 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ margin: '0' }}>
             <div style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '12px', backgroundColor: '#f8fafc', color: '#334155' }}>
-              <p style={{ lineHeight: '1.4', margin: 0, fontSize: '15px' }}>{reportText}</p>
+              <p style={{ lineHeight: '1.4', margin: 0, fontSize: '15px' }}>{parseInlineStylesPrint(reportText)}</p>
             </div>
             <div style={{ textAlign: 'right', fontSize: '10px', color: '#64748b', marginTop: '2px', fontWeight: 'bold' }}>
               📝 วิเคราะห์ข้อมูลโดย AI
@@ -1428,103 +1431,125 @@ export default function DashboardPage() {
     const yearText = `${yearBe}`;
     const chartData = getDepartmentDetailedData(deptName, month, selectedYear);
     if (!chartData || chartData.length === 0) {
-      return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} ไม่พบข้อมูลสถิติในระบบ`;
+      return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} ไม่พบข้อมูลสถิติในระบบ`;
     }
     
-    let maxFliesVal = -1, maxFliesTrap = '';
-    let maxMosquitoesVal = -1, maxMosquitoesTrap = '';
-    let maxAntsVal = -1, maxAntsTrap = '';
-    let maxOthersVal = -1, maxOthersTrap = '';
-    
     let totalFlies = 0, totalMosquitoes = 0, totalAnts = 0, totalOthers = 0;
-    
     chartData.forEach(item => {
-      const flies = Number(item.flies) || 0;
-      const mosquitoes = Number(item.mosquitoes) || 0;
-      const ants = Number(item.ants) || 0;
-      const others = Number(item.others) || 0;
-      
-      totalFlies += flies;
-      totalMosquitoes += mosquitoes;
-      totalAnts += ants;
-      totalOthers += others;
-      
-      if (flies > maxFliesVal) { maxFliesVal = flies; maxFliesTrap = item.name; }
-      if (mosquitoes > maxMosquitoesVal) { maxMosquitoesVal = mosquitoes; maxMosquitoesTrap = item.name; }
-      if (ants > maxAntsVal) { maxAntsVal = ants; maxAntsTrap = item.name; }
-      if (others > maxOthersVal) { maxOthersVal = others; maxOthersTrap = item.name; }
+      totalFlies += Number(item.flies) || 0;
+      totalMosquitoes += Number(item.mosquitoes) || 0;
+      totalAnts += Number(item.ants) || 0;
+      totalOthers += Number(item.others) || 0;
     });
-    
+
     const cleanTrap = (name) => {
       if (!name) return '-';
       return name.replace(/.*:\s*/, '');
     };
-    
-    const trapF = cleanTrap(maxFliesTrap);
-    const trapM = cleanTrap(maxMosquitoesTrap);
-    const trapA = cleanTrap(maxAntsTrap);
-    const trapO = cleanTrap(maxOthersTrap);
-    
+
     let insectSummary = '';
-    if (maxFliesVal > 0) {
-      insectSummary += `เครื่องดักแมลงหมายเลข ${trapF} พบแมลงวันติดมากที่สุด (${maxFliesVal} ตัว) `;
+
+    if (chartData.length === 1) {
+      // Single trap department
+      const singleItem = chartData[0];
+      const trapName = cleanTrap(singleItem.name);
+      const fCount = Number(singleItem.flies) || 0;
+      const mCount = Number(singleItem.mosquitoes) || 0;
+      const aCount = Number(singleItem.ants) || 0;
+      const oCount = Number(singleItem.others) || 0;
+      
+      insectSummary = `เครื่องดักแมลงหมายเลข ${trapName} ตรวจพบ **แมลงวัน** จำนวน ${fCount} ตัว, **ยุง** จำนวน ${mCount} ตัว, **มด** จำนวน ${aCount} ตัว และ **แมลงอื่นๆ** จำนวน ${oCount} ตัว`;
     } else {
-      insectSummary += `ไม่พบแมลงวันในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
-    }
-    
-    if (maxMosquitoesVal > 0) {
-      insectSummary += `เครื่องดักแมลงหมายเลข ${trapM} พบยุงติดมากที่สุด (${maxMosquitoesVal} ตัว) `;
-    } else {
-      insectSummary += `ไม่พบยุงในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
-    }
-    
-    if (maxAntsVal > 0 || maxOthersVal > 0) {
-      const parts = [];
-      if (maxAntsVal > 0) parts.push(`มดในเครื่องดักหมายเลข ${trapA} (${maxAntsVal} ตัว)`);
-      if (maxOthersVal > 0) parts.push(`แมลงอื่นๆ ในเครื่องดักหมายเลข ${trapO} (${maxOthersVal} ตัว)`);
-      insectSummary += `และตรวจพบ ${parts.join(' และ')} ติดสะสมนำโดดเด่นตามลำดับ`;
-    } else {
-      insectSummary += `และไม่พบมดหรือแมลงอื่นๆ ติดสะสม`;
+      // Multiple traps department
+      let maxFliesVal = -1, maxFliesTrap = '';
+      let maxMosquitoesVal = -1, maxMosquitoesTrap = '';
+      let maxAntsVal = -1, maxAntsTrap = '';
+      let maxOthersVal = -1, maxOthersTrap = '';
+
+      chartData.forEach(item => {
+        const flies = Number(item.flies) || 0;
+        const mosquitoes = Number(item.mosquitoes) || 0;
+        const ants = Number(item.ants) || 0;
+        const others = Number(item.others) || 0;
+
+        if (flies > maxFliesVal) { maxFliesVal = flies; maxFliesTrap = item.name; }
+        if (mosquitoes > maxMosquitoesVal) { maxMosquitoesVal = mosquitoes; maxMosquitoesTrap = item.name; }
+        if (ants > maxAntsVal) { maxAntsVal = ants; maxAntsTrap = item.name; }
+        if (others > maxOthersVal) { maxOthersVal = others; maxOthersTrap = item.name; }
+      });
+
+      const trapF = cleanTrap(maxFliesTrap);
+      const trapM = cleanTrap(maxMosquitoesTrap);
+      const trapA = cleanTrap(maxAntsTrap);
+      const trapO = cleanTrap(maxOthersTrap);
+
+      if (maxFliesVal > 0) {
+        insectSummary += `เครื่องดักแมลงหมายเลข ${trapF} พบ **แมลงวัน** ติดมากที่สุด จำนวน ${maxFliesVal} ตัว `;
+      } else {
+        insectSummary += `ไม่พบ **แมลงวัน** ในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+      }
+
+      if (maxMosquitoesVal > 0) {
+        insectSummary += `เครื่องดักแมลงหมายเลข ${trapM} พบ **ยุง** ติดมากที่สุด จำนวน ${maxMosquitoesVal} ตัว `;
+      } else {
+        insectSummary += `ไม่พบ **ยุง** ในเครื่องดักแมลงใดๆ ในแผนกนี้ `;
+      }
+
+      if (maxAntsVal > 0 || maxOthersVal > 0) {
+        const parts = [];
+        if (maxAntsVal > 0) parts.push(`**มด** ในเครื่องดักหมายเลข ${trapA} จำนวน ${maxAntsVal} ตัว`);
+        if (maxOthersVal > 0) parts.push(`**แมลงอื่นๆ** ในเครื่องดักหมายเลข ${trapO} จำนวน ${maxOthersVal} ตัว`);
+        insectSummary += `และตรวจพบ ${parts.join(' และ')} ติดสะสมนำโดดเด่นตามลำดับ`;
+      } else {
+        insectSummary += `และไม่พบ **มด** หรือ **แมลงอื่นๆ** ติดสะสม`;
+      }
     }
     
     let rootCause = '';
     if (deptName === 'โรงฆ่า') {
-      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูดแมลงวันและแมลงอื่นๆ`;
+      rootCause = `เนื่องจากบริเวณดังกล่าวอยู่ใกล้ไลน์ผลิตและจุดขนถ่ายซากดิบ/เครื่องใน รวมถึงมีทางเดินเข้าออกระหว่างอาคารที่สัญจรบ่อยครั้ง ทำให้เสี่ยงต่อการเปิดประตูทิ้งไว้ดึงดูด **แมลงวัน** และ **แมลงอื่นๆ**`;
     } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
       rootCause = `เนื่องจากพื้นที่เชื่อมต่อโดยตรงกับบริเวณลานโหลดสินค้าภายนอกอาคารโรงงาน ซึ่งมีการเปิด-ปิดประตูลานโหลดสินค้าและม่านริ้วพลาสติกเป็นประจำในจังหวะเทียบรถขนส่ง ทำให้แมลงจากภายนอกบินเข้ามาได้ง่าย`;
     } else if (deptName === 'หมูบด') {
-      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูดมดเข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
+      rootCause = `เนื่องจากเป็นพื้นที่บดและคัดเกรดเนื้อสัตว์ ซึ่งมักจะมีเศษเนื้อสัตว์และกลิ่นดึงดูด **มด** เข้ามาสะสมตามฐานโครงสร้างเครื่องจักรหรือซอกกำแพงอับสายตา`;
     } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ยุงและแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
+      rootCause = `เนื่องจากประตูทางเข้าออกไลน์ผลิตฝั่งนี้เปิดปิดบ่อย และม่านริ้วพลาสติกกั้นอุณหภูมิบางส่วนเริ่มเกิดการบิดเบี้ยวเสื่อมสภาพ ทำให้ **ยุง** และแมลงบินจากภายนอกลอดช่องลมเข้ามาเกาะติดเครื่องดัก`;
     } else {
       rootCause = `เนื่องจากการสัญจรผ่านประตูเข้าออกของพนักงานและรถขนถ่ายตะกร้า/อุปกรณ์การผลิตอย่างต่อเนื่องระหว่างวันทำงาน`;
     }
     
+    // recommendations closing sentence logic:
+    const zeroInsects = [];
+    const positiveInsects = [];
+    
+    if (totalFlies === 0) zeroInsects.push('**แมลงวัน**'); else positiveInsects.push('**แมลงวัน**');
+    if (totalMosquitoes === 0) zeroInsects.push('**ยุง**'); else positiveInsects.push('**ยุง**');
+    if (totalAnts === 0) zeroInsects.push('**มด**'); else positiveInsects.push('**มด**');
+    if (totalOthers === 0) zeroInsects.push('**แมลงอื่นๆ**'); else positiveInsects.push('**แมลงอื่นๆ**');
+    
+    let goalPhrase = '';
+    if (zeroInsects.length > 0 && positiveInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไป และเพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+    } else if (zeroInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroInsects.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
+    } else if (positiveInsects.length > 0) {
+      goalPhrase = ` ทั้งนี้ เพื่อลดจำนวนของ ${positiveInsects.join(', ')} ในพื้นที่ปฏิบัติงานอย่างมีประสิทธิภาพสูงสุด`;
+    }
+    
     let recommendations = '';
-    const zeroKeywords = [];
-    if (totalFlies === 0) zeroKeywords.push('แมลงวัน');
-    if (totalMosquitoes === 0) zeroKeywords.push('ยุง');
-    if (totalAnts === 0) zeroKeywords.push('มด');
-    if (totalOthers === 0) zeroKeywords.push('แมลงอื่นๆ');
-    
-    let zeroPhrase = '';
-    if (zeroKeywords.length > 0) {
-      zeroPhrase = ` ทั้งนี้ เพื่อรักษาและคงจำนวนสถิติของ ${zeroKeywords.join(', ')} ให้เป็น 0 ตัวต่อไปอย่างมีประสิทธิภาพสูงสุด`;
-    }
-    
     if (deptName === 'โรงฆ่า') {
-      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเน้นทำความสะอาดเศษซากเนื้อและคราบน้ำเลือดในไลน์ผลิตให้หมดจด ทำความสะอาดห้องน้ำไม่ให้มีน้ำขัง ปิดม่านประตูทุกครั้งหลังการใช้งาน และสลับสีกระดาษกาวดักจับตามวงรอบที่กำหนด${goalPhrase}`;
     } else if (deptName === 'หน้าร้านใหม่' || deptName === 'โหลด') {
-      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรกำชับให้พนักงานรูดปิดม่านริ้วพลาสติกทุกครั้งหลังเสร็จสิ้นการเทียบรถ ทำความสะอาดพื้นลานโหลดสินค้าไม่ให้มีสิ่งสกปรกสะสม และตรวจสอบแรงลมของม่านอากาศหน้าประตูทางเข้าหลัก${goalPhrase}`;
     } else if (deptName === 'หมูบด') {
-      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเพิ่มความถี่การล้างทำความสะอาดครั้งใหญ่ (Deep Clean) โดยใช้แรงดันน้ำร้อนพ่นขจัดคราบไขมันตกค้างตามฐานโครงแท่นเครื่องจักร และตรวจสอบซอกอุดรอยแยกตามขอบผนังปูนอย่างสม่ำเสมอ${goalPhrase}`;
     } else if (deptName === 'Slice ผลิต' || deptName === 'เฟส 6') {
-      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรตรวจสอบเปลี่ยนม่านริ้วพลาสติกที่บิดงอชำรุดให้อยู่ในสภาพสมบูรณ์ปิดมิดชิด ทำความสะอาดคราบน้ำขังในรางระบายน้ำเพื่อป้องกันแหล่งเพาะพันธุ์ และประสานงานทีม Pest Control เข้าฉีดพ่นจุดเสี่ยง${goalPhrase}`;
     } else {
-      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${zeroPhrase}`;
+      recommendations = `ดังนั้น ควรเน้นการทำความสะอาดอุปกรณ์และรางลำเลียง ตรวจสอบม่านริ้วพลาสติกทางเข้าออก และเน้นย้ำมาตรฐานความสะอาด GMP/HACCP แก่พนักงานทุกคน${goalPhrase}`;
     }
     
-    return `จากการตรวจนับจำนวนแมลง ของทีม${deptName} ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
+    return `จากการตรวจนับจำนวนแมลง ของทีม **${deptName}** ประจำเดือน ${month} ${yearText} พบว่า ${insectSummary} ${rootCause} ${recommendations}`;
   };
 
 
@@ -2094,54 +2119,101 @@ export default function DashboardPage() {
 
   // --- TAB 1: AI SUMMARY BOX AUTO GENERATION ---
   useEffect(() => {
-    if (activeData.length === 0) {
-      setAiReport('ไม่พบข้อมูลการตรวจจับแมลงสะสมในขอบข่ายตัวกรองช่วงเวลาที่ระบุ');
-      return;
-    }
+    const fetchAiReport = async () => {
+      setAiReportLoading(true);
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deptName: 'ALL',
+            month: selectedMonth,
+            quarter: selectedQuarter,
+            year: selectedYear
+          })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.report) {
+            setAiReport(result.report);
+            setAiReportLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching AI report:', err);
+      }
+      
+      // Fallback: local aggregation summary if API is offline
+      if (activeData.length === 0) {
+        setAiReport('ไม่พบข้อมูลการตรวจจับแมลงสะสมในขอบข่ายตัวกรองช่วงเวลาที่ระบุ');
+        setAiReportLoading(false);
+        return;
+      }
+      const deptMap = {};
+      const typeMap = {};
+      activeData.forEach(item => {
+        const { dept } = parseArea(item.area);
+        deptMap[dept] = (deptMap[dept] || 0) + item.count;
+        typeMap[item.insect_type] = (typeMap[item.insect_type] || 0) + item.count;
+      });
+      let maxDept = '-';
+      let maxDeptCount = 0;
+      Object.entries(deptMap).forEach(([d, c]) => {
+        if (c > maxDeptCount) { maxDeptCount = c; maxDept = d; }
+      });
+      let maxType = '-';
+      let maxTypeCount = 0;
+      Object.entries(typeMap).forEach(([t, c]) => {
+        if (c > maxTypeCount) { maxTypeCount = c; maxType = t; }
+      });
+      let periodText = '';
+      if (selectedMonth !== 'ALL') periodText = `เดือน ${selectedMonth} ปี ${selectedYear}`;
+      else if (selectedQuarter !== 'ALL') periodText = `ไตรมาส ${selectedQuarter} ปี ${selectedYear}`;
+      else periodText = `ปี ${selectedYear} (ภาพรวมสถิติสะสม)`;
 
-    const deptMap = {};
-    const typeMap = {};
-    activeData.forEach(item => {
-      const { dept } = parseArea(item.area);
-      deptMap[dept] = (deptMap[dept] || 0) + item.count;
-      typeMap[item.insect_type] = (typeMap[item.insect_type] || 0) + item.count;
-    });
+      const reportText = `**รายงานการประเมินความเสี่ยงและมาตรการป้องกันความปลอดภัยอาหารประจำงวดการตรวจ ${periodText}** (ระบบประมวลผลสำรอง)\n\nจากข้อมูลพบว่า แผนกที่มียอดสะสมสูงสุดคือแผนก **${maxDept}** (สะสมรวม **${maxDeptCount} ตัว**) และชนิดแมลงที่ตรวจพบหนาแน่นที่สุดคือ **${maxType.replace(/\s*\(.*\)/, '')}** (พบสะสมรวม **${maxTypeCount} ตัว**) ทางฝ่าย QA ขอเสนอแนะให้เร่งทำความสะอาดครั้งใหญ่ และประสานงาน Pest Control ทันที`;
+      setAiReport(reportText);
+      setAiReportLoading(false);
+    };
 
-    let maxDept = '-';
-    let maxDeptCount = 0;
-    Object.entries(deptMap).forEach(([d, c]) => {
-      if (c > maxDeptCount) { maxDeptCount = c; maxDept = d; }
-    });
+    fetchAiReport();
+  }, [selectedYear, selectedQuarter, selectedMonth, rawData, isDemo, activeData]);
 
-    let maxType = '-';
-    let maxTypeCount = 0;
-    Object.entries(typeMap).forEach(([t, c]) => {
-      if (c > maxTypeCount) { maxTypeCount = c; maxType = t; }
-    });
+  // --- TAB 2: DEPARTMENT AI SUMMARY AUTO GENERATION ---
+  useEffect(() => {
+    const fetchDeptReport = async () => {
+      setDeptReportLoading(true);
+      try {
+        const res = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            deptName: selectedDept,
+            month: selectedMonth,
+            year: selectedYear
+          })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.report) {
+            setDeptReportText(result.report);
+            setDeptReportLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching department AI report:', err);
+      }
+      
+      // Fallback: local dynamic summarizer
+      const localReport = getDeptAnalysisReport(selectedDept, selectedMonth, getDisplayYear(selectedYear));
+      setDeptReportText(localReport);
+      setDeptReportLoading(false);
+    };
 
-    let periodText = '';
-    if (selectedMonth !== 'ALL') periodText = `เดือน ${selectedMonth} ปี ${selectedYear}`;
-    else if (selectedQuarter !== 'ALL') periodText = `ไตรมาส ${selectedQuarter} ปี ${selectedYear}`;
-    else periodText = `ปี ${selectedYear} (ภาพรวมสถิติสะสม)`;
-
-    let specialAnalysis = '';
-    if (selectedMonth === 'มิถุนายน') {
-      specialAnalysis = `
-*   **⚠️ วิกฤตประจำช่วงเวลา (June Flies Spike):** มีการพุ่งทะยาน of ยอดแมลงวันสะสมอย่างเด่นชัดภายในแผนก **หน้าร้านใหม่** (ยอดสะสมแตะระดับสูงสุด 35+ ตัว) ชี้ว่าการป้องกันสภาพแวดล้อมใกล้จุดโหลดมีความบกพร่องสูงและต้องการมาตรการลมกั้นกายภาพทันที`;
-    } else if (selectedQuarter === 'Q2') {
-      specialAnalysis = `
-*   **⚠️ แนวโน้มไตรมาส Q2:** พบยอดสะสมรวมของแมลงวันเร่งความเร็วพุ่งสูงในแผนก **หน้าร้านใหม่** และแผนก **โหลด** สัมพันธ์กับการเริ่มต้นของ 2026/2569 มรสุมช่วงพฤษภาคม-มิถุนายน`;
-    } else if (selectedQuarter === 'Q1') {
-      specialAnalysis = `
-*   **🔍 สรุปข้อมูลไตรมาส Q1:** ในช่วงต้นปีพบดัชนีสะสมของ **มด** บริเวณแผนก **หมูบด** สูงสุดเฉลี่ยต่อสัปดาห์ คาดว่าเกิดจากเศษอาหารวัตถุดิบหวานอุดตันตามฐานเครื่องบด`;
-    }
-
-    const reportText = `**รายงานการประเมินความเสี่ยงและมาตรการป้องกันความปลอดภัยอาหารประจำงวดการตรวจ ${periodText}** 
-
-จากการดึงประวัติการพบแมลงสะสมทั่วอาคารผลิต พบว่าแผนกปฏิบัติงานที่มียอดความเสี่ยงสะสมสูงสุดคือแผนก **${maxDept}** (สะสมรวม **${maxDeptCount} ตัว**) และชนิดแมลงที่ตรวจพบหนาแน่นมากที่สุดคือ **${maxType.replace(/\s*\(.*\)/, '')}** (พบสะสมรวม **${maxTypeCount} ตัว**) ซึ่งสะท้อนประเด็นด้านการกวาดเช็ดล้างและการล่อนอกพื้นที่ปฏิบัติงานเป็นหลัก ${specialAnalysis} ทางฝ่ายควบคุมคุณภาพ (QC) ขอเสนอแนะให้แผนกที่เกี่ยวข้องเร่งตรวจสอบประตูด่านกั้นกายภาพม่านริ้วพลาสติก ทำความสะอาดซอกอับสายพานสายการบด และประสานงานทีม Pest Control เข้าทำการ Deep Cleaning และสลับเคมีไล่มด/แมลงรอบตัวอาคารสัปดาห์ละ 2 ครั้งเพื่อควบคุมความเสียหายตามเกณฑ์มาตรฐาน GMP และ HACCP โรงงานอุตสาหกรรม`;
-
-    setAiReport(reportText);
-  }, [selectedYear, selectedQuarter, selectedMonth, rawData, isDemo]);
+    fetchDeptReport();
+  }, [selectedDept, selectedMonth, selectedYear, rawData, isDemo]);
 
   // --- CUSTOM MARKDOWN RENDERER ---
   const renderMarkdown = (text) => {
@@ -2165,6 +2237,17 @@ export default function DashboardPage() {
     return parts.map((part, index) => {
       if (index % 2 === 1) {
         return <strong key={index} className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-1 rounded">{part}</strong>;
+      }
+      return part;
+    });
+  };
+
+  const parseInlineStylesPrint = (text) => {
+    if (!text) return null;
+    const parts = text.split(/\*\*([^*]+)\*\*/g);
+    return parts.map((part, index) => {
+      if (index % 2 === 1) {
+        return <strong key={index} style={{ fontWeight: 'bold' }}>{part}</strong>;
       }
       return part;
     });
@@ -2457,7 +2540,14 @@ export default function DashboardPage() {
                       <span>GMP / HACCP Verified Feedback Report</span>
                     </div>
                     <div className="space-y-2 mt-2 font-medium">
-                      {renderMarkdown(aiReport)}
+                      {aiReportLoading ? (
+                        <div className="flex items-center gap-2 text-slate-450 dark:text-slate-400 text-xs py-4">
+                          <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping flex-shrink-0" />
+                          กำลังวิเคราะห์ภาพรวมโรงงานด้วย AI...
+                        </div>
+                      ) : (
+                        renderMarkdown(aiReport)
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2602,9 +2692,16 @@ export default function DashboardPage() {
 
                   {/* QA Narrative Report Box */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm">
-                    <p className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
-                      {getDeptAnalysisReport(selectedDept, selectedMonth, getDisplayYear(selectedYear))}
-                    </p>
+                    <div className="text-sm sm:text-base text-slate-800 dark:text-slate-200 leading-relaxed font-semibold">
+                      {deptReportLoading ? (
+                        <div className="flex items-center gap-2 text-slate-400">
+                          <span className="w-2.5 h-2.5 bg-blue-650 rounded-full animate-ping" />
+                          กำลังวิเคราะห์ข้อมูลรายแผนกด้วย AI...
+                        </div>
+                      ) : (
+                        renderMarkdown(deptReportText)
+                      )}
+                    </div>
                   </div>
 
                   {/* Stamp Display slots */}
