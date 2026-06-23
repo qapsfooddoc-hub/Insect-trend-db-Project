@@ -140,6 +140,31 @@ export default function InspectionPage() {
   const [role, setRole] = useState('operator'); // 'operator' or 'admin'
   const [currentUser, setCurrentUser] = useState(null);
 
+  // ─── Custom Dialog Dialog State ───
+  const [dialog, setDialog] = useState({
+    isOpen: false,
+    type: 'info', // 'success', 'warning', 'confirm'
+    title: '',
+    message: '',
+    onConfirm: null
+  });
+
+  const showSuccessDialog = (title, message, onConfirm = null) => {
+    setDialog({ isOpen: true, type: 'success', title, message, onConfirm });
+  };
+
+  const showWarningDialog = (title, message) => {
+    setDialog({ isOpen: true, type: 'warning', title, message, onConfirm: null });
+  };
+
+  const showConfirmDialog = (title, message, onConfirm) => {
+    setDialog({ isOpen: true, type: 'confirm', title, message, onConfirm });
+  };
+
+  const closeDialog = () => {
+    setDialog(prev => ({ ...prev, isOpen: false }));
+  };
+
   const syncCurrentUser = () => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('currentSimulatedUser');
@@ -395,11 +420,11 @@ export default function InspectionPage() {
     const count = parseInt(newOtherCount, 10);
 
     if (!name) {
-      alert('กรุณาระบุประเภทแมลง');
+      showWarningDialog('ไม่สามารถบันทึกได้', 'กรุณาระบุประเภทแมลง');
       return;
     }
     if (isNaN(count) || count <= 0) {
-      alert('กรุณาระบุจำนวนตรวจนับตัวเลขที่มากกว่า 0');
+      showWarningDialog('ไม่สามารถบันทึกได้', 'กรุณาระบุจำนวนตรวจนับตัวเลขที่มากกว่า 0');
       return;
     }
 
@@ -473,26 +498,34 @@ export default function InspectionPage() {
   };
 
   const resetTable = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตตารางและจัดกลุ่มแผนกตามมาตรฐานเอกสาร FM-QC - 08/03 ใช่หรือไม่?')) {
-      setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
-      setNotification(null);
-    }
+    showConfirmDialog(
+      'ยืนยันการรีเซ็ตตาราง',
+      'คุณต้องการรีเซ็ตตารางและจัดกลุ่มแผนกตามมาตรฐานเอกสาร FM-QC - 08/03 ใช่หรือไม่?',
+      () => {
+        setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
+        setNotification(null);
+      }
+    );
   };
 
   // Reset/Clear only insect count states across all 33 rows
   const clearAllData = () => {
-    if (window.confirm('คุณต้องการล้างตัวเลขสถิติผลตรวจนับทุกช่องในตารางใช่หรือไม่? (ตำแหน่งเครื่องดักและแผนกจะยังอยู่คงเดิม)')) {
-      const cleared = rows.map(r => ({
-        ...r,
-        flies: '',
-        mosquitoes: '',
-        ants: '',
-        others: '',
-        othersDetails: []
-      }));
-      setRows(cleared);
-      setNotification(null);
-    }
+    showConfirmDialog(
+      'ยืนยันการล้างข้อมูล',
+      'คุณต้องการล้างตัวเลขสถิติผลตรวจนับทุกช่องในตารางใช่หรือไม่? (ตำแหน่งเครื่องดักและแผนกจะยังอยู่คงเดิม)',
+      () => {
+        const cleared = rows.map(r => ({
+          ...r,
+          flies: '',
+          mosquitoes: '',
+          ants: '',
+          others: '',
+          othersDetails: []
+        }));
+        setRows(cleared);
+        setNotification(null);
+      }
+    );
   };
 
   // Save weekly checklist
@@ -567,6 +600,23 @@ export default function InspectionPage() {
           'success', 
           `บันทึกผลการตรวจสอบสำเร็จ! ${result.message} (อัปเดตทั้งหมด ${result.insertedCount} เครื่องดัก)`,
           result.isDemo
+        );
+        
+        showSuccessDialog(
+          'บันทึกข้อมูลสำเร็จ',
+          `ระบบได้ทำการบันทึกข้อมูลการนับแมลงเรียบร้อยแล้ว (อัปเดตทั้งหมด ${result.insertedCount} เครื่องดัก)`,
+          () => {
+            // Reset table numbers to empty after success
+            const cleared = rows.map(item => ({
+              ...item,
+              flies: '',
+              mosquitoes: '',
+              ants: '',
+              others: '',
+              othersDetails: []
+            }));
+            setRows(cleared);
+          }
         );
       } else {
         showNotification('error', result.error || 'เกิดข้อผิดพลาดจากทางเซิร์ฟเวอร์');
@@ -1314,6 +1364,81 @@ export default function InspectionPage() {
               >
                 คำนวณและปิดยอดรวม ({modalItems.reduce((s, i) => s + (parseInt(i.count, 10) || 0), 0)} ตัว)
               </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ─── Custom Dialog Popup ─── */}
+      {dialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          {/* Overlay */}
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={closeDialog} />
+          
+          {/* Modal Container */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative z-10 transform scale-100 transition-all font-sans">
+            
+            {/* Header Icon & Title */}
+            <div className="p-6 pb-4 text-center">
+              {dialog.type === 'success' && (
+                <div className="w-16 h-16 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600 text-3xl animate-bounce">
+                  ✓
+                </div>
+              )}
+              {dialog.type === 'warning' && (
+                <div className="w-16 h-16 bg-amber-50 dark:bg-amber-955/20 border border-amber-100 dark:border-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-amber-600 text-3xl animate-pulse">
+                  ⚠️
+                </div>
+              )}
+              {dialog.type === 'confirm' && (
+                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-955/20 border border-blue-100 dark:border-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-600 text-3xl">
+                  ❓
+                </div>
+              )}
+
+              <h3 className="text-base font-extrabold text-slate-850 dark:text-white mb-2">
+                {dialog.title}
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold leading-relaxed px-2">
+                {dialog.message}
+              </p>
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-center gap-3">
+              {dialog.type === 'confirm' ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={closeDialog}
+                    className="px-4 py-2 border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-900 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-slate-700 dark:text-slate-350 cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (dialog.onConfirm) dialog.onConfirm();
+                      closeDialog();
+                    }}
+                    className="px-5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
+                  >
+                    ยืนยัน
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (dialog.onConfirm) dialog.onConfirm();
+                    closeDialog();
+                  }}
+                  className="px-6 py-2 bg-slate-950 hover:bg-slate-850 text-white dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100 text-xs font-extrabold rounded-xl transition-all shadow-sm cursor-pointer"
+                >
+                  ตกลง
+                </button>
+              )}
             </div>
 
           </div>
