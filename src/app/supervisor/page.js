@@ -1140,17 +1140,17 @@ export default function SupervisorPortal() {
                         label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
-                      <Bar dataKey="flies"      name="แมลงวัน" fill={INSECT_CHART_COLORS.flies}>
-                        <LabelList dataKey="flies"      content={renderCustomLabel('#475569', 9)} />
+                      <Bar dataKey="flies"      name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
+                        <LabelList dataKey="flies"      position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                       </Bar>
-                      <Bar dataKey="mosquitoes" name="ยุง"      fill={INSECT_CHART_COLORS.mosquitoes}>
-                        <LabelList dataKey="mosquitoes" content={renderCustomLabel('#475569', 9)} />
+                      <Bar dataKey="mosquitoes" name="ยุง"      fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
+                        <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                       </Bar>
-                      <Bar dataKey="ants"       name="มด"       fill={INSECT_CHART_COLORS.ants}>
-                        <LabelList dataKey="ants"       content={renderCustomLabel('#475569', 9)} />
+                      <Bar dataKey="ants"       name="มด"       fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
+                        <LabelList dataKey="ants"       position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                       </Bar>
-                      <Bar dataKey="others"     name="อื่นๆ"   fill={INSECT_CHART_COLORS.others}>
-                        <LabelList dataKey="others"     content={renderCustomLabel('#475569', 9)} />
+                      <Bar dataKey="others"     name="อื่นๆ"   fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
+                        <LabelList dataKey="others"     position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
