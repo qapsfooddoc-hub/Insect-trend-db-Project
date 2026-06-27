@@ -1147,7 +1147,7 @@ export default function SupervisorPortal() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                       <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} tickLine={false} style={{ fontFamily: 'inherit' }} interval={0} height={40}
                         tick={<CustomTick />} />
-                      <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} style={{ fontFamily: 'inherit' }}
+                      <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} style={{ fontFamily: 'inherit' }} domain={[0, (max) => Math.max(10, max)]}
                         label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 11, fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />

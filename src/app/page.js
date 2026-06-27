@@ -872,7 +872,7 @@ export default function DashboardPage() {
           <BarChart width={1009} height={350} data={mapZeroToTinyDecimal(chartData)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
             <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
-            <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} />
+            <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, (max) => Math.max(10, max)]} />
             <Tooltip formatter={(value) => (value < 0.1 ? 0 : value)} />
             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
             <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
@@ -2606,7 +2606,7 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
-                        <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
+                        <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} domain={[0, (max) => Math.max(10, max)]} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend
                           iconType="circle"
@@ -2805,6 +2805,7 @@ export default function DashboardPage() {
                               fontSize={10} 
                               tickLine={false} 
                               style={{ fontFamily: 'inherit' }}
+                              domain={[0, (max) => Math.max(10, max)]}
                               label={{ 
                                 value: 'จำนวน (ตัว)', 
                                 angle: -90, 
