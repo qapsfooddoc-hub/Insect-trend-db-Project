@@ -508,6 +508,42 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteAllDeptsInspectionEdits = async () => {
+    if (!selectedInspectionDate) {
+      setAdminMessage({ text: 'กรุณาระบุวันที่ที่ต้องการลบข้อมูล', type: 'error' });
+      return;
+    }
+    if (!confirm(`⚠️ คำเตือน: คุณแน่ใจหรือไม่ที่จะลบข้อมูลผลตรวจนับของ "ทุกแผนก" ในวันที่ "${selectedInspectionDate}" ทั้งหมด?\nการดำเนินการนี้จะลบข้อมูลสถิติของทุกแผนกในรอบสัปดาห์นี้ออกถาวร!`)) return;
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/inspection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          weekDate: selectedInspectionDate,
+          department: 'ALL'
+        })
+      });
+      const result = await res.json();
+      
+      if (res.ok) {
+        setAdminMessage({ text: `ลบข้อมูลผลตรวจนับของทุกแผนกในวันที่ ${selectedInspectionDate.split('-').reverse().join('/')} เรียบร้อยแล้ว!`, type: 'success' });
+        setInspectionRows([]);
+        await fetchInspections();
+      } else {
+        setAdminMessage({ text: result.error || 'เกิดข้อผิดพลาดในการลบสถิติ', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการติดต่อเซิร์ฟเวอร์', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!mounted) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-955">
@@ -979,7 +1015,16 @@ export default function AdminPage() {
                         className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Trash className="w-3.5 h-3.5" />
-                        <span>ลบชุดข้อมูลรอบสัปดาห์นี้</span>
+                        <span>ลบแผนกนี้ในสัปดาห์นี้</span>
+                      </button>
+
+                      <button
+                        onClick={handleDeleteAllDeptsInspectionEdits}
+                        disabled={!selectedInspectionDate || isLoading}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                        <span>ลบของทุกแผนกในสัปดาห์นี้</span>
                       </button>
                     </div>
                   </div>

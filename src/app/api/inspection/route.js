@@ -116,9 +116,15 @@ export async function POST(request) {
 
       if (!isSupabaseConfigured()) {
         // Delete from in-memory global store
-        global.mockInspections = global.mockInspections.filter(r => 
-          !(r.inspected_at === normalizedWeekDate && r.area.startsWith(`${department}: `))
-        );
+        if (department === 'ALL') {
+          global.mockInspections = global.mockInspections.filter(r => 
+            r.inspected_at !== normalizedWeekDate
+          );
+        } else {
+          global.mockInspections = global.mockInspections.filter(r => 
+            !(r.inspected_at === normalizedWeekDate && r.area.startsWith(`${department}: `))
+          );
+        }
         return NextResponse.json({
           success: true,
           message: 'Demo Mode: Inspection records deleted successfully in-memory.',
@@ -126,11 +132,16 @@ export async function POST(request) {
         });
       }
 
-      const { error } = await supabase
+      let deleteQuery = supabase
         .from('insect_inspections')
         .delete()
-        .eq('inspected_at', normalizedWeekDate)
-        .like('area', `${department}: %`);
+        .eq('inspected_at', normalizedWeekDate);
+
+      if (department !== 'ALL') {
+        deleteQuery = deleteQuery.like('area', `${department}: %`);
+      }
+
+      const { error } = await deleteQuery;
 
       if (error) {
         throw error;
