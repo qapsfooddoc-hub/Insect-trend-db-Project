@@ -193,9 +193,21 @@ export default function InspectionPage() {
   const [monthStatus, setMonthStatus] = useState('Draft');
   const [completeness, setCompleteness] = useState({ submittedWeeks: [], requiredWeeks: 4, isComplete: false });
 
+  const normalizeDateToCE = (dateStr) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      let year = parseInt(parts[0], 10);
+      if (year > 2400) {
+        year -= 543;
+        return `${year}-${parts[1]}-${parts[2]}`;
+      }
+    }
+    return dateStr;
+  };
+
   const getRequiredWeeksCount = (year, month) => {
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    return lastDay === 28 ? 4 : 5;
+    return 4; // Always 4 weeks per month to align with YoY dashboard chart
   };
 
   const getWeekOfMonth = (dateString) => {
@@ -204,8 +216,7 @@ export default function InspectionPage() {
     if (day <= 7) return 1;
     if (day <= 14) return 2;
     if (day <= 21) return 3;
-    if (day <= 28) return 4;
-    return 5;
+    return 4; // Group everything day > 21 into week 4
   };
 
   const isAutoApprovedDate = (dateStr) => {
@@ -759,7 +770,7 @@ export default function InspectionPage() {
               <input 
                 type="date"
                 value={weekDate}
-                onChange={(e) => setWeekDate(e.target.value)}
+                onChange={(e) => setWeekDate(normalizeDateToCE(e.target.value))}
                 className="bg-transparent text-xs font-bold text-slate-850 dark:text-slate-100 focus:outline-none"
                 required
               />

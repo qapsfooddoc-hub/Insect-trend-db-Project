@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
-  Users, Pencil, Trash2, RefreshCw, Plus, Sparkles 
+  Users, Pencil, Trash2, RefreshCw, Plus, Sparkles, 
+  Calendar, Save, Trash, AlertCircle, PlusCircle, Check
 } from 'lucide-react';
 
 const DEPTS_LIST = [
@@ -11,8 +12,65 @@ const DEPTS_LIST = [
   'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
 ];
 
+const DEPT_TRAPS_MAPPING = {
+  'หน้าร้านใหม่': ['(07) ลานโหลดสินค้าหน้าร้าน'],
+  'โรงฆ่า': [
+    '(08) ทางลำเลียงสินค้า โรงฆ่า-หน้าร้าน',
+    '(09) ทางเดินข้างห้องล้างกระเพาะ',
+    '(10) ลานโหลดสินค้าห้องเลือด',
+    '(11) ทางเข้าห้องเชือด',
+    '(12) คอกพักสุกร (คอก 3)'
+  ],
+  'ตัดแต่ง': [
+    '(03) ห้องตัดแต่ง บริเวณทางหนีไฟ',
+    '(04) ห้องตัดแต่ง บริเวณเสากลาง',
+    '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง',
+    '(31) ห้องล้างมัน/คัดแยกเศษ'
+  ],
+  'โหลด เฟส 5': [
+    '(01) ลานโหลดของตัดแต่งและ Makro',
+    '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง',
+    '(06) ลานโหลดของตัดแต่งและ Makro'
+  ],
+  'เฟส 6': [
+    '(13) ห้อง Pack A บริเวณหน้าประตูทางเชื่อมอาคาร',
+    '(14) ห้อง Pack A ซอกอับสายตา',
+    '(15) ห้องชั่งน้ำหนัก/ทางเชื่อมอาคารตัดแต่ง',
+    '(16) ห้องเกรดน้ำจิ้ม/ทางเดินห้องเตรียมสี'
+  ],
+  'คลัง3': [
+    '(26) คลัง 3 ประตูม้วนขนย้ายสินค้าออก',
+    '(27) คลัง 3 หน้าตู้แช่แข็ง',
+    '(28) ทางเดินเข้าคลังสินค้าติดหน้าห้องน้ำ',
+    '(29) ห้องกระจายสินค้าติดช่องหน้าต่าง'
+  ],
+  'หมูบด': [
+    '(17) ห้องหมูบด บริเวณทางเข้า-ออก ติดตู้ F5',
+    '(18) ห้องเตรียมวัตถุดิบ/ซอกเสา',
+    '(19) ห้องบดผสม/ทางหนีไฟด้านหลัง'
+  ],
+  'Slice ผลิต': [
+    '(20) ห้อง Slice เครื่องใน ซอกตู้ไฟ',
+    '(21) ห้อง Slice เครื่องใน ทางเดินติดห้องล้างมือ',
+    '(22) ห้อง Slice เครื่องใน ทางเข้า-ออก ฝั่ง Chill 3',
+    '(23) ห้องแต่งตัวทางเข้าฝ่ายผลิต ฝั่ง Chill 3'
+  ],
+  'อนามัย': [
+    '(24) ห้องล้างเท้า ทางเข้าหลักฝ่ายผลิต',
+    '(25) ทางเดินโถงกลาง หน้าห้องซ่อมบำรุง',
+    '(30) ห้องทำความสะอาดสุขลักษณะพนักงานก่อนเข้างาน'
+  ],
+  'ล้างตะกร้า': [
+    '(32) ห้องล้างตะกร้า ช่องรับตะกร้าสกปรก',
+    '(33) ห้องล้างตะกร้า บริเวณเครื่องล้างตะกร้าอัตโนมัติ'
+  ]
+};
+
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
+  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'inspections'
+
+  // --- USER MANAGEMENT STATES ---
   const [users, setUsers] = useState([]);
   const [userId, setUserId] = useState('');
   const [fullName, setFullName] = useState('');
@@ -23,10 +81,24 @@ export default function AdminPage() {
   const [customDept, setCustomDept] = useState('');
   const [showCustomDeptInput, setShowCustomDeptInput] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [adminMessage, setAdminMessage] = useState({ text: '', type: '' });
   const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
+
+  // --- INSPECTION MANAGEMENT STATES ---
+  const [allInspections, setAllInspections] = useState([]);
+  const [selectedInspectionDept, setSelectedInspectionDept] = useState('โรงฆ่า');
+  const [selectedInspectionDate, setSelectedInspectionDate] = useState('');
+  const [inspectionRows, setInspectionRows] = useState([]);
+  
+  // Others Breakdown Modal
+  const [isOthersModalOpen, setIsOthersModalOpen] = useState(false);
+  const [activeRowIndex, setActiveRowIndex] = useState(null);
+  const [modalItems, setModalItems] = useState([]);
+
+  // Common UI states
+  const [adminMessage, setAdminMessage] = useState({ text: '', type: '' });
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
   // Fetch Users
   const fetchUsers = async () => {
@@ -55,7 +127,21 @@ export default function AdminPage() {
     }
   };
 
-  const [currentUser, setCurrentUser] = useState(null);
+  // Fetch Inspections
+  const fetchInspections = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/inspection');
+      const result = await res.json();
+      if (res.ok && result.data) {
+        setAllInspections(result.data);
+      }
+    } catch (err) {
+      console.error('Error fetching inspections:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const syncCurrentUser = () => {
     if (typeof window !== 'undefined') {
@@ -73,6 +159,7 @@ export default function AdminPage() {
   useEffect(() => {
     setMounted(true);
     fetchUsers();
+    fetchInspections();
 
     syncCurrentUser();
     window.addEventListener('currentSimulatedUserChanged', syncCurrentUser);
@@ -80,6 +167,15 @@ export default function AdminPage() {
       window.removeEventListener('currentSimulatedUserChanged', syncCurrentUser);
     };
   }, []);
+
+  // Auto-refresh when tab changes
+  useEffect(() => {
+    if (activeTab === 'inspections') {
+      fetchInspections();
+    } else {
+      fetchUsers();
+    }
+  }, [activeTab]);
 
   // Clear admin message after 4 seconds
   useEffect(() => {
@@ -91,6 +187,78 @@ export default function AdminPage() {
     }
   }, [adminMessage.text]);
 
+  // Load inspection rows for selected department and date
+  const handleLoadInspectionData = () => {
+    if (!selectedInspectionDept || !selectedInspectionDate) {
+      setInspectionRows([]);
+      return;
+    }
+
+    const areas = DEPT_TRAPS_MAPPING[selectedInspectionDept] || [];
+    const targetDate = selectedInspectionDate;
+
+    // Filter matching date & department
+    const matchingRecords = allInspections.filter(item => {
+      if (item.inspected_at !== targetDate) return false;
+      const parts = item.area.split(': ');
+      return parts[0] === selectedInspectionDept;
+    });
+
+    const rows = areas.map(areaName => {
+      const areaFull = `${selectedInspectionDept}: ${areaName}`;
+      const recordsForArea = matchingRecords.filter(r => r.area === areaFull);
+
+      const row = {
+        area: areaName,
+        flies: '',
+        mosquitoes: '',
+        ants: '',
+        others: '',
+        othersDetails: []
+      };
+
+      recordsForArea.forEach(r => {
+        const type = r.insect_type.toLowerCase();
+        const count = r.count;
+        if (type.includes('flies') || type.includes('แมลงวัน')) row.flies = count;
+        else if (type.includes('mosquitoes') || type.includes('ยุง')) row.mosquitoes = count;
+        else if (type.includes('ants') || type.includes('มด')) row.ants = count;
+        else if (type.includes('others') || type.includes('แมลงอื่นๆ')) {
+          row.others = count;
+          let detailsList = [];
+          if (r.details) {
+            try {
+              detailsList = typeof r.details === 'string' ? JSON.parse(r.details) : r.details;
+            } catch (e) {
+              console.error('Failed to parse details:', e);
+            }
+          }
+          row.othersDetails = detailsList || [];
+        }
+      });
+
+      return row;
+    });
+
+    setInspectionRows(rows);
+  };
+
+  useEffect(() => {
+    handleLoadInspectionData();
+  }, [selectedInspectionDept, selectedInspectionDate, allInspections]);
+
+  // Get unique dates available in database
+  const getUniqueDates = () => {
+    const dates = new Set();
+    allInspections.forEach(item => {
+      if (item.inspected_at) {
+        dates.add(item.inspected_at);
+      }
+    });
+    return [...dates].sort((a, b) => new Date(b) - new Date(a));
+  };
+
+  // --- USER FORM HANDLERS ---
   const handleSaveUser = async (e) => {
     e.preventDefault();
     if (!fullName || !username || !password) {
@@ -213,6 +381,137 @@ export default function AdminPage() {
     }
   };
 
+  // --- INSPECTION EDIT HANDLERS ---
+  const handleCellChange = (rowIndex, field, value) => {
+    const updated = [...inspectionRows];
+    if (value === '') {
+      updated[rowIndex][field] = '';
+    } else {
+      const val = parseInt(value, 10);
+      updated[rowIndex][field] = isNaN(val) ? '' : Math.max(0, val);
+    }
+    setInspectionRows(updated);
+  };
+
+  const handleOpenOthersModal = (rowIndex) => {
+    setActiveRowIndex(rowIndex);
+    setModalItems([...(inspectionRows[rowIndex].othersDetails || [])]);
+    setIsOthersModalOpen(true);
+  };
+
+  const handleAddModalItem = () => {
+    setModalItems([...modalItems, { name: '', count: 1 }]);
+  };
+
+  const handleModalItemChange = (idx, field, value) => {
+    const updated = [...modalItems];
+    if (field === 'count') {
+      const val = parseInt(value, 10);
+      updated[idx][field] = isNaN(val) ? 0 : Math.max(0, val);
+    } else {
+      updated[idx][field] = value;
+    }
+    setModalItems(updated);
+  };
+
+  const handleRemoveModalItem = (idx) => {
+    setModalItems(modalItems.filter((_, itemIdx) => itemIdx !== idx));
+  };
+
+  const handleApplyModalItems = () => {
+    if (activeRowIndex === null) return;
+    const filtered = modalItems.filter(item => item.name.trim() !== '');
+    const totalCount = filtered.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+
+    const updated = [...inspectionRows];
+    updated[activeRowIndex].othersDetails = filtered;
+    
+    // Auto-update total "others" count if breakdown exists
+    if (totalCount > 0) {
+      updated[activeRowIndex].others = totalCount;
+    }
+
+    setInspectionRows(updated);
+    setIsOthersModalOpen(false);
+    setActiveRowIndex(null);
+  };
+
+  const handleSaveInspectionEdits = async () => {
+    if (!selectedInspectionDept || !selectedInspectionDate) {
+      setAdminMessage({ text: 'กรุณาระบุแผนกและวันที่ตรวจนับ', type: 'error' });
+      return;
+    }
+
+    setIsLoading(true);
+
+    const formattedRows = inspectionRows.map(r => ({
+      area: `${selectedInspectionDept}: ${r.area}`,
+      flies: r.flies === '' ? 0 : r.flies,
+      mosquitoes: r.mosquitoes === '' ? 0 : r.mosquitoes,
+      ants: r.ants === '' ? 0 : r.ants,
+      others: r.others === '' ? 0 : r.others,
+      othersDetails: r.othersDetails || []
+    }));
+
+    try {
+      const res = await fetch('/api/inspection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          weekDate: selectedInspectionDate,
+          rows: formattedRows
+        })
+      });
+      const result = await res.json();
+      
+      if (res.ok) {
+        setAdminMessage({ text: 'อัปเดตสถิติผลการตรวจนับสำเร็จเรียบร้อย!', type: 'success' });
+        await fetchInspections();
+      } else {
+        setAdminMessage({ text: result.error || 'เกิดข้อผิดพลาดในการบันทึกสถิติ', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการติดต่อเซิร์ฟเวอร์', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteInspectionEdits = async () => {
+    if (!selectedInspectionDept || !selectedInspectionDate) return;
+    if (!confirm(`คุณแน่ใจหรือไม่ที่จะลบข้อมูลผลตรวจนับของแผนก "${selectedInspectionDept}" ในวันที่ "${selectedInspectionDate}" ทั้งหมด?\nการดำเนินการนี้จะลบข้อมูลออกถาวร!`)) return;
+
+    setIsLoading(true);
+
+    try {
+      const res = await fetch('/api/inspection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete',
+          weekDate: selectedInspectionDate,
+          department: selectedInspectionDept
+        })
+      });
+      const result = await res.json();
+      
+      if (res.ok) {
+        setAdminMessage({ text: 'ลบข้อมูลผลการตรวจนับรอบนี้เรียบร้อยแล้ว!', type: 'success' });
+        setInspectionRows([]);
+        await fetchInspections();
+      } else {
+        setAdminMessage({ text: result.error || 'เกิดข้อผิดพลาดในการลบสถิติ', type: 'error' });
+      }
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการติดต่อเซิร์ฟเวอร์', type: 'error' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!mounted) {
     return (
       <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-955">
@@ -263,11 +562,11 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-10 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {!isAdmin ? (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-855 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
             <div className="w-16 h-16 bg-red-50 dark:bg-red-955/20 border border-red-100 dark:border-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl animate-pulse">
               🚫
             </div>
-            <h3 className="text-sm sm:text-base font-extrabold text-red-650 dark:text-red-400 mb-2">
+            <h3 className="text-sm sm:text-base font-extrabold text-red-655 dark:text-red-400 mb-2">
               ปฏิเสธการเข้าถึง - เฉพาะผู้ดูแลระบบ (Admin) เท่านั้น
             </h3>
             <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-semibold max-w-md mx-auto mb-6 leading-relaxed">
@@ -291,286 +590,606 @@ export default function AdminPage() {
         ) : (
           <>
             {/* Header Section */}
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-880 pb-5">
-          <div>
-
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-              จัดการผู้ใช้งานระบบ (Admin Portal)
-            </h1>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className={`px-4 py-2 border rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm bg-white dark:bg-slate-900 ${
-              isDemoMode 
-                ? 'border-amber-500/20 text-amber-600 dark:text-amber-400' 
-                : 'border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-            }`}>
-              <span className={`w-2.5 h-2.5 rounded-full ${isDemoMode ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-              <span>{isDemoMode ? 'เดโมโหมด (พรีเซนต์)' : 'ระบบจริงเชื่อมต่อแล้ว'}</span>
-            </div>
-
-            <button
-              onClick={fetchUsers}
-              disabled={isLoading}
-              className="p-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isLoading ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Admin Alerts Panel */}
-        {adminMessage.text && (
-          <div className={`p-4 rounded-2xl border text-xs font-bold transition-all flex items-center gap-2 mb-6 ${
-            adminMessage.type === 'success' 
-              ? 'bg-emerald-50/70 border-emerald-250 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400' 
-              : adminMessage.type === 'error' 
-                ? 'bg-red-50/80 border-red-250 text-red-750 dark:bg-red-950/20 dark:border-red-900/50 dark:text-red-400' 
-                : 'bg-blue-50/80 border-blue-250 text-blue-750 dark:bg-blue-955/20 dark:border-blue-900/50 dark:text-blue-450'
-          }`}>
-            <span className="text-sm">
-              {adminMessage.type === 'success' ? '✅' : adminMessage.type === 'error' ? '❌' : 'ℹ️'}
-            </span>
-            <p>{adminMessage.text}</p>
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-12 gap-8">
-          
-          {/* Form Side - Left Column (4 cols) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
-            <div>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 flex items-center justify-center font-bold text-base">
-                  {isEditing ? '✏️' : '👤'}
-                </div>
-                <h3 className="text-sm font-bold text-slate-850 dark:text-white">
-                  {isEditing ? 'แก้ไขข้อมูลผู้ใช้ระบบ' : 'เพิ่มผู้ใช้งานระบบใหม่'}
-                </h3>
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  ผู้จัดการระบบหลังบ้าน (Admin Portal)
+                </h1>
               </div>
 
-              <form onSubmit={handleSaveUser} className="space-y-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">ชื่อ-นามสกุล พนักงาน</label>
-                  <input
-                    type="text"
-                    placeholder="เช่น นายสมชาย รักดี"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-855 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
-                    required
-                  />
+              <div className="flex flex-wrap items-center gap-3">
+                <div className={`px-4 py-2 border rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm bg-white dark:bg-slate-900 ${
+                  isDemoMode 
+                    ? 'border-amber-500/20 text-amber-600 dark:text-amber-400' 
+                    : 'border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${isDemoMode ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  <span>{isDemoMode ? 'เดโมโหมด (พรีเซนต์)' : 'ระบบจริงเชื่อมต่อแล้ว'}</span>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">Username / รหัสพนักงาน</label>
-                  <input
-                    type="text"
-                    placeholder="สำหรับใช้ล็อกอินเข้าระบบ"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-855 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">Password</label>
-                  <input
-                    type="password"
-                    placeholder="รหัสผ่านสำหรับล็อกอิน"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-855 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">ระดับสิทธิ์การเข้าใช้งาน</label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-855 focus:outline-none cursor-pointer text-slate-850 dark:text-slate-200"
-                  >
-                    <option value="Operator">Operator (ผู้กรอกข้อมูล)</option>
-                    <option value="Department Supervisor">Department Supervisor (หัวหน้าแผนก)</option>
-                    <option value="QA Manager">QA Manager (ผู้จัดการ QA)</option>
-                    <option value="Admin">Admin (ผู้ดูแลระบบ)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">แผนกที่สังกัด</label>
-                  <select
-                    value={showCustomDeptInput ? 'CUSTOM' : department}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === 'CUSTOM') {
-                        setShowCustomDeptInput(true);
-                        setDepartment('CUSTOM');
-                      } else {
-                        setShowCustomDeptInput(false);
-                        setDepartment(val);
-                      }
-                    }}
-                    className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-855 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200 mb-2"
-                  >
-                    <option value="">-- เลือกแผนก --</option>
-                    {DEPTS_LIST.map((d) => (
-                      <option key={d} value={d}>แผนก {d}</option>
-                    ))}
-                    <option value="CUSTOM">อื่น ๆ (พิมพ์ระบุเอง)</option>
-                  </select>
-
-                  {showCustomDeptInput && (
-                    <input
-                      type="text"
-                      placeholder="กรอกระบุแผนกใหม่ที่นี่..."
-                      value={customDept}
-                      onChange={(e) => setCustomDept(e.target.value)}
-                      className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-855 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200 animate-in slide-in-from-top-1 duration-200"
-                      required
-                    />
-                  )}
-                </div>
-
-                <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-850">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 bg-slate-950 text-white hover:bg-indigo-650 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer text-center"
-                  >
-                    {isEditing ? 'บันทึกการแก้ไข' : 'บันทึกสร้างผู้ใช้งาน'}
-                  </button>
-
-                  {isEditing && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUserId('');
-                        setFullName('');
-                        setUsername('');
-                        setPassword('');
-                        setRole('Operator');
-                        setDepartment('โรงฆ่า');
-                        setCustomDept('');
-                        setShowCustomDeptInput(false);
-                        setIsEditing(false);
-                        setAdminMessage({ text: 'ยกเลิกการแก้ไขข้อมูล', type: 'info' });
-                      }}
-                      className="px-4 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-855 text-xs font-bold rounded-2xl transition-all cursor-pointer"
-                    >
-                      ยกเลิก
-                    </button>
-                  )}
-                </div>
-              </form>
+                <button
+                  onClick={activeTab === 'users' ? fetchUsers : fetchInspections}
+                  disabled={isLoading}
+                  className="p-2.5 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition-all cursor-pointer"
+                >
+                  <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-300 ${isLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             </div>
-          </div>
 
-          {/* List Side - Right Column (8 cols) */}
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
-            <div>
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <Users className="w-5 h-5 text-indigo-500" />
+            {/* Navigation Tabs */}
+            <div className="flex border-b border-slate-200 dark:border-slate-800 mb-6 gap-2">
+              <button
+                onClick={() => setActiveTab('users')}
+                className={`pb-2.5 px-4 text-xs font-black border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'users'
+                    ? 'border-indigo-650 text-indigo-650 dark:border-indigo-500 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                👥 จัดการบัญชีผู้ใช้ระบบ ({users.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('inspections')}
+                className={`pb-2.5 px-4 text-xs font-black border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'inspections'
+                    ? 'border-indigo-650 text-indigo-650 dark:border-indigo-500 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                📝 แก้ไขปรับปรุงข้อมูลผลตรวจนับ
+              </button>
+            </div>
+
+            {/* Admin Alerts Panel */}
+            {adminMessage.text && (
+              <div className={`p-4 rounded-2xl border text-xs font-bold transition-all flex items-center gap-2 mb-6 ${
+                adminMessage.type === 'success' 
+                  ? 'bg-emerald-50/70 border-emerald-250 text-emerald-800 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-400' 
+                  : adminMessage.type === 'error' 
+                    ? 'bg-red-50/80 border-red-250 text-red-750 dark:bg-red-955/20 dark:border-red-900/50 dark:text-red-400' 
+                    : 'bg-blue-50/80 border-blue-250 text-blue-750 dark:bg-blue-955/20 dark:border-blue-900/50 dark:text-blue-450'
+              }`}>
+                <span className="text-sm">
+                  {adminMessage.type === 'success' ? '✅' : adminMessage.type === 'error' ? '❌' : 'ℹ️'}
+                </span>
+                <p>{adminMessage.text}</p>
+              </div>
+            )}
+
+            {activeTab === 'users' ? (
+              /* --- TAB 1: USERS MANAGEMENT --- */
+              <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
+                {/* Form Side - Left Column (4 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-855 dark:text-white">
-                      รายชื่อผู้ใช้งานระบบ ({users.length})
-                    </h3>
-                    <p className="text-[10px] text-slate-450 mt-0.5">
-                      แสดงรายชื่อพนักงานทั้งหมดที่มีสิทธิ์เข้าใช้งานระบบตามระดับสิทธิ์ที่ระบุ
-                    </p>
+                    <div className="flex items-center gap-2 mb-5">
+                      <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 flex items-center justify-center font-bold text-base">
+                        {isEditing ? '✏️' : '👤'}
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-850 dark:text-white">
+                        {isEditing ? 'แก้ไขข้อมูลผู้ใช้ระบบ' : 'เพิ่มผู้ใช้งานระบบใหม่'}
+                      </h3>
+                    </div>
+
+                    <form onSubmit={handleSaveUser} className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-450 uppercase mb-1">ชื่อ-นามสกุล พนักงาน</label>
+                        <input
+                          type="text"
+                          placeholder="เช่น นายสมชาย รักดี"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">Username / รหัสพนักงาน</label>
+                        <input
+                          type="text"
+                          placeholder="สำหรับใช้ล็อกอินเข้าระบบ"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">Password</label>
+                        <input
+                          type="password"
+                          placeholder="รหัสผ่านสำหรับล็อกอิน"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ระดับสิทธิ์การเข้าใช้งาน</label>
+                        <select
+                          value={role}
+                          onChange={(e) => setRole(e.target.value)}
+                          className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-850 dark:text-slate-200"
+                        >
+                          <option value="Operator">Operator (ผู้กรอกข้อมูล)</option>
+                          <option value="Department Supervisor">Department Supervisor (หัวหน้าแผนก)</option>
+                          <option value="QA Manager">QA Manager (ผู้จัดการ QA)</option>
+                          <option value="Admin">Admin (ผู้ดูแลระบบ)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">แผนกที่สังกัด</label>
+                        <select
+                          value={showCustomDeptInput ? 'CUSTOM' : department}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'CUSTOM') {
+                              setShowCustomDeptInput(true);
+                              setDepartment('CUSTOM');
+                            } else {
+                              setShowCustomDeptInput(false);
+                              setDepartment(val);
+                            }
+                          }}
+                          className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200 mb-2"
+                        >
+                          <option value="">-- เลือกแผนก --</option>
+                          {DEPTS_LIST.map((d) => (
+                            <option key={d} value={d}>แผนก {d}</option>
+                          ))}
+                          <option value="CUSTOM">อื่น ๆ (พิมพ์ระบุเอง)</option>
+                        </select>
+
+                        {showCustomDeptInput && (
+                          <input
+                            type="text"
+                            placeholder="กรอกระบุแผนกใหม่ที่นี่..."
+                            value={customDept}
+                            onChange={(e) => setCustomDept(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200 animate-in slide-in-from-top-1 duration-200"
+                            required
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex gap-2 pt-3 border-t border-slate-100 dark:border-slate-855">
+                        <button
+                          type="submit"
+                          className="flex-1 px-4 py-2.5 bg-slate-950 text-white hover:bg-indigo-650 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer text-center"
+                        >
+                          {isEditing ? 'บันทึกการแก้ไข' : 'บันทึกสร้างผู้ใช้งาน'}
+                        </button>
+
+                        {isEditing && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUserId('');
+                              setFullName('');
+                              setUsername('');
+                              setPassword('');
+                              setRole('Operator');
+                              setDepartment('โรงฆ่า');
+                              setCustomDept('');
+                              setShowCustomDeptInput(false);
+                              setIsEditing(false);
+                              setAdminMessage({ text: 'ยกเลิกการแก้ไขข้อมูล', type: 'info' });
+                            }}
+                            className="px-4 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+                          >
+                            ยกเลิก
+                          </button>
+                        )}
+                      </div>
+                    </form>
                   </div>
                 </div>
 
-                <div className="relative max-w-xs w-full">
-                  <input
-                    type="text"
-                    placeholder="🔍 ค้นหาตามชื่อ, username, แผนก..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    className="w-full pl-8 pr-3.5 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-855 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold"
-                  />
+                {/* List Side - Right Column (8 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                  <div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-indigo-500" />
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                            รายชื่อผู้ใช้งานระบบ ({users.length})
+                          </h3>
+                          <p className="text-[10px] text-slate-450 mt-0.5">
+                            แสดงรายชื่อพนักงานทั้งหมดที่มีสิทธิ์เข้าใช้งานระบบตามระดับสิทธิ์ที่ระบุ
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="relative max-w-xs w-full">
+                        <input
+                          type="text"
+                          placeholder="🔍 ค้นหาตามชื่อ, username, แฝก..."
+                          value={userSearchQuery}
+                          onChange={(e) => setUserSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3.5 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all font-semibold text-slate-800 dark:text-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto min-h-[350px]">
+                      <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                        <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                          <tr>
+                            <th className="py-2.5 px-3 font-bold">ชื่อ-นามสกุล พนักงาน</th>
+                            <th className="py-2.5 px-2 font-bold">Username</th>
+                            <th className="py-2.5 px-2 font-bold text-center">ระดับสิทธิ์</th>
+                            <th className="py-2.5 px-2 font-bold text-center">แผนกที่สังกัด</th>
+                            <th className="py-2.5 px-3 font-bold text-right">การจัดการ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                          {users.filter(u => {
+                            const q = userSearchQuery.trim().toLowerCase();
+                            if (!q) return true;
+                            return (
+                              u.full_name?.toLowerCase().includes(q) ||
+                              u.username?.toLowerCase().includes(q) ||
+                              u.role?.toLowerCase().includes(q) ||
+                              u.department?.toLowerCase().includes(q)
+                            );
+                          }).map((u) => {
+                            let roleStyle = 'bg-slate-100 text-slate-855 dark:bg-slate-800 dark:text-slate-350';
+                            if (u.role === 'Admin') roleStyle = 'bg-red-50 text-red-655 border border-red-200 dark:bg-red-950/20 dark:border-red-900/50 dark:text-red-400';
+                            else if (u.role === 'QA Manager') roleStyle = 'bg-blue-50 text-blue-655 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400';
+                            else if (u.role === 'Department Supervisor') roleStyle = 'bg-emerald-50 text-emerald-655 border border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-450';
+                            
+                            return (
+                              <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                  {u.full_name}
+                                </td>
+                                <td className="py-3 px-2 font-semibold font-mono text-slate-550 dark:text-slate-400">
+                                  {u.username}
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${roleStyle}`}>
+                                    {u.role === 'Admin' ? 'Admin' : u.role === 'QA Manager' ? 'QA' : u.role === 'Department Supervisor' ? 'Supervisor' : 'Operator'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <span className="inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 text-slate-655 dark:text-slate-355">
+                                    แผนก {u.department}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3 text-right">
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      onClick={() => handleEditUser(u)}
+                                      className="p-1.5 text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                                      title="แก้ไขข้อมูล"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteUser(u.id)}
+                                      className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                                      title="ลบผู้ใช้งาน"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
+            ) : (
+              /* --- TAB 2: INSPECTION DATA EDITING --- */
+              <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
+                {/* Control Panel - Left Column (4 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-xl bg-purple-550/10 text-purple-650 dark:text-purple-400 flex items-center justify-center font-bold text-base">
+                      ⚙️
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                      เลือกชุดข้อมูลที่ต้องการแก้ไข
+                    </h3>
+                  </div>
 
-              <div className="overflow-x-auto min-h-[350px]">
-                <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
-                  <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-855">
-                    <tr>
-                      <th className="py-2.5 px-3 font-bold">ชื่อ-นามสกุล พนักงาน</th>
-                      <th className="py-2.5 px-2 font-bold">Username</th>
-                      <th className="py-2.5 px-2 font-bold text-center">ระดับสิทธิ์</th>
-                      <th className="py-2.5 px-2 font-bold text-center">แผนกที่สังกัด</th>
-                      <th className="py-2.5 px-3 font-bold text-right">การจัดการ</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                    {users.filter(u => {
-                      const q = userSearchQuery.trim().toLowerCase();
-                      if (!q) return true;
-                      return (
-                        u.full_name?.toLowerCase().includes(q) ||
-                        u.username?.toLowerCase().includes(q) ||
-                        u.role?.toLowerCase().includes(q) ||
-                        u.department?.toLowerCase().includes(q)
-                      );
-                    }).map((u) => {
-                      let roleStyle = 'bg-slate-100 text-slate-855 dark:bg-slate-800 dark:text-slate-350';
-                      if (u.role === 'Admin') roleStyle = 'bg-red-50 text-red-655 border border-red-200 dark:bg-red-950/20 dark:border-red-900/50 dark:text-red-400';
-                      else if (u.role === 'QA Manager') roleStyle = 'bg-blue-50 text-blue-655 border border-blue-200 dark:bg-blue-950/20 dark:border-blue-900/50 dark:text-blue-400';
-                      else if (u.role === 'Department Supervisor') roleStyle = 'bg-emerald-50 text-emerald-655 border border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/50 dark:text-emerald-450';
-                      
-                      return (
-                        <tr key={u.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
-                          <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
-                            {u.full_name}
-                          </td>
-                          <td className="py-3 px-2 font-semibold font-mono text-slate-550 dark:text-slate-400">
-                            {u.username}
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${roleStyle}`}>
-                              {u.role === 'Admin' ? 'Admin' : u.role === 'QA Manager' ? 'QA' : u.role === 'Department Supervisor' ? 'Supervisor' : 'Operator'}
-                            </span>
-                          </td>
-                          <td className="py-3 px-2 text-center">
-                            <span className="inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-800 text-slate-655 dark:text-slate-355">
-                              แผนก {u.department}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-right">
-                            <div className="flex justify-end gap-1.5">
-                              <button
-                                onClick={() => handleEditUser(u)}
-                                className="p-1.5 text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
-                                title="แก้ไขข้อมูล"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteUser(u.id)}
-                                className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
-                                title="ลบผู้ใช้งาน"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  <div className="space-y-4">
+                    {/* Department Selector */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกแผนก</label>
+                      <select
+                        value={selectedInspectionDept}
+                        onChange={(e) => setSelectedInspectionDept(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                      >
+                        <option value="">-- เลือกแผนก --</option>
+                        {DEPTS_LIST.map((d) => (
+                          <option key={d} value={d}>แผนก {d}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Date Selector */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกวันที่มีบันทึกแล้วในระบบ</label>
+                      <select
+                        value={selectedInspectionDate}
+                        onChange={(e) => setSelectedInspectionDate(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200 mb-2"
+                      >
+                        <option value="">-- เลือกวันที่ --</option>
+                        {getUniqueDates().map((d) => (
+                          <option key={d} value={d}>
+                            {d.split('-').reverse().join('/')} (ค.ศ. {d.split('-')[0]})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-slate-400 py-1">
+                      <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">หรือระบุวันที่เอง</span>
+                      <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ระบุวันที่ตรวจนับ (ปฏิทิน)</label>
+                      <input
+                        type="date"
+                        value={selectedInspectionDate}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // If selected BE calendar year, normalize to CE
+                          const parts = val.split('-');
+                          if (parts.length === 3) {
+                            let y = parseInt(parts[0], 10);
+                            if (y > 2400) {
+                              y -= 543;
+                              setSelectedInspectionDate(`${y}-${parts[1]}-${parts[2]}`);
+                              return;
+                            }
+                          }
+                          setSelectedInspectionDate(val);
+                        }}
+                        className="w-full px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                      />
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                      <button
+                        onClick={handleSaveInspectionEdits}
+                        disabled={inspectionRows.length === 0 || isLoading}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-950 text-white hover:bg-indigo-650 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>บันทึกการปรับปรุงข้อมูล</span>
+                      </button>
+
+                      <button
+                        onClick={handleDeleteInspectionEdits}
+                        disabled={inspectionRows.length === 0 || isLoading}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                        <span>ลบชุดข้อมูลรอบสัปดาห์นี้</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table Side - Right Column (8 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-6">
+                      <Calendar className="w-5 h-5 text-indigo-500" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                          ตารางแก้ไขยอดสถิติจำนวนแมลงรายจุด
+                        </h3>
+                        <p className="text-[10px] text-slate-450 mt-0.5">
+                          {selectedInspectionDept && selectedInspectionDate 
+                            ? `แสดงรายการเครื่องดักของแผนก "${selectedInspectionDept}" ณ วันที่ ${selectedInspectionDate.split('-').reverse().join('/')}`
+                            : 'กรุณาเลือกแผนกและระบุวันที่ตรวจนับที่แผงควบคุมซ้ายมือ เพื่อเรียกดูตารางข้อมูล'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {inspectionRows.length === 0 ? (
+                      <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20">
+                        <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2.5 animate-pulse" />
+                        <h4 className="text-xs font-extrabold text-slate-600 dark:text-slate-400 mb-1">
+                          ไม่มีข้อมูลแสดงผลในรอบนี้
+                        </h4>
+                        <p className="text-[10px] text-slate-450 max-w-sm mx-auto">
+                          แผนกนี้ยังไม่มีข้อมูลบันทึกในวันที่ระบุ หรือไม่ได้มีการเลือกวันที่/แผนก กรุณาระบุข้อมูลเพื่อทำการแก้ไขหรือเริ่มบันทึกใหม่
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                          <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                            <tr>
+                              <th className="py-2.5 px-3 font-bold">ตำแหน่งเครื่องดักแมลง (Trap Area)</th>
+                              <th className="py-2.5 px-2 font-bold text-center">แมลงวัน</th>
+                              <th className="py-2.5 px-2 font-bold text-center">ยุง</th>
+                              <th className="py-2.5 px-2 font-bold text-center">มด</th>
+                              <th className="py-2.5 px-2 font-bold text-center">แมลงอื่นๆ</th>
+                              <th className="py-2.5 px-3 font-bold text-center">รายละเอียดแมลงอื่น</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                            {inspectionRows.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 max-w-[240px] truncate">
+                                  {row.area}
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={row.flies}
+                                    onChange={(e) => handleCellChange(idx, 'flies', e.target.value)}
+                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={row.mosquitoes}
+                                    onChange={(e) => handleCellChange(idx, 'mosquitoes', e.target.value)}
+                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={row.ants}
+                                    onChange={(e) => handleCellChange(idx, 'ants', e.target.value)}
+                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="py-3 px-2 text-center">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    placeholder="0"
+                                    value={row.others}
+                                    onChange={(e) => handleCellChange(idx, 'others', e.target.value)}
+                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                  />
+                                </td>
+                                <td className="py-3 px-3 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenOthersModal(idx)}
+                                    className="mx-auto inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-350 transition-all cursor-pointer"
+                                  >
+                                    <span>💬 ({row.othersDetails?.length || 0} รายการ)</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-
-        </div>
+            )}
           </>
         )}
       </div>
+
+      {/* --- OTHERS BREAKDOWN MODAL --- */}
+      {isOthersModalOpen && activeRowIndex !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/65 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl flex flex-col justify-between animate-in zoom-in-95 duration-150">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold text-sm">
+                  🦋
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    รายละเอียดแมลงอื่นๆ (Others Breakdown)
+                  </h3>
+                  <p className="text-[10px] text-slate-450 mt-0.5 max-w-[320px] truncate">
+                    {inspectionRows[activeRowIndex]?.area}
+                  </p>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-3 my-4 max-h-[220px] overflow-y-auto pr-1">
+                {modalItems.length === 0 ? (
+                  <p className="text-center py-8 text-[11px] text-slate-450 font-bold">
+                    ยังไม่มีข้อมูลแมลงชนิดอื่น กรุณากดปุ่มเพื่อเพิ่มข้อมูล
+                  </p>
+                ) : (
+                  modalItems.map((item, mIdx) => (
+                    <div key={mIdx} className="flex gap-2 items-center animate-in slide-in-from-top-1 duration-150">
+                      <input
+                        type="text"
+                        placeholder="เช่น ผีเสื้อ, แมลงหวี่..."
+                        value={item.name}
+                        onChange={(e) => handleModalItemChange(mIdx, 'name', e.target.value)}
+                        className="flex-grow px-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none font-semibold text-slate-800 dark:text-slate-200"
+                        required
+                      />
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="จำนวน"
+                        value={item.count}
+                        onChange={(e) => handleModalItemChange(mIdx, 'count', e.target.value)}
+                        className="w-16 px-2 py-1.5 text-center font-extrabold text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveModalItem(mIdx)}
+                        className="p-2 border border-slate-100 dark:border-slate-800 hover:bg-red-500/10 hover:text-red-500 text-slate-400 rounded-xl transition-all cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Add New Item Button */}
+              <button
+                type="button"
+                onClick={handleAddModalItem}
+                className="w-full inline-flex items-center justify-center gap-1.5 py-2 border border-dashed border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 transition-all cursor-pointer"
+              >
+                <PlusCircle className="w-3.5 h-3.5 text-indigo-500" />
+                <span>เพิ่มชนิดแมลงและจำนวน</span>
+              </button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={handleApplyModalItems}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-950 text-white hover:bg-indigo-650 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all cursor-pointer text-center"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>ตกลง (Apply)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOthersModalOpen(false);
+                  setActiveRowIndex(null);
+                }}
+                className="px-4 py-2.5 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold rounded-2xl transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

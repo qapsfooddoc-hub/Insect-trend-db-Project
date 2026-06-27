@@ -3,122 +3,23 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const { weekDate, rows } = body;
-
-    // Validate inputs
-    if (!weekDate || !rows || !Array.isArray(rows)) {
-      return NextResponse.json(
-        { error: 'Invalid input. Please provide weekDate and rows array.' },
-        { status: 400 }
-      )
+// Helper to normalize Buddhist Era (BE) dates to Christian Era (CE)
+const normalizeDate = (dStr) => {
+  if (!dStr || typeof dStr !== 'string') return dStr;
+  const parts = dStr.split('-');
+  if (parts.length === 3) {
+    let year = parseInt(parts[0], 10);
+    if (year > 2400) {
+      year -= 543;
+      return `${year}-${parts[1]}-${parts[2]}`;
     }
-
-    const records = [];
-    const insectTypes = ['flies', 'mosquitoes', 'ants', 'others'];
-    const insectDisplayNames = {
-      flies: 'Flies (แมลงวัน)',
-      mosquitoes: 'Mosquitoes (ยุง)',
-      ants: 'Ants (มด)',
-      others: 'Others (แมลงอื่นๆ)'
-    };
-
-    for (const row of rows) {
-      const areaName = row.area?.trim();
-      if (!areaName) continue;
-
-      for (const type of insectTypes) {
-        // Parse value, if empty or invalid default to 0
-        const countValue = parseInt(row[type], 10);
-        const count = isNaN(countValue) ? 0 : Math.max(0, countValue);
-        
-        records.push({
-          inspected_at: weekDate,
-          area: areaName,
-          insect_type: insectDisplayNames[type] || type,
-          count: count,
-          details: type === 'others' ? (row.othersDetails || []) : null
-        });
-      }
-    }
-
-    if (records.length === 0) {
-      return NextResponse.json(
-        { error: 'No valid insect records found in payload.' },
-        { status: 400 }
-      );
-    }
-
-    // Fallback: If Supabase is not configured, run in Demo Mode
-    if (!isSupabaseConfigured()) {
-      console.log('Supabase not configured. Simulating bulk insert for: ', records);
-      return NextResponse.json({
-        success: true,
-        message: 'Demo Mode: Data parsed and processed successfully (Simulated Insert).',
-        insertedCount: records.length,
-        isDemo: true,
-        data: records
-      });
-    }
-
-    // Database Bulk Insert
-    const { error } = await supabase.from('insect_inspections').insert(records);
-
-    if (error) {
-      console.error('Supabase insert error:', error);
-      return NextResponse.json(
-        { error: error.message || 'Database insertion failed.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Successfully inserted raw weekly inspection records.',
-      insertedCount: records.length,
-      isDemo: false
-    });
-
-  } catch (error) {
-    console.error('API Error in bulk insert:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
   }
-}
-
-export async function GET() {
-  try {
-    // If Supabase not configured, return mock historical data
-    if (!isSupabaseConfigured()) {
-      const mockData = generateMockData();
-      return NextResponse.json({ data: mockData, isDemo: true });
-    }
-
-    const { data, error } = await supabase
-      .from('insect_inspections')
-      .select('*')
-      .order('inspected_at', { ascending: true });
-
-    if (error) {
-      throw error;
-    }
-
-    return NextResponse.json({ data, isDemo: false });
-  } catch (error) {
-    console.error('API Error in fetching data:', error);
-    return NextResponse.json({ data: generateMockData(), isDemo: true, error: error.message });
-  }
-}
+  return dStr;
+};
 
 // Generate rich mock data for presentation if DB is not set up yet
 function generateMockData() {
   const data = [];
-  
-  // Use a subset of the 33 departments for cleaner charts, or use all 33
   const areas = [
     'โรงฆ่า: (07) ลานโหลดสินค้าหน้าร้าน',
     'ตัดแต่ง: (03) ห้องตัดแต่ง บริเวณทางหนีไฟ',
@@ -128,20 +29,19 @@ function generateMockData() {
   ];
   
   const insects = ['Flies (แมลงวัน)', 'Mosquitoes (ยุง)', 'Ants (มด)', 'Others (แมลงอื่นๆ)'];
-  
   const today = new Date();
+  
   for (let m = 5; m >= 0; m--) {
     const date = new Date(today.getFullYear(), today.getMonth() - m, 15);
     const dateString = date.toISOString().split('T')[0];
     
     areas.forEach((area) => {
       insects.forEach((insect) => {
-        // Generate values
         let base = 0;
         if (insect.includes('Flies')) base = 4;
         else if (insect.includes('Mosquitoes')) base = 6;
         else if (insect.includes('Ants')) base = 8;
-        else base = 2; // Others
+        else base = 2;
         
         const randomFactor = Math.floor(Math.random() * 6) - 2;
         const count = Math.max(0, base + randomFactor);
@@ -162,4 +62,281 @@ function generateMockData() {
     });
   }
   return data;
+}
+
+// In-memory global store for Demo Mode persistence
+if (!global.mockInspections) {
+  global.mockInspections = generateMockData();
+}
+
+export async function GET() {
+  try {
+    if (!isSupabaseConfigured()) {
+      return NextResponse.json({ data: global.mockInspections, isDemo: true });
+    }
+
+    const { data, error } = await supabase
+      .from('insect_inspections')
+      .select('*')
+      .order('inspected_at', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    // Normalize dates of returned records just in case
+    const normalizedData = (data || []).map(r => ({
+      ...r,
+      inspected_at: normalizeDate(r.inspected_at)
+    }));
+
+    return NextResponse.json({ data: normalizedData, isDemo: false });
+  } catch (error) {
+    console.error('API Error in fetching data:', error);
+    // If Supabase fails, fall back to global mock inspections
+    return NextResponse.json({ data: global.mockInspections, isDemo: true, error: error.message });
+  }
+}
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const { action, weekDate, rows, department } = body;
+
+    const normalizedWeekDate = normalizeDate(weekDate);
+
+    // 1. DELETE ACTION
+    if (action === 'delete') {
+      if (!normalizedWeekDate || !department) {
+        return NextResponse.json(
+          { error: 'Missing required fields for deletion (weekDate, department).' },
+          { status: 400 }
+        );
+      }
+
+      if (!isSupabaseConfigured()) {
+        // Delete from in-memory global store
+        global.mockInspections = global.mockInspections.filter(r => 
+          !(r.inspected_at === normalizedWeekDate && r.area.startsWith(`${department}: `))
+        );
+        return NextResponse.json({
+          success: true,
+          message: 'Demo Mode: Inspection records deleted successfully in-memory.',
+          isDemo: true
+        });
+      }
+
+      const { error } = await supabase
+        .from('insect_inspections')
+        .delete()
+        .eq('inspected_at', normalizedWeekDate)
+        .like('area', `${department}: %`);
+
+      if (error) {
+        throw error;
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Successfully deleted inspection records.',
+        isDemo: false
+      });
+    }
+
+    // 2. UPDATE ACTION
+    if (action === 'update') {
+      if (!normalizedWeekDate || !rows || !Array.isArray(rows)) {
+        return NextResponse.json(
+          { error: 'Missing required fields for update (weekDate, rows).' },
+          { status: 400 }
+        );
+      }
+
+      const insectTypes = ['flies', 'mosquitoes', 'ants', 'others'];
+      const insectDisplayNames = {
+        flies: 'Flies (แมลงวัน)',
+        mosquitoes: 'Mosquitoes (ยุง)',
+        ants: 'Ants (มด)',
+        others: 'Others (แมลงอื่นๆ)'
+      };
+
+      if (!isSupabaseConfigured()) {
+        // Update in-memory global store
+        for (const row of rows) {
+          const areaName = row.area?.trim();
+          if (!areaName) continue;
+
+          for (const type of insectTypes) {
+            const countValue = parseInt(row[type], 10);
+            const count = isNaN(countValue) ? 0 : Math.max(0, countValue);
+            const insectType = insectDisplayNames[type] || type;
+            const details = type === 'others' ? (row.othersDetails || []) : null;
+
+            const existingIdx = global.mockInspections.findIndex(r => 
+              r.inspected_at === normalizedWeekDate &&
+              r.area === areaName &&
+              r.insect_type === insectType
+            );
+
+            if (existingIdx !== -1) {
+              global.mockInspections[existingIdx].count = count;
+              global.mockInspections[existingIdx].details = details;
+            } else {
+              global.mockInspections.push({
+                id: `mock-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                inspected_at: normalizedWeekDate,
+                area: areaName,
+                insect_type: insectType,
+                count: count,
+                details: details,
+                created_at: new Date().toISOString()
+              });
+            }
+          }
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Demo Mode: Inspection records updated successfully in-memory.',
+          isDemo: true
+        });
+      }
+
+      // Supabase Update
+      for (const row of rows) {
+        const areaName = row.area?.trim();
+        if (!areaName) continue;
+
+        for (const type of insectTypes) {
+          const countValue = parseInt(row[type], 10);
+          const count = isNaN(countValue) ? 0 : Math.max(0, countValue);
+          const insectType = insectDisplayNames[type] || type;
+          const details = type === 'others' ? (row.othersDetails || []) : null;
+
+          // Check if record exists
+          const { data: existing, error: selectError } = await supabase
+            .from('insect_inspections')
+            .select('id')
+            .eq('inspected_at', normalizedWeekDate)
+            .eq('area', areaName)
+            .eq('insect_type', insectType)
+            .maybeSingle();
+
+          if (selectError) throw selectError;
+
+          if (existing) {
+            // Update
+            const { error: updateError } = await supabase
+              .from('insect_inspections')
+              .update({ count, details })
+              .eq('id', existing.id);
+            if (updateError) throw updateError;
+          } else {
+            // Insert
+            const { error: insertError } = await supabase
+              .from('insect_inspections')
+              .insert({
+                inspected_at: normalizedWeekDate,
+                area: areaName,
+                insect_type: insectType,
+                count,
+                details
+              });
+            if (insertError) throw insertError;
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Successfully updated inspection records.',
+        isDemo: false
+      });
+    }
+
+    // 3. DEFAULT: CREATE ACTION
+    if (!weekDate || !rows || !Array.isArray(rows)) {
+      return NextResponse.json(
+        { error: 'Invalid input. Please provide weekDate and rows array.' },
+        { status: 400 }
+      );
+    }
+
+    const records = [];
+    const insectTypes = ['flies', 'mosquitoes', 'ants', 'others'];
+    const insectDisplayNames = {
+      flies: 'Flies (แมลงวัน)',
+      mosquitoes: 'Mosquitoes (ยุง)',
+      ants: 'Ants (มด)',
+      others: 'Others (แมลงอื่นๆ)'
+    };
+
+    for (const row of rows) {
+      const areaName = row.area?.trim();
+      if (!areaName) continue;
+
+      for (const type of insectTypes) {
+        const countValue = parseInt(row[type], 10);
+        const count = isNaN(countValue) ? 0 : Math.max(0, countValue);
+        
+        records.push({
+          inspected_at: normalizedWeekDate,
+          area: areaName,
+          insect_type: insectDisplayNames[type] || type,
+          count: count,
+          details: type === 'others' ? (row.othersDetails || []) : null
+        });
+      }
+    }
+
+    if (records.length === 0) {
+      return NextResponse.json(
+        { error: 'No valid insect records found in payload.' },
+        { status: 400 }
+      );
+    }
+
+    if (!isSupabaseConfigured()) {
+      // Push to in-memory global store
+      records.forEach(rec => {
+        global.mockInspections.push({
+          id: `mock-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          ...rec,
+          created_at: new Date().toISOString()
+        });
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: 'Demo Mode: Data parsed and processed successfully (Simulated Insert).',
+        insertedCount: records.length,
+        isDemo: true,
+        data: records
+      });
+    }
+
+    const { error } = await supabase.from('insect_inspections').insert(records);
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return NextResponse.json(
+        { error: error.message || 'Database insertion failed.' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Successfully inserted raw weekly inspection records.',
+      insertedCount: records.length,
+      isDemo: false
+    });
+
+  } catch (error) {
+    console.error('API Error in inspection route:', error);
+    return NextResponse.json(
+      { error: error.message || 'Internal Server Error' },
+      { status: 500 }
+    );
+  }
 }
