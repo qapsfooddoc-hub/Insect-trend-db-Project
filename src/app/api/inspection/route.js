@@ -75,14 +75,34 @@ export async function GET() {
       return NextResponse.json({ data: global.mockInspections, isDemo: true });
     }
 
-    const { data, error } = await supabase
-      .from('insect_inspections')
-      .select('*')
-      .order('inspected_at', { ascending: true });
+    let allData = [];
+    let start = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (error) {
-      throw error;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('insect_inspections')
+        .select('*')
+        .order('inspected_at', { ascending: true })
+        .range(start, start + pageSize - 1);
+
+      if (error) {
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        start += pageSize;
+        if (data.length < pageSize) {
+          hasMore = false;
+        }
+      } else {
+        hasMore = false;
+      }
     }
+
+    const data = allData;
 
     // Normalize dates of returned records just in case
     const normalizedData = (data || []).map(r => ({

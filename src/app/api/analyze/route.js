@@ -69,17 +69,41 @@ export async function POST(request) {
     if (clientRecords && Array.isArray(clientRecords)) {
       rawData = clientRecords;
     } else if (isSupabaseConfigured()) {
-      const { data, error } = await supabase
-        .from('insect_inspections')
-        .select('*')
-        .order('inspected_at', { ascending: true });
+      let allData = [];
+      let start = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+      let hasError = false;
 
-      if (error) {
-        console.error('Supabase query error in analysis:', error);
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('insect_inspections')
+          .select('*')
+          .order('inspected_at', { ascending: true })
+          .range(start, start + pageSize - 1);
+
+        if (error) {
+          console.error('Supabase query error in analysis pagination:', error);
+          hasError = true;
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allData = allData.concat(data);
+          start += pageSize;
+          if (data.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (hasError) {
         rawData = generateMockDataForAnalysis();
         isDemoMode = true;
       } else {
-        rawData = data || [];
+        rawData = allData || [];
       }
     } else {
       rawData = generateMockDataForAnalysis();
