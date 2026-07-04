@@ -814,54 +814,7 @@ export default function InspectionPage() {
           </div>
         )}
 
-        {/* Month Completeness Check Panel */}
-        {mounted && weekDate && !isAutoApprovedDate(weekDate) && (
-          <div className="mb-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
-                <Sparkles className="w-4.5 h-4.5 text-blue-500 flex-shrink-0" />
-                <span>ตรวจสอบความครบถ้วนประจำเดือน: {weekDate ? `${getThaiMonthName(weekDate)} ${parseInt(new Date(weekDate).getFullYear()) + 543}` : '(กรุณาเลือกวันที่ตรวจนับ)'}</span>
-              </h3>
-              <p className="text-[10px] text-slate-450 dark:text-slate-400 font-bold">
-                เดือนนี้ต้องการข้อมูลทั้งหมด {completeness.requiredWeeks} สัปดาห์ (สถานะปัจจุบัน: <span className={`font-black px-2 py-0.5 rounded-lg text-[10px] uppercase tracking-wider ${
-                  monthStatus === 'Draft' 
-                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400' 
-                    : monthStatus === 'Pending'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-400'
-                      : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400'
-                }`}>{monthStatus === 'Draft' ? 'Draft (ร่าง)' : monthStatus === 'Pending' ? 'Pending (รออนุมัติ)' : 'Approved (อนุมัติแล้ว)'}</span>)
-              </p>
-              
-              <div className="flex flex-wrap gap-4 mt-3">
-                {Array.from({ length: completeness.requiredWeeks }).map((_, idx) => {
-                  const wNum = idx + 1;
-                  const isDone = completeness.submittedWeeks.includes(wNum);
-                  return (
-                    <div key={wNum} className={`flex items-center gap-1 text-[11px] font-black ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                      <span>{isDone ? '✅' : '⚪'}</span>
-                      <span>สัปดาห์ที่ {wNum}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-            
-            <div>
-              <button
-                type="button"
-                disabled={!completeness.isComplete || monthStatus !== 'Draft'}
-                onClick={handleSendReport}
-                className={`px-5 py-3 text-xs font-extrabold rounded-2xl transition-all shadow-sm flex items-center gap-2 cursor-pointer ${
-                  completeness.isComplete && monthStatus === 'Draft'
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white hover:scale-105 hover:shadow-md'
-                    : 'bg-slate-100 text-slate-400 dark:bg-slate-800/40 dark:text-slate-600 cursor-not-allowed'
-                }`}
-              >
-                <span>🚀 ตรวจสอบครบถ้วน ส่งรายงานประจำเดือนให้หัวหน้าอนุมัติ</span>
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Auto-approved historical message banner */}
         {mounted && weekDate && isAutoApprovedDate(weekDate) && (

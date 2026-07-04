@@ -89,7 +89,7 @@ export default function Navbar() {
               href="/admin"
               className={getLinkClass("/admin", "bg-purple-50/80 border-purple-200 text-purple-750 dark:bg-purple-955/20 dark:border-purple-900/50 dark:text-purple-400 shadow-sm")}
             >
-              👥 จัดการผู้ใช้งาน
+              ⚙️ จัดการข้อมูล & ระบบ
             </Link>
           </div>
 

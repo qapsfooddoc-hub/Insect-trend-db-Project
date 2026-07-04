@@ -64,7 +64,7 @@ const DEPT_TRAPS_MAPPING = {
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState('users'); // 'users' or 'inspections'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'inspections', or 'approvals'
 
   // --- USER MANAGEMENT STATES ---
   const [users, setUsers] = useState([]);
@@ -85,6 +85,12 @@ export default function AdminPage() {
   const [selectedInspectionDept, setSelectedInspectionDept] = useState('โรงฆ่า');
   const [selectedInspectionDate, setSelectedInspectionDate] = useState('');
   const [inspectionRows, setInspectionRows] = useState([]);
+
+  // --- MONTHLY APPROVAL STATES ---
+  const [selectedApprovalYear, setSelectedApprovalYear] = useState('2026');
+  const [selectedApprovalMonth, setSelectedApprovalMonth] = useState('มกราคม');
+  const [approvalStatus, setApprovalStatus] = useState('Draft');
+  const [approvalCompleteness, setApprovalCompleteness] = useState({ submittedWeeks: [], requiredWeeks: 4, isComplete: false });
   
   // Others Breakdown Modal
   const [isOthersModalOpen, setIsOthersModalOpen] = useState(false);
@@ -172,6 +178,96 @@ export default function AdminPage() {
       fetchUsers();
     }
   }, [activeTab]);
+
+  // --- MONTHLY COMPLETENESS & APPROVAL LOGIC ---
+  const getRequiredWeeksCount = (year, month) => {
+    return 4; // Always 4 weeks per month to align with YoY dashboard chart
+  };
+
+  const getWeekOfMonth = (dateString) => {
+    const date = new Date(dateString);
+    const day = date.getDate();
+    if (day <= 7) return 1;
+    if (day <= 14) return 2;
+    if (day <= 21) return 3;
+    return 4; // Group everything day > 21 into week 4
+  };
+
+  const isAutoApprovedDate = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return false;
+    return d < new Date('2026-06-01');
+  };
+
+  useEffect(() => {
+    if (mounted && selectedApprovalYear && selectedApprovalMonth) {
+      const year = parseInt(selectedApprovalYear, 10);
+      const months = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      const monthIdx = months.indexOf(selectedApprovalMonth);
+      const statusKey = `monthStatus_${selectedApprovalMonth}_${year}`;
+      let currentStatus = localStorage.getItem(statusKey);
+      
+      // Auto-approved if before June 1, 2026 (BE 2569 / 2026 AD)
+      const isPastData = new Date(year, monthIdx, 15) < new Date('2026-06-01');
+      if (isPastData) {
+        currentStatus = 'Approved';
+        localStorage.setItem(statusKey, 'Approved');
+      } else if (!currentStatus) {
+        currentStatus = 'Draft';
+        localStorage.setItem(statusKey, 'Draft');
+      }
+      
+      setApprovalStatus(currentStatus);
+      
+      const required = getRequiredWeeksCount(year, monthIdx);
+      const uniqueDates = new Set();
+      allInspections.forEach(item => {
+        const itemDate = new Date(item.inspected_at);
+        if (itemDate.getFullYear() === year && itemDate.getMonth() === monthIdx) {
+          uniqueDates.add(item.inspected_at);
+        }
+      });
+      
+      const weeksMap = { 1: false, 2: false, 3: false, 4: false, 5: false };
+      uniqueDates.forEach(dStr => {
+        const wNum = getWeekOfMonth(dStr);
+        weeksMap[wNum] = true;
+      });
+      
+      const submittedWeeksList = [];
+      for (let w = 1; w <= required; w++) {
+        if (weeksMap[w]) {
+          submittedWeeksList.push(w);
+        }
+      }
+      
+      setApprovalCompleteness({
+        submittedWeeks: submittedWeeksList,
+        requiredWeeks: required,
+        isComplete: submittedWeeksList.length >= required
+      });
+    }
+  }, [selectedApprovalYear, selectedApprovalMonth, allInspections, mounted]);
+
+  const handleSendApprovalReport = () => {
+    if (typeof window !== 'undefined') {
+      const year = parseInt(selectedApprovalYear, 10);
+      const statusKey = `monthStatus_${selectedApprovalMonth}_${year}`;
+      
+      localStorage.setItem(statusKey, 'Pending');
+      setApprovalStatus('Pending');
+      setAdminMessage({ text: `ส่งรายงานประจำเดือน ${selectedApprovalMonth} ${year + 543} ให้หัวหน้าอนุมัติเรียบร้อยแล้ว!`, type: 'success' });
+      
+      // Clear message after 4s
+      setTimeout(() => {
+        setAdminMessage({ text: '', type: '' });
+      }, 4000);
+    }
+  };
 
   // Clear admin message after 4 seconds
   useEffect(() => {
@@ -671,6 +767,16 @@ export default function AdminPage() {
               >
                 📝 แก้ไขปรับปรุงข้อมูลผลตรวจนับ
               </button>
+              <button
+                onClick={() => setActiveTab('approvals')}
+                className={`pb-2.5 px-4 text-xs font-black border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'approvals'
+                    ? 'border-indigo-650 text-indigo-650 dark:border-indigo-500 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                🚀 ส่งอนุมัติรายงานประจำเดือน
+              </button>
             </div>
 
             {/* Admin Alerts Panel */}
@@ -689,7 +795,7 @@ export default function AdminPage() {
               </div>
             )}
 
-            {activeTab === 'users' ? (
+            {activeTab === 'users' && (
               /* --- TAB 1: USERS MANAGEMENT --- */
               <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
                 {/* Form Side - Left Column (4 cols) */}
@@ -922,7 +1028,9 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'inspections' && (
               /* --- TAB 2: INSPECTION DATA EDITING --- */
               <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
                 {/* Control Panel - Left Column (4 cols) */}
@@ -1129,6 +1237,150 @@ export default function AdminPage() {
                             ))}
                           </tbody>
                         </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'approvals' && (
+              /* --- TAB 3: MONTHLY REPORT APPROVALS --- */
+              <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
+                {/* Control Panel - Left Column (4 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-650 dark:text-blue-400 flex items-center justify-center font-bold text-base">
+                      🚀
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                      เลือกเดือนที่ต้องการส่งอนุมัติ
+                    </h3>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">ปีประมวลผล</label>
+                      <select
+                        value={selectedApprovalYear}
+                        onChange={(e) => setSelectedApprovalYear(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="2026">2569</option>
+                        <option value="2025">2568</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[10px] font-bold text-slate-450 uppercase">เดือน</label>
+                      <select
+                        value={selectedApprovalMonth}
+                        onChange={(e) => setSelectedApprovalMonth(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="มกราคม">มกราคม</option>
+                        <option value="กุมภาพันธ์">กุมภาพันธ์</option>
+                        <option value="มีนาคม">มีนาคม</option>
+                        <option value="เมษายน">เมษายน</option>
+                        <option value="พฤษภาคม">พฤษภาคม</option>
+                        <option value="มิถุนายน">มิถุนายน</option>
+                        <option value="กรกฎาคม">กรกฎาคม</option>
+                        <option value="สิงหาคม">สิงหาคม</option>
+                        <option value="กันยายน">กันยายน</option>
+                        <option value="ตุลาคม">ตุลาคม</option>
+                        <option value="พฤศจิกายน">พฤศจิกายน</option>
+                        <option value="ธันวาคม">ธันวาคม</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status & Action Panel - Right Column (8 cols) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-855 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-6">
+                      <Sparkles className="w-5 h-5 text-blue-500" />
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                          สถานะการกรอกข้อมูลและส่งอนุมัติ
+                        </h3>
+                        <p className="text-[10px] text-slate-450 mt-0.5">
+                          ตรวจสอบความครบถ้วนรายสัปดาห์ของเดือน {selectedApprovalMonth} ปี {parseInt(selectedApprovalYear) + 543}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-5 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-850 mb-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            สถานะปัจจุบันของเดือนนี้:
+                          </p>
+                          <span className={`inline-block mt-1 font-black px-2.5 py-0.5 rounded-lg text-[10px] uppercase tracking-wider ${
+                            approvalStatus === 'Draft' 
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400' 
+                              : approvalStatus === 'Pending'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/20 dark:text-blue-400'
+                                : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/20 dark:text-emerald-400'
+                          }`}>
+                            {approvalStatus === 'Draft' ? 'Draft (ร่าง)' : approvalStatus === 'Pending' ? 'Pending (รออนุมัติ)' : 'Approved (อนุมัติแล้ว)'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                            ความครบถ้วนรายสัปดาห์:
+                          </p>
+                          <p className="text-xs font-black text-slate-800 dark:text-slate-200 mt-1">
+                            {approvalCompleteness.submittedWeeks.length} / {approvalCompleteness.requiredWeeks} สัปดาห์
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-4 mt-5 pt-4 border-t border-slate-100 dark:border-slate-850">
+                        {Array.from({ length: approvalCompleteness.requiredWeeks }).map((_, idx) => {
+                          const wNum = idx + 1;
+                          const isDone = approvalCompleteness.submittedWeeks.includes(wNum);
+                          return (
+                            <div key={wNum} className={`flex items-center gap-1.5 text-[11px] font-black ${isDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                              <span>{isDone ? '✅' : '⚪'}</span>
+                              <span>สัปดาห์ที่ {wNum}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {isAutoApprovedDate(`${selectedApprovalYear}-${selectedApprovalMonth === 'มกราคม' ? '01' : selectedApprovalMonth === 'กุมภาพันธ์' ? '02' : selectedApprovalMonth === 'มีนาคม' ? '03' : selectedApprovalMonth === 'เมษายน' ? '04' : selectedApprovalMonth === 'พฤษภาคม' ? '05' : selectedApprovalMonth === 'มิถุนายน' ? '06' : selectedApprovalMonth === 'กรกฎาคม' ? '07' : selectedApprovalMonth === 'สิงหาคม' ? '08' : selectedApprovalMonth === 'กันยายน' ? '09' : selectedApprovalMonth === 'ตุลาคม' ? '10' : selectedApprovalMonth === 'พฤศจิกายน' ? '11' : '12'}-15`) ? (
+                      <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center gap-2 text-[11px] font-bold">
+                        <span>✅</span>
+                        <p>ข้อมูลของเดือนนี้เป็นข้อมูลย้อนหลัง (Auto-Approved) ข้อมูลถูกอนุมัติโดยระบบและแสดงผลบนแดชบอร์ดเรียบร้อยแล้ว</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        <button
+                          type="button"
+                          disabled={!approvalCompleteness.isComplete || approvalStatus !== 'Draft'}
+                          onClick={handleSendApprovalReport}
+                          className={`w-full py-3 text-xs font-extrabold rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
+                            approvalCompleteness.isComplete && approvalStatus === 'Draft'
+                              ? 'bg-blue-600 hover:bg-blue-500 text-white hover:scale-[1.01] hover:shadow-md'
+                              : 'bg-slate-100 text-slate-400 dark:bg-slate-800/40 dark:text-slate-650 cursor-not-allowed'
+                          }`}
+                        >
+                          🚀 ตรวจสอบครบถ้วน ส่งรายงานประจำเดือนให้หัวหน้าอนุมัติ
+                        </button>
+                        
+                        {!approvalCompleteness.isComplete && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold text-center">
+                            * ต้องบันทึกข้อมูลสถิติให้ครบถ้วนทุกสัปดาห์ก่อนจึงจะส่งรายงานให้หัวหน้าอนุมัติได้
+                          </p>
+                        )}
+                        {approvalStatus !== 'Draft' && approvalCompleteness.isComplete && (
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold text-center">
+                            * ส่งรายงานประจำเดือนเรียบร้อยแล้ว อยู่ในสถานะ {approvalStatus === 'Pending' ? 'รอหัวหน้างานอนุมัติ' : 'อนุมัติเรียบร้อยแล้ว'}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
