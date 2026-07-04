@@ -280,16 +280,26 @@ function CustomTick({ x, y, payload }) {
     </g>
   );
 }
-
 // --- Custom Legend Content to enforce centered alignment and exact order: แมลงวัน -> ยุง -> มด -> อื่นๆ ---
 function RenderCustomLegend(props) {
   const { payload } = props;
   if (!payload) return null;
   
-  const order = ['flies', 'mosquitoes', 'ants', 'others'];
-  const orderedItems = [...payload].sort((a, b) => {
-    return order.indexOf(a.dataKey) - order.indexOf(b.dataKey);
-  });
+  const orderMap = {
+    'flies': 0, 'แมลงวัน': 0,
+    'mosquitoes': 1, 'ยุง': 1,
+    'ants': 2, 'มด': 2,
+    'others': 3, 'แมลงอื่นๆ': 3, 'อื่นๆ': 3
+  };
+
+  const getRank = (item) => {
+    if (item.dataKey && orderMap[item.dataKey] !== undefined) return orderMap[item.dataKey];
+    if (item.value && orderMap[item.value] !== undefined) return orderMap[item.value];
+    if (item.payload && item.payload.dataKey && orderMap[item.payload.dataKey] !== undefined) return orderMap[item.payload.dataKey];
+    return 99;
+  };
+
+  const orderedItems = [...payload].sort((a, b) => getRank(a) - getRank(b));
   
   return (
     <div 
@@ -325,7 +335,7 @@ function RenderCustomLegend(props) {
           justifyContent: 'center',
           alignItems: 'center',
           gap: '24px',
-          fontSize: '11px',
+          fontSize: '11.5px',
           fontFamily: 'inherit'
         }}
       >
@@ -339,7 +349,7 @@ function RenderCustomLegend(props) {
             }}
           >
             <span 
-              className="rounded-sm inline-block shrink-0 shadow-sm" 
+              className="rounded-full inline-block shrink-0 shadow-sm" 
               style={{ 
                 width: '10px', 
                 height: '10px', 
@@ -353,7 +363,6 @@ function RenderCustomLegend(props) {
     </div>
   );
 }
-
 // Custom Tooltip component to show details of other insects (Option 1)
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {

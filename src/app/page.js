@@ -324,16 +324,26 @@ function CustomTick({ x, y, payload }) {
     </g>
   );
 }
-
 // --- Custom Legend Content to enforce centered alignment and exact order: แมลงวัน -> ยุง -> มด -> อื่นๆ ---
 function RenderCustomLegend(props) {
   const { payload } = props;
   if (!payload) return null;
   
-  const order = ['flies', 'mosquitoes', 'ants', 'others'];
-  const orderedItems = [...payload].sort((a, b) => {
-    return order.indexOf(a.dataKey) - order.indexOf(b.dataKey);
-  });
+  const orderMap = {
+    'flies': 0, 'แมลงวัน': 0,
+    'mosquitoes': 1, 'ยุง': 1,
+    'ants': 2, 'มด': 2,
+    'others': 3, 'แมลงอื่นๆ': 3, 'อื่นๆ': 3
+  };
+
+  const getRank = (item) => {
+    if (item.dataKey && orderMap[item.dataKey] !== undefined) return orderMap[item.dataKey];
+    if (item.value && orderMap[item.value] !== undefined) return orderMap[item.value];
+    if (item.payload && item.payload.dataKey && orderMap[item.payload.dataKey] !== undefined) return orderMap[item.payload.dataKey];
+    return 99;
+  };
+
+  const orderedItems = [...payload].sort((a, b) => getRank(a) - getRank(b));
   
   return (
     <div 
@@ -369,7 +379,7 @@ function RenderCustomLegend(props) {
           justifyContent: 'center',
           alignItems: 'center',
           gap: '24px',
-          fontSize: '11px',
+          fontSize: '11.5px',
           fontFamily: 'inherit'
         }}
       >
@@ -383,7 +393,7 @@ function RenderCustomLegend(props) {
             }}
           >
             <span 
-              className="rounded-sm inline-block shrink-0 shadow-sm" 
+              className="rounded-full inline-block shrink-0 shadow-sm" 
               style={{ 
                 width: '10px', 
                 height: '10px', 
@@ -397,7 +407,6 @@ function RenderCustomLegend(props) {
     </div>
   );
 }
-
 // Custom Tooltip component to show details of other insects (Option 1)
 function CustomTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
@@ -1045,15 +1054,7 @@ export default function DashboardPage() {
                     <YAxis stroke="#64748b" fontSize={8} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
                       label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -22, style: { fontSize: 10.5, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
                     />
-                    <Legend
-                      wrapperStyle={{ fontSize: '12.5px', paddingTop: '4px' }}
-                      payload={[
-                        { value: 'แมลงวัน',   type: 'line', color: INSECT_CHART_COLORS.flies },
-                        { value: 'ยุง',        type: 'line', color: INSECT_CHART_COLORS.mosquitoes },
-                        { value: 'มด',         type: 'line', color: INSECT_CHART_COLORS.ants },
-                        { value: 'แมลงอื่นๆ', type: 'line', color: INSECT_CHART_COLORS.others },
-                      ]}
-                    />
+                    <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
                       <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 7, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
@@ -2689,16 +2690,7 @@ export default function DashboardPage() {
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} domain={[0, (max) => Math.max(10, max)]} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend
-                          iconType="circle"
-                          wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }}
-                          payload={[
-                            { value: 'แมลงวัน',   color: INSECT_CHART_COLORS.flies,       type: 'circle' },
-                            { value: 'ยุง',        color: INSECT_CHART_COLORS.mosquitoes,  type: 'circle' },
-                            { value: 'มด',         color: INSECT_CHART_COLORS.ants,        type: 'circle' },
-                            { value: 'แมลงอื่นๆ', color: INSECT_CHART_COLORS.others,      type: 'circle' },
-                          ]}
-                        />
+                        <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                         <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} radius={[4, 4, 0, 0]} isAnimationActive={false}>
                           <LabelList dataKey="flies" position="top" formatter={(v) => (v < 0.1 ? '0' : v)} style={{ fill: '#475569', fontSize: 9, fontWeight: 'bold', fontFamily: 'inherit' }} />
                         </Bar>
@@ -3141,16 +3133,7 @@ export default function DashboardPage() {
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
                         <Tooltip content={<CustomTooltip />} />
-                        <Legend
-                          iconType="circle"
-                          wrapperStyle={{ paddingTop: '15px', fontFamily: 'inherit' }}
-                          payload={[
-                            { value: 'แมลงวัน',   color: INSECT_CHART_COLORS.flies,       type: 'circle' },
-                            { value: 'ยุง',        color: INSECT_CHART_COLORS.mosquitoes,  type: 'circle' },
-                            { value: 'มด',         color: INSECT_CHART_COLORS.ants,        type: 'circle' },
-                            { value: 'แมลงอื่นๆ', color: INSECT_CHART_COLORS.others,      type: 'circle' },
-                          ]}
-                        />
+                        <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
                         <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={2.5} activeDot={{ r: 5 }} isAnimationActive={false}>
                           <LabelList dataKey="flies" content={renderCustomLabel(INSECT_CHART_COLORS.flies, 9)} />
                         </Line>
