@@ -477,6 +477,39 @@ export default function DashboardPage() {
   const [deptReportText, setDeptReportText] = useState('');
   const [deptReportLoading, setDeptReportLoading] = useState(false);
 
+  const triggerAnalysis = async (activeFilteredData, cacheKey, currentCount) => {
+    setAiReportLoading(true);
+    setAiReport('');
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          deptName: 'ALL', 
+          month: selectedMonth, 
+          quarter: selectedQuarter, 
+          year: selectedYear,
+          records: activeFilteredData,
+          isDemo: isDemo
+        })
+      });
+      const result = await response.json();
+      if (response.ok && result?.report) {
+        setAiReport(result.report);
+        localStorage.setItem(cacheKey, JSON.stringify({
+          report: result.report,
+          recordCount: currentCount
+        }));
+      } else {
+        setAiReport(result?.report || 'ไม่สามารถดึงข้อมูล AI ได้ในขณะนี้');
+      }
+    } catch (e) {
+      setAiReport('ไม่สามารถเชื่อมต่อ AI ได้ในขณะนี้');
+    } finally {
+      setAiReportLoading(false);
+    }
+  };
+
   // --- PRINT JOB STATE ---
   const [printJob, setPrintJob] = useState('none'); // 'none', 'monthly', 'monthly-all', 'quarterly', 'quarterly-all'
 
@@ -1123,6 +1156,84 @@ export default function DashboardPage() {
       setSelectedMonth('มกราคม');
     }
   }, [activeTab, selectedMonth]);
+
+  // Auto-load and update AI analysis report when data or filters change
+  useEffect(() => {
+    if (!mounted || isLoading) return;
+
+    const loadAiReport = async () => {
+      // Get approved records first
+      const approvedRecords = rawData.filter(item => {
+        if (isDemo || typeof window === 'undefined') return true;
+        const date = new Date(item.inspected_at);
+        if (date < new Date('2026-06-01')) {
+          return true;
+        }
+        const months = [
+          'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+          'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+        ];
+        const monthName = months[date.getMonth()];
+        const year = date.getFullYear();
+        const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Draft';
+        return status === 'Approved' || status === 'Pending';
+      });
+
+      // Filter by current selected year, quarter, month
+      const activeFilteredData = approvedRecords.filter(item => {
+        const date = new Date(item.inspected_at);
+        const itemYear = String(date.getFullYear());
+        if (itemYear !== selectedYear) return false;
+        
+        if (selectedMonth !== 'ALL') {
+          const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+          const itemMonthName = months[date.getMonth()];
+          if (itemMonthName !== selectedMonth) return false;
+        }
+        
+        if (selectedQuarter !== 'ALL') {
+          const monthIdx = date.getMonth();
+          let itemQuarter = '';
+          if (monthIdx >= 0 && monthIdx <= 2) itemQuarter = 'Q1';
+          else if (monthIdx >= 3 && monthIdx <= 5) itemQuarter = 'Q2';
+          else if (monthIdx >= 6 && monthIdx <= 8) itemQuarter = 'Q3';
+          else itemQuarter = 'Q4';
+          
+          if (itemQuarter !== selectedQuarter) return false;
+        }
+        return true;
+      });
+
+      const currentCount = activeFilteredData.length;
+
+      // Skip analysis if we have zero records and we are not in demo mode
+      if (currentCount === 0 && !isDemo) {
+        setAiReport('ไม่พบข้อมูลแมลงที่ตรวจสอบในระบบเพื่อนำมาวิเคราะห์ กรุณากรอกข้อมูลบันทึกผลก่อนประมวลผลรายงาน');
+        return;
+      }
+
+      const cacheKey = `ai_report_${selectedYear}_${selectedQuarter}_${selectedMonth}`;
+      const cached = localStorage.getItem(cacheKey);
+
+      if (cached) {
+        try {
+          const { report, recordCount } = JSON.parse(cached);
+          // Only trigger a new AI analysis if the current record count is greater than the cached count
+          if (currentCount > recordCount) {
+            triggerAnalysis(activeFilteredData, cacheKey, currentCount);
+          } else {
+            setAiReport(report);
+          }
+        } catch (e) {
+          triggerAnalysis(activeFilteredData, cacheKey, currentCount);
+        }
+      } else {
+        triggerAnalysis(activeFilteredData, cacheKey, currentCount);
+      }
+    };
+
+    loadAiReport();
+  }, [selectedMonth, selectedQuarter, selectedYear, rawData, isLoading, mounted, isDemo]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -2724,28 +2835,8 @@ export default function DashboardPage() {
                     </div>
                     <button
                       onClick={() => {
-                        setAiReport('');
-                        setAiReportLoading(true);
-                        fetch('/api/analyze', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ 
-                            deptName: 'ALL', 
-                            month: selectedMonth, 
-                            quarter: selectedQuarter, 
-                            year: selectedYear,
-                            records: activeData,
-                            isDemo: isDemo
-                          })
-                        }).then(r => r.ok ? r.json() : null)
-                          .then(result => {
-                            setAiReport(result?.report || 'ไม่สามารถดึงข้อมูล AI ได้ในขณะนี้');
-                            setAiReportLoading(false);
-                          })
-                          .catch(() => {
-                            setAiReport('ไม่สามารถเชื่อมต่อ AI ได้ในขณะนี้');
-                            setAiReportLoading(false);
-                          });
+                        const cacheKey = `ai_report_${selectedYear}_${selectedQuarter}_${selectedMonth}`;
+                        triggerAnalysis(activeData, cacheKey, activeData.length);
                       }}
                       title="วิเคราะห์ใหม่"
                       className="p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-indigo-500 transition-colors"
