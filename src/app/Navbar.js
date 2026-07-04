@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Users } from 'lucide-react';
+import { Users, Menu, X } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const syncUser = () => {
@@ -33,7 +34,7 @@ export default function Navbar() {
 
   // Helper to determine active link styles
   const getLinkClass = (path, activeColorClass) => {
-    const baseClass = "px-3 py-1.5 text-xs font-black rounded-xl border transition-all whitespace-nowrap";
+    const baseClass = "px-3 py-2 md:py-1.5 text-xs font-black rounded-xl border transition-all whitespace-nowrap w-full md:w-auto text-center block";
     const isActive = pathname === path;
     
     if (isActive) {
@@ -49,23 +50,34 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
         
         {/* Brand / Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 flex items-center justify-center font-black text-lg">
-            🐜
+        <div className="flex items-center justify-between w-full md:w-auto">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 flex items-center justify-center font-black text-lg">
+              🐜
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 dark:text-white whitespace-nowrap">รายงานการตรวจนับจำนวนแมลง</h2>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
+                บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-base font-extrabold text-slate-900 dark:text-white whitespace-nowrap">รายงานการตรวจนับจำนวนแมลง</h2>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
-              บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด
-            </p>
-          </div>
+          
+          {/* Mobile hamburger menu toggle */}
+          <button 
+            onClick={() => setIsOpen(!isOpen)}
+            className="p-2 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl md:hidden transition-all focus:outline-none cursor-pointer"
+          >
+            {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
         </div>
 
-        {/* Navigation Tabs and User Simulation selector */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto justify-end">
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+        {/* Navigation links & user controls (Desktop: flex-row, Mobile: vertical slide-down list) */}
+        <div className={`${isOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row items-center gap-3 w-full md:w-auto justify-end mt-2 md:mt-0 transition-all duration-300`}>
+          <div className="flex flex-col md:flex-row items-center gap-1.5 w-full md:w-auto">
             <Link 
               href="/"
+              onClick={() => setIsOpen(false)}
               className={getLinkClass("/", "bg-blue-50/80 border-blue-200 text-blue-750 dark:bg-blue-950/30 dark:border-blue-900/50 dark:text-blue-450 shadow-sm")}
             >
               📊 แดชบอร์ด & AI วิเคราะห์
@@ -73,6 +85,7 @@ export default function Navbar() {
             
             <Link 
               href="/supervisor"
+              onClick={() => setIsOpen(false)}
               className={getLinkClass("/supervisor", "bg-emerald-50/80 border-emerald-200 text-emerald-750 dark:bg-emerald-955/20 dark:border-emerald-900/50 dark:text-emerald-400 shadow-sm")}
             >
               📋 บันทึกการรับทราบรายงาน
@@ -80,6 +93,7 @@ export default function Navbar() {
 
             <Link 
               href="/inspection"
+              onClick={() => setIsOpen(false)}
               className={getLinkClass("/inspection", "bg-amber-50/80 border-amber-200 text-amber-750 dark:bg-amber-955/20 dark:border-amber-900/50 dark:text-amber-400 shadow-sm")}
             >
               📝 บันทึกผลตรวจรายสัปดาห์
@@ -87,6 +101,7 @@ export default function Navbar() {
             
             <Link 
               href="/admin"
+              onClick={() => setIsOpen(false)}
               className={getLinkClass("/admin", "bg-purple-50/80 border-purple-200 text-purple-750 dark:bg-purple-955/20 dark:border-purple-900/50 dark:text-purple-400 shadow-sm")}
             >
               ⚙️ จัดการข้อมูล & ระบบ
@@ -94,32 +109,36 @@ export default function Navbar() {
           </div>
 
           {/* User Profile & Logout / Login */}
-          {currentUser ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1 rounded-2xl w-full sm:w-auto">
-                <Users className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">
-                  คุณ {currentUser.full_name} ({currentUser.role})
-                </span>
+          <div className="w-full md:w-auto flex flex-col md:flex-row items-center gap-3 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
+            {currentUser ? (
+              <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
+                <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-2xl w-full justify-center md:justify-start">
+                  <Users className="w-3.5 h-3.5 text-indigo-500" />
+                  <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">
+                    คุณ {currentUser.full_name} ({currentUser.role})
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    localStorage.removeItem('currentSimulatedUser');
+                    window.location.href = '/login';
+                  }}
+                  className="px-3 py-2 md:py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-650 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full md:w-auto text-center"
+                >
+                  ออกจากระบบ
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  localStorage.removeItem('currentSimulatedUser');
-                  window.location.href = '/login';
-                }}
-                className="px-3 py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-650 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
+            ) : (
+              <Link
+                href="/login"
+                onClick={() => setIsOpen(false)}
+                className="px-3 py-2 md:py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full md:w-auto text-center block"
               >
-                ออกจากระบบ
-              </button>
-            </div>
-          ) : (
-            <Link
-              href="/login"
-              className="px-3 py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer"
-            >
-              เข้าสู่ระบบ (Login)
-            </Link>
-          )}
+                เข้าสู่ระบบ (Login)
+              </Link>
+            )}
+          </div>
         </div>
 
       </div>

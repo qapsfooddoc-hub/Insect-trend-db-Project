@@ -1213,9 +1213,9 @@ export default function SupervisorPortal() {
               </div>
             </div>
 
-            <div className="h-[450px] w-full text-xs font-bold overflow-x-auto scrollbar-thin pb-2">
+            <div className="h-[450px] w-full overflow-x-auto no-scrollbar text-xs font-bold pb-2">
               {mounted && (
-                <div className="h-full min-w-[1300px]">
+                <div className="h-full min-w-[750px] lg:min-w-0">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={mapZeroToTinyDecimal(getChartData(selectedDept, selectedMonth, selectedYear))} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />

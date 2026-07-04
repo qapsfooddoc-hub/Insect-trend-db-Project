@@ -2600,7 +2600,7 @@ export default function DashboardPage() {
         </div>
 
         {/* TABS SELECTOR BAR */}
-        <div className="border-b border-slate-200 dark:border-slate-800 mb-8 flex gap-1.5 overflow-x-auto pb-px">
+        <div className="border-b border-slate-200 dark:border-slate-800 mb-8 flex gap-1.5 overflow-x-auto no-scrollbar pb-px">
           <button
             onClick={() => setActiveTab('overview')}
             className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
@@ -2681,10 +2681,11 @@ export default function DashboardPage() {
                   สถิติจำนวนแมลงแยกตามประเภท (ภาพรวมโรงงาน)
                 </h3>
                 
-                <div className="h-[320px] w-full text-xs">
+                <div className="h-[320px] w-full overflow-x-auto no-scrollbar text-xs pb-2">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={mapZeroToTinyDecimal(factoryOverviewData)} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
+                    <div className="h-full min-w-[550px] md:min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={mapZeroToTinyDecimal(factoryOverviewData)} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
@@ -2705,6 +2706,7 @@ export default function DashboardPage() {
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -2854,10 +2856,11 @@ export default function DashboardPage() {
                       </h2>
                     </div>
 
-                    <div className="h-[450px] w-full text-xs font-bold">
+                    <div className="h-[450px] w-full overflow-x-auto no-scrollbar text-xs font-bold pb-2">
                       {mounted ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart 
+                        <div className="h-full min-w-[750px] md:min-w-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart 
                             data={mapZeroToTinyDecimal(getDepartmentDetailedData(selectedDept, selectedMonth, selectedYear))} 
                             margin={{ top: 30, right: 10, left: -10, bottom: 75 }}
                           >
@@ -2904,6 +2907,7 @@ export default function DashboardPage() {
                             </Bar>
                           </BarChart>
                         </ResponsiveContainer>
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -3124,10 +3128,11 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="h-[300px] w-full text-xs">
+                <div className="h-[300px] w-full overflow-x-auto no-scrollbar text-xs pb-2">
                   {mounted ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={trapTrendData} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
+                    <div className="h-full min-w-[500px] md:min-w-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={trapTrendData} margin={{ top: 20, right: 10, left: -25, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} tickLine={false} style={{ fontFamily: 'inherit' }} />
@@ -3148,6 +3153,7 @@ export default function DashboardPage() {
                         </Line>
                       </LineChart>
                     </ResponsiveContainer>
+                    </div>
                   ) : null}
                 </div>
               </div>
