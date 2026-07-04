@@ -1139,6 +1139,72 @@ export default function DashboardPage() {
     }
   };
 
+  const getAvailableYears = () => {
+    if (isDemo || rawData.length === 0) {
+      return ['2026', '2025'];
+    }
+    const yearsSet = new Set();
+    rawData.forEach(r => {
+      if (r.inspected_at) {
+        const y = new Date(r.inspected_at).getFullYear();
+        if (!isNaN(y)) {
+          yearsSet.add(String(y));
+        }
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  };
+
+  const getAvailableMonths = (year) => {
+    const monthsOrder = [
+      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+    if (isDemo || rawData.length === 0) {
+      return monthsOrder;
+    }
+    const monthsSet = new Set();
+    rawData.forEach(r => {
+      const d = new Date(r.inspected_at);
+      if (r.inspected_at && d.getFullYear() === parseInt(year, 10)) {
+        const monthName = monthsOrder[d.getMonth()];
+        if (monthName) {
+          monthsSet.add(monthName);
+        }
+      }
+    });
+    return monthsOrder.filter(m => monthsSet.has(m));
+  };
+
+  useEffect(() => {
+    if (rawData.length > 0 && !isDemo) {
+      const years = getAvailableYears();
+      let yearToSet = selectedYear;
+      if (years.length > 0 && !years.includes(selectedYear)) {
+        yearToSet = years[0];
+        setSelectedYear(yearToSet);
+      }
+      
+      const months = getAvailableMonths(yearToSet);
+      if (months.length > 0) {
+        if (selectedMonth !== 'ALL' && !months.includes(selectedMonth)) {
+          setSelectedMonth(months[0]);
+        }
+      }
+    }
+  }, [rawData, isDemo]);
+
+  useEffect(() => {
+    if (rawData.length > 0 && !isDemo) {
+      const months = getAvailableMonths(selectedYear);
+      if (months.length > 0) {
+        if (selectedMonth !== 'ALL' && !months.includes(selectedMonth)) {
+          setSelectedMonth(months[0]);
+        }
+      }
+    }
+  }, [selectedYear]);
+
   const getThaiMonthName = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -2363,7 +2429,30 @@ export default function DashboardPage() {
     );
   }
 
-  if (!isDemo && rawData.length === 0) {
+  if (mounted && isLoading && rawData.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans flex items-center justify-center">
+        <div className="max-w-md w-full mx-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-md">
+            <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/30 rounded-full flex items-center justify-center mx-auto mb-6">
+              <RefreshCw className="w-8 h-8 animate-spin text-indigo-500" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-850 dark:text-white mb-2">
+              กำลังโหลดข้อมูลการตรวจนับแมลง...
+            </h3>
+            <p className="text-xs text-slate-450 dark:text-slate-400 font-bold max-w-sm mx-auto mb-6 leading-relaxed">
+              ระบบกำลังดึงข้อมูลจากฐานข้อมูล Supabase และจัดเตรียมข้อมูลการตรวจนับ กรุณารอสักครู่...
+            </p>
+            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-indigo-500 h-full w-2/3 rounded-full animate-[pulse_1.5s_infinite]"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mounted && !isLoading && !isDemo && rawData.length === 0) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
@@ -2372,7 +2461,7 @@ export default function DashboardPage() {
               📊
             </div>
             <h3 className="text-lg font-black text-slate-850 dark:text-white mb-3">
-              ยังไม่มีข้อมูลการตรวจนับแมลงในระบบ
+              ไม่พบข้อมูลการตรวจนับแมลงในระบบ
             </h3>
             <p className="text-xs text-slate-505 dark:text-slate-400 font-semibold max-w-md mx-auto mb-8 leading-relaxed">
               ยินดีต้อนรับเข้าสู่ระบบจัดการแมลง ขณะนี้ระบบเชื่อมต่อกับฐานข้อมูล Supabase สำเร็จแล้ว แต่ยังไม่มีบันทึกข้อมูลผลการตรวจนับแมลงใดๆ ในระบบ
@@ -2446,10 +2535,11 @@ export default function DashboardPage() {
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
-                  className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
+                  className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                 >
-                  <option value="2026">2569</option>
-                  <option value="2025">2568</option>
+                  {getAvailableYears().map(y => (
+                    <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -2497,21 +2587,12 @@ export default function DashboardPage() {
                     }
                   }
                 }}
-                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
+                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
               >
                 {activeTab !== 'department' && <option value="ALL">รวมทุกเดือน</option>}
-                <option value="มกราคม">มกราคม</option>
-                <option value="กุมภาพันธ์">กุมภาพันธ์</option>
-                <option value="มีนาคม">มีนาคม</option>
-                <option value="เมษายน">เมษายน</option>
-                <option value="พฤษภาคม">พฤษภาคม</option>
-                <option value="มิถุนายน">มิถุนายน</option>
-                <option value="กรกฎาคม">กรกฎาคม</option>
-                <option value="สิงหาคม">สิงหาคม</option>
-                <option value="กันยายน">กันยายน</option>
-                <option value="ตุลาคม">ตุลาคม</option>
-                <option value="พฤศจิกายน">พฤศจิกายน</option>
-                <option value="ธันวาคม">ธันวาคม</option>
+                {getAvailableMonths(selectedYear).map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
               </select>
             </div>
           </div>

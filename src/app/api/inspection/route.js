@@ -75,30 +75,35 @@ export async function GET() {
       return NextResponse.json({ data: global.mockInspections, isDemo: true });
     }
 
+    // Count total records first to construct parallel queries
+    const { count, error: countError } = await supabase
+      .from('insect_inspections')
+      .select('*', { count: 'exact', head: true });
+
+    if (countError) {
+      throw countError;
+    }
+
     let allData = [];
-    let start = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('insect_inspections')
-        .select('*')
-        .order('inspected_at', { ascending: true })
-        .range(start, start + pageSize - 1);
-
-      if (error) {
-        throw error;
+    if (count > 0) {
+      const pageSize = 1000;
+      const pagePromises = [];
+      for (let start = 0; start < count; start += pageSize) {
+        pagePromises.push(
+          supabase
+            .from('insect_inspections')
+            .select('inspected_at, area, insect_type, count, details')
+            .order('inspected_at', { ascending: true })
+            .range(start, start + pageSize - 1)
+        );
       }
 
-      if (data && data.length > 0) {
-        allData = allData.concat(data);
-        start += pageSize;
-        if (data.length < pageSize) {
-          hasMore = false;
+      const results = await Promise.all(pagePromises);
+      for (const res of results) {
+        if (res.error) throw res.error;
+        if (res.data) {
+          allData = allData.concat(res.data);
         }
-      } else {
-        hasMore = false;
       }
     }
 

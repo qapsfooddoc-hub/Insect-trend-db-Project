@@ -70,32 +70,40 @@ export async function POST(request) {
       rawData = clientRecords;
     } else if (isSupabaseConfigured()) {
       let allData = [];
-      let start = 0;
-      const pageSize = 1000;
-      let hasMore = true;
       let hasError = false;
 
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('insect_inspections')
-          .select('*')
-          .order('inspected_at', { ascending: true })
-          .range(start, start + pageSize - 1);
+      // Count total records first to construct parallel queries
+      const { count, error: countError } = await supabase
+        .from('insect_inspections')
+        .select('*', { count: 'exact', head: true });
 
-        if (error) {
-          console.error('Supabase query error in analysis pagination:', error);
-          hasError = true;
-          break;
+      if (countError) {
+        console.error('Supabase count query error in analysis:', countError);
+        hasError = true;
+      } else if (count > 0) {
+        const pageSize = 1000;
+        const pagePromises = [];
+        for (let start = 0; start < count; start += pageSize) {
+          pagePromises.push(
+            supabase
+              .from('insect_inspections')
+              .select('inspected_at, area, insect_type, count, details')
+              .order('inspected_at', { ascending: true })
+              .range(start, start + pageSize - 1)
+          );
         }
 
-        if (data && data.length > 0) {
-          allData = allData.concat(data);
-          start += pageSize;
-          if (data.length < pageSize) {
-            hasMore = false;
+        try {
+          const results = await Promise.all(pagePromises);
+          for (const res of results) {
+            if (res.error) throw res.error;
+            if (res.data) {
+              allData = allData.concat(res.data);
+            }
           }
-        } else {
-          hasMore = false;
+        } catch (err) {
+          console.error('Supabase parallel query error in analysis:', err);
+          hasError = true;
         }
       }
 
