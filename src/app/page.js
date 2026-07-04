@@ -2753,7 +2753,7 @@ export default function DashboardPage() {
                       <RefreshCw className={`w-3.5 h-3.5 ${aiReportLoading ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
-                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-5 overflow-auto">
+                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900 rounded-2xl p-4 lg:p-5 lg:overflow-y-auto lg:max-h-[250px]">
                     <div className="mb-3 inline-flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg border border-emerald-500/20 font-bold">
                       <CheckIcon className="w-3 h-3" />
                       <span>GMP / HACCP Verified Feedback Report</span>
@@ -3170,7 +3170,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="bg-slate-50/50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-850 rounded-2xl p-4 flex-1 overflow-y-auto min-h-[220px]">
+                <div className="bg-slate-50/50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-850 rounded-2xl p-4 lg:flex-1 lg:overflow-y-auto lg:max-h-[190px]">
                   <div className="space-y-1">
                     {renderMarkdown(getTrapAnalysis(selectedTrap, selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter, selectedYear))}
                   </div>
