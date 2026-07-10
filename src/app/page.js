@@ -1056,7 +1056,7 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', minHeight: '440px', maxHeight: '480px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '360px', maxHeight: '410px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
@@ -1080,30 +1080,30 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '270px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={477} height={250} data={trapData} margin={{ top: 18, right: 5, left: 25, bottom: 0 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '220px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={450} height={200} data={trapData} margin={{ top: 22, right: 20, left: 18, bottom: 10 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis dataKey="name" stroke="#64748b" fontSize={8} tickLine={false} />
-                    <YAxis stroke="#64748b" fontSize={8} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
-                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -22, style: { fontSize: 10.5, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
+                    <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} />
+                    <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
+                      label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', dx: -10, style: { fontSize: 9, fontWeight: 'bold', fill: '#334155', textAnchor: 'middle' } }}
                     />
-                    <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
+                    <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: -8, left: 0, width: '100%' }} />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
-                      <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 7, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
                     <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.mosquitoes }} isAnimationActive={false}>
-                      <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 7, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
                     <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.ants }} isAnimationActive={false}>
-                      <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 7, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
                     <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.others }} isAnimationActive={false}>
-                      <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 7, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
                   </LineChart>
                 </div>
                 
-                <div style={{ padding: '8px 10px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13.5px', color: '#475569', lineHeight: '1.4', overflow: 'hidden' }}>
+                <div style={{ padding: '6px 8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569', lineHeight: '1.45', overflow: 'hidden' }}>
                   <strong>วิเคราะห์ความเสี่ยง:</strong> {trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim()}
                 </div>
               </div>
