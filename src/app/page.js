@@ -1059,7 +1059,7 @@ export default function DashboardPage() {
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', minHeight: '440px', maxHeight: '480px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
-            const trapAnalysis = getTrapAnalysis(trap, selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter, selectedYear);
+            const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
             
             return (
               <div 
@@ -1286,6 +1286,31 @@ export default function DashboardPage() {
       }
     });
     return monthsOrder.filter(m => monthsSet.has(m));
+  };
+
+  const getAvailableQuarters = (year) => {
+    const allQuarters = [
+      { value: 'Q1', label: 'Q1 (ม.ค.-มี.ค.)', monthIdxStart: 0, monthIdxEnd: 2 },
+      { value: 'Q2', label: 'Q2 (เม.ย.-มิ.ย.)', monthIdxStart: 3, monthIdxEnd: 5 },
+      { value: 'Q3', label: 'Q3 (ก.ค.-ก.ย.)', monthIdxStart: 6, monthIdxEnd: 8 },
+      { value: 'Q4', label: 'Q4 (ต.ค.-ธ.ค.)', monthIdxStart: 9, monthIdxEnd: 11 }
+    ];
+    if (isDemo || rawData.length === 0) {
+      return allQuarters;
+    }
+    const presentMonthIdxSet = new Set();
+    rawData.forEach(r => {
+      const d = new Date(r.inspected_at);
+      if (r.inspected_at && d.getFullYear() === parseInt(year, 10)) {
+        presentMonthIdxSet.add(d.getMonth());
+      }
+    });
+    return allQuarters.filter(q => {
+      for (let m = q.monthIdxStart; m <= q.monthIdxEnd; m++) {
+        if (presentMonthIdxSet.has(m)) return true;
+      }
+      return false;
+    });
   };
 
   useEffect(() => {
@@ -1937,7 +1962,9 @@ export default function DashboardPage() {
   // --- INTERACTIVE MOCK RISK ANALYSIS (TAB 3) ---
   const getTrapAnalysis = (trapName, quarter, year) => {
     if (!trapName) return '';
-    const q = quarter === 'ALL' ? 'Q1' : quarter;
+    const availableQs = getAvailableQuarters(year);
+    const latestQ = availableQs.length > 0 ? availableQs[availableQs.length - 1].value : 'Q1';
+    const q = quarter === 'ALL' ? latestQ : quarter;
     const match = trapName.match(/\((\d+)\)/);
     const trapNo = match ? match[1] : '';
     const locationName = trapName.replace(/^\(\d+\)\s*/, '').trim();
@@ -2669,10 +2696,9 @@ export default function DashboardPage() {
                   className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
                 >
                   <option value="ALL">รวมทั้งปี</option>
-                  <option value="Q1">Q1 (ม.ค.-มี.ค.)</option>
-                  <option value="Q2">Q2 (เม.ย.-มิ.ย.)</option>
-                  <option value="Q3">Q3 (ก.ค.-ก.ย.)</option>
-                  <option value="Q4">Q4 (ต.ค.-ธ.ค.)</option>
+                  {getAvailableQuarters(selectedYear).map(q => (
+                    <option key={q.value} value={q.value}>{q.label}</option>
+                  ))}
                 </select>
               </div>
             )}
@@ -3170,7 +3196,7 @@ export default function DashboardPage() {
             {/* Print Buttons & Lock Status for Tab 3 */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 p-4 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-4 no-print shadow-sm mb-6">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">🖨️ สั่งพิมพ์รายงานไตรมาส ({selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter}) แผนก {selectedDept}:</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200">🖨️ สั่งพิมพ์รายงานไตรมาส ({selectedQuarter === 'ALL' ? (getAvailableQuarters(selectedYear).slice(-1)[0]?.value ?? 'Q1') : selectedQuarter}) แผนก {selectedDept}:</span>
                 {!quarterlyApproval.approved ? (
                   <span className="px-2.5 py-1 text-[10px] font-black bg-rose-50 dark:bg-rose-955/20 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center gap-1">
                     🔒 รอหัวหน้างานอนุมัติรับทราบไตรมาสก่อนสั่งพิมพ์
@@ -3263,7 +3289,7 @@ export default function DashboardPage() {
 
                 <div className="bg-slate-50/50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-850 rounded-2xl p-4 lg:flex-1 lg:overflow-y-auto lg:max-h-[190px]">
                   <div className="space-y-1">
-                    {renderMarkdown(getTrapAnalysis(selectedTrap, selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter, selectedYear))}
+                    {renderMarkdown(getTrapAnalysis(selectedTrap, selectedQuarter, selectedYear))}
                   </div>
                 </div>
               </div>
