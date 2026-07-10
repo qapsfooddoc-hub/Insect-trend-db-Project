@@ -326,7 +326,7 @@ function CustomTick({ x, y, payload }) {
 }
 // --- Custom Legend Content to enforce centered alignment and exact order: แมลงวัน -> ยุง -> มด -> อื่นๆ ---
 function RenderCustomLegend(props) {
-  const { payload } = props;
+  const { payload, hideTitle } = props;
   if (!payload) return null;
   
   const orderMap = {
@@ -358,16 +358,18 @@ function RenderCustomLegend(props) {
       }}
     >
       {/* Centered label: หมายเลขเครื่องดักแมลง */}
-      <div 
-        className="text-slate-500 dark:text-slate-400 font-extrabold"
-        style={{
-          fontSize: '11px',
-          fontFamily: 'inherit',
-          lineHeight: '1.2'
-        }}
-      >
-        หมายเลขเครื่องดักแมลง
-      </div>
+      {!hideTitle && (
+        <div 
+          className="text-slate-500 dark:text-slate-400 font-extrabold"
+          style={{
+            fontSize: '11px',
+            fontFamily: 'inherit',
+            lineHeight: '1.2'
+          }}
+        >
+          หมายเลขเครื่องดักแมลง
+        </div>
+      )}
       
       {/* Centered Legend items */}
       <div 
@@ -1056,7 +1058,7 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '360px', maxHeight: '410px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '380px', maxHeight: '430px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
@@ -1080,14 +1082,14 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '220px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={450} height={200} data={trapData} margin={{ top: 22, right: 20, left: 18, bottom: 10 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '230px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={478} height={210} data={trapData} margin={{ top: 22, right: 25, left: 15, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} />
                     <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
-                      label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', dx: -10, style: { fontSize: 9, fontWeight: 'bold', fill: '#334155', textAnchor: 'middle' } }}
+                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -12, style: { fontSize: 9, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
                     />
-                    <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: -8, left: 0, width: '100%' }} />
+                    <Legend content={<RenderCustomLegend hideTitle={true} />} wrapperStyle={{ bottom: -4, left: 0, width: '100%' }} />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
                       <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
                     </Line>
