@@ -1083,24 +1083,24 @@ export default function DashboardPage() {
                 </div>
                 
                 <div style={{ height: '230px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={478} height={210} data={trapData} margin={{ top: 22, right: 25, left: 15, bottom: 8 }} style={{ overflow: 'visible' }}>
+                  <LineChart width={478} height={210} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} />
-                    <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']}
-                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -12, style: { fontSize: 9, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
+                    <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} width={35}
+                      label={{ value: 'จำนวนแมลง (ตัว)', angle: -90, position: 'insideLeft', dx: -10, style: { fontSize: 9, fontWeight: 'bold', fill: '#000000', textAnchor: 'middle' } }}
                     />
                     <Legend content={<RenderCustomLegend hideTitle={true} />} wrapperStyle={{ bottom: -4, left: 0, width: '100%' }} />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
-                      <LabelList dataKey="flies" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="flies" position="top" offset={14} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 8.5, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 2.5, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
                     </Line>
                     <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.mosquitoes }} isAnimationActive={false}>
-                      <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="mosquitoes" position="top" offset={4} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 8.5, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 2.5, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
                     </Line>
                     <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.ants }} isAnimationActive={false}>
-                      <LabelList dataKey="ants" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="ants" position="bottom" offset={6} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 8.5, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 2.5, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
                     </Line>
                     <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.others }} isAnimationActive={false}>
-                      <LabelList dataKey="others" position="top" formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 8, fontWeight: 'bold', fontFamily: 'inherit' }} />
+                      <LabelList dataKey="others" position="top" offset={6} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 8.5, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 2.5, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
                     </Line>
                   </LineChart>
                 </div>
