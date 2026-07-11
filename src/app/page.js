@@ -1062,6 +1062,18 @@ export default function DashboardPage() {
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
+            const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
+            const textLen = cleanAnalysis.length;
+            let printFontSize = '11px';
+            if (textLen > 600) {
+              printFontSize = '8px';
+            } else if (textLen > 500) {
+              printFontSize = '8.5px';
+            } else if (textLen > 400) {
+              printFontSize = '9px';
+            } else if (textLen > 300) {
+              printFontSize = '10px';
+            }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
             const RenderPrintLabel = (props) => {
@@ -1242,8 +1254,21 @@ export default function DashboardPage() {
                   </LineChart>
                 </div>
                 
-                <div style={{ padding: '6px 8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '11px', color: '#475569', lineHeight: '1.45', overflow: 'hidden' }}>
-                  {trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim()}
+                <div style={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  justifyContent: 'flex-start', 
+                  padding: '6px 8px', 
+                  backgroundColor: '#f8fafc', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0', 
+                  fontSize: printFontSize, 
+                  color: '#475569', 
+                  lineHeight: '1.4', 
+                  overflow: 'hidden' 
+                }}>
+                  {cleanAnalysis}
                 </div>
               </div>
             );
