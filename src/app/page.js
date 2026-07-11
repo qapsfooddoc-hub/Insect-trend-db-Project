@@ -1083,11 +1083,16 @@ export default function DashboardPage() {
               // Sort by value ascending
               list.sort((a, b) => a.val - b.val);
 
+              // Calculate dynamic collision threshold based on the maximum value of this trap's data
+              const allVals = trapData.flatMap(d => [d.flies ?? 0, d.mosquitoes ?? 0, d.ants ?? 0, d.others ?? 0]);
+              const maxVal = Math.max(...allVals, 10);
+              const threshold = Math.max(10, maxVal * 0.12); // 12% of max value or minimum 10
+
               const sortedIdx = list.findIndex(item => item.key === dataKey);
               const myVal = list[sortedIdx]?.val ?? 0;
               
-              // Find items that are close to this value (diff <= 6)
-              const closeItems = list.filter(item => Math.abs(item.val - myVal) <= 6);
+              // Find items that are close to this value based on our dynamic threshold
+              const closeItems = list.filter(item => Math.abs(item.val - myVal) <= threshold);
               
               let textAnchor = 'middle';
               let dx = 0;
@@ -1100,61 +1105,59 @@ export default function DashboardPage() {
                 if (index === 0) {
                   // First month: cannot go left (overlaps YAxis ticks)
                   if (closeIdx === 0) {
-                    // Item 1: Right
                     textAnchor = 'start';
                     dx = 8;
                     dy = 4;
                   } else if (closeIdx === 1) {
-                    // Item 2: Top
                     textAnchor = 'middle';
                     dx = 0;
                     dy = -8;
-                  } else {
-                    // Item 3: Top-Right
+                  } else if (closeIdx === 2) {
                     textAnchor = 'start';
                     dx = 6;
-                    dy = -18;
+                    dy = -20;
+                  } else {
+                    textAnchor = 'middle';
+                    dx = 0;
+                    dy = -32;
                   }
                 } else if (index === 2) {
                   // Last month: cannot go right (clips card border)
                   if (closeIdx === 0) {
-                    // Item 1: Left
                     textAnchor = 'end';
                     dx = -8;
                     dy = 4;
                   } else if (closeIdx === 1) {
-                    // Item 2: Top
                     textAnchor = 'middle';
                     dx = 0;
                     dy = -8;
-                  } else {
-                    // Item 3: Top-Left
+                  } else if (closeIdx === 2) {
                     textAnchor = 'end';
                     dx = -6;
-                    dy = -18;
+                    dy = -20;
+                  } else {
+                    textAnchor = 'middle';
+                    dx = 0;
+                    dy = -32;
                   }
                 } else {
                   // Middle month: can go left, right, or top
                   if (closeIdx === 0) {
-                    // Item 1: Left
                     textAnchor = 'end';
                     dx = -8;
                     dy = 4;
                   } else if (closeIdx === 1) {
-                    // Item 2: Right
                     textAnchor = 'start';
                     dx = 8;
                     dy = 4;
                   } else if (closeIdx === 2) {
-                    // Item 3: Top
                     textAnchor = 'middle';
                     dx = 0;
                     dy = -8;
                   } else {
-                    // Item 4: Top-Left
                     textAnchor = 'end';
                     dx = -6;
-                    dy = -18;
+                    dy = -20;
                   }
                 }
               } else {
