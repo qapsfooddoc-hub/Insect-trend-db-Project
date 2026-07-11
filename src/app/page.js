@@ -2139,43 +2139,55 @@ export default function DashboardPage() {
       return mapping[shortName] || shortName;
     };
 
-    // Helper to describe dynamic insect trends
+    // Helper to describe dynamic insect trends following the 7 specified patterns
     const getInsectTrendDesc = (insectName, shortMonths, values) => {
       const [v1, v2, v3] = values;
       const m1 = toFullMonthName(shortMonths[0]);
       const m2 = toFullMonthName(shortMonths[1]);
       const m3 = toFullMonthName(shortMonths[2]);
 
-      // Steadily increasing
-      if (v1 < v2 && v2 < v3) {
-        return "มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง";
-      }
-      // Steadily decreasing
-      if (v1 > v2 && v2 > v3) {
-        return "มีแนวโน้มลดลงอย่างต่อเนื่อง";
-      }
-      // Stable / Constant
+      // 1. รูปแบบที่ 7: คงที่ (Flat / Stagnant)
       if (v1 === v2 && v2 === v3) {
-        return `มีแนวโน้มทรงตัว (พบ ${v1} ตัวต่อเดือน)`;
+        return `พบจำนวนคงที่ (พบ ${v1} ตัว)`;
       }
-      // Peak in month 3
-      if (v3 > v1 && v3 > v2) {
-        return `มีแนวโน้มพบเพิ่มขึ้นสูงสุดในเดือน${m3} (พบ ${v3} ตัว)`;
+      // 2. รูปแบบที่ 1: เพิ่มขึ้นต่อเนื่อง (Strong Growth)
+      if (v1 < v2 && v2 < v3) {
+        return `พบเพิ่มขึ้นอย่างต่อเนื่อง (พบสูงสุดในเดือน${m3} ${v3} ตัว)`;
       }
-      // Peak in month 2
-      if (v2 > v1 && v2 > v3) {
-        return `มีแนวโน้มเพิ่มขึ้นในเดือน${m2} (พบ ${v2} ตัว) แล้วลดลงในเดือน${m3}`;
+      // 3. รูปแบบที่ 2: ลดลงต่อเนื่อง (Steady Decline)
+      if (v1 > v2 && v2 > v3) {
+        return `ลดลงอย่างต่อเนื่อง`;
       }
-      // Dip in month 2
+      // 4. รูปแบบที่ 3: ฟื้นตัว (Recovery / V-Shape)
       if (v2 < v1 && v2 < v3) {
-        return `มีแนวโน้มลดลงในเดือน${m2} (พบ ${v2} ตัว) แล้วกลับเพิ่มขึ้นในเดือน${m3}`;
+        return `พบลดลงเฉพาะเดือน${m2} (พบสูงสุดในเดือน${v3 > v1 ? m3 : m1} ${Math.max(v1, v3)} ตัว)`;
       }
-      // Peak in month 1
-      if (v1 > v2 && v1 > v3) {
-        return `มีแนวโน้มพบสูงสุดในเดือน${m1} (พบ ${v1} ตัว) แล้วค่อยๆ ลดลง`;
+      // 5. รูปแบบที่ 4: ผันผวน (Fluctuation / Inverted V)
+      if (v2 > v1 && v2 > v3) {
+        return `พบเพิ่มขึ้นในเดือน${m2} และลดลงในเดือน${m3} (พบสูงสุดในเดือน${m2} ${v2} ตัว)`;
       }
-      // Fallback
-      return `มีแนวโน้มผันผวน โดยพบในเดือน${m1} ${v1} ตัว, เดือน${m2} ${v2} ตัว, และเดือน${m3} ${v3} ตัว`;
+      // 6. รูปแบบที่ 5: ชะลอตัว (Slowdown / Peak)
+      if (v1 === v2 && v2 > v3) {
+        return `พบจำนวนคงที่ และลดลงในเดือน${m3} (พบสูงสุดในเดือน${m1} ${v1} ตัว)`;
+      }
+      // 7. รูปแบบที่ 6: กลับตัว (Reversal / Bottoming)
+      if (v1 === v2 && v2 < v3) {
+        return `พบจำนวนคงที่ และเพิ่มขึ้นในเดือน${m3} (พบสูงสุดในเดือน${m3} ${v3} ตัว)`;
+      }
+
+      // Fallback 1: Decrease then flat (e.g. 7 -> 0 -> 0)
+      if (v1 > v2 && v2 === v3) {
+        if (v2 === 0) {
+          return `พบสูงสุดในเดือน${m1} (พบ ${v1} ตัว) แล้วค่อยๆ ลดลง`;
+        }
+        return `พบสูงสุดในเดือน${m1} (พบ ${v1} ตัว) แล้วลดลงและคงที่ในเดือน${m3}`;
+      }
+      // Fallback 2: Increase then flat (e.g. 0 -> 7 -> 7)
+      if (v1 < v2 && v2 === v3) {
+        return `พบเพิ่มขึ้นในเดือน${m2} (พบ ${v2} ตัว) และคงที่ในเดือน${m3}`;
+      }
+
+      return `พบในเดือน${m1} ${v1} ตัว, เดือน${m2} ${v2} ตัว, และเดือน${m3} ${v3} ตัว`;
     };
 
     // Get the actual trend data for this trap/quarter/year
@@ -2199,19 +2211,19 @@ export default function DashboardPage() {
 
     if (!isFliesZero) {
       const desc = getInsectTrendDesc('แมลงวัน', shortMonths, fliesValues);
-      activeSentences.push({ key: 'flies', text: `จำนวนแมลงวันที่พบมีแนวโน้ม ${desc}` });
+      activeSentences.push({ key: 'flies', text: `จำนวนแมลงวันที่พบมีแนวโน้ม${desc}` });
     }
     if (!isMosZero) {
       const desc = getInsectTrendDesc('ยุง', shortMonths, mosquitoesValues);
-      activeSentences.push({ key: 'mosquitoes', text: `จำนวนยุงที่พบมีแนวโน้ม ${desc}` });
+      activeSentences.push({ key: 'mosquitoes', text: `จำนวนยุงที่พบมีแนวโน้ม${desc}` });
     }
     if (!isAntsZero) {
       const desc = getInsectTrendDesc('มด', shortMonths, antsValues);
-      activeSentences.push({ key: 'ants', text: `จำนวนมดที่พบมีแนวโน้ม ${desc}` });
+      activeSentences.push({ key: 'ants', text: `จำนวนมดที่พบมีแนวโน้ม${desc}` });
     }
     if (!isOthersZero) {
       const desc = getInsectTrendDesc('แมลงอื่นๆ', shortMonths, othersValues);
-      activeSentences.push({ key: 'others', text: `จำนวนแมลงอื่นๆที่พบมีแนวโน้ม ${desc}` });
+      activeSentences.push({ key: 'others', text: `จำนวนแมลงอื่นๆที่พบมีแนวโน้ม${desc}` });
     }
 
     let trendText = '';
@@ -2313,7 +2325,6 @@ export default function DashboardPage() {
 
     return `${intro} ${trendText}${zeroText}${recommendation}`;
   };
-
   // --- TAB 4: YOY OVERVIEW TREND DATA ---
   const getYoyTrendData = (quarter, month) => {
     if (isDemo || approvedRawData.length === 0) {
