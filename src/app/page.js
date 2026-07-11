@@ -1064,13 +1064,13 @@ export default function DashboardPage() {
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
-            let printFontSize = '12.5px';
+            let printFontSize = '13.5px';
             if (textLen > 600) {
-              printFontSize = '11px';
+              printFontSize = '12.5px';
             } else if (textLen > 500) {
-              printFontSize = '12px';
+              printFontSize = '12.8px';
             } else if (textLen > 400) {
-              printFontSize = '12.2px';
+              printFontSize = '13px';
             }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
@@ -1229,8 +1229,8 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '260px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={478} height={240} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '300px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={478} height={280} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" tickLine={false} interval={0} tick={{ fill: '#000000', fontSize: 11, fontWeight: 'bold' }} dy={10} />
                     <YAxis stroke="#64748b" tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} width={35} tick={{ fill: '#000000', fontSize: 10, fontWeight: 'bold' }}
