@@ -1064,13 +1064,13 @@ export default function DashboardPage() {
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
-            let printFontSize = '11.5px';
+            let printFontSize = '12.5px';
             if (textLen > 600) {
-              printFontSize = '10px';
-            } else if (textLen > 500) {
-              printFontSize = '10.5px';
-            } else if (textLen > 400) {
               printFontSize = '11px';
+            } else if (textLen > 500) {
+              printFontSize = '12px';
+            } else if (textLen > 400) {
+              printFontSize = '12.2px';
             }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
