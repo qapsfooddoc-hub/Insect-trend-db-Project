@@ -14,7 +14,7 @@ const INITIAL_AREAS = [
   
   // โรงฆ่า (สีส้มอ่อน)
   { dept: 'โรงฆ่า', area: '(08) ทางลำเลียงสินค้า โรงฆ่า-หน้าร้าน', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
-  { dept: 'โรงฆ่า', area: '(09) ทางเข้าฝ่ายซาก/เครื่องในแดง/เครื่องในขาว', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
+  { dept: 'โรงฆ่า', area: '(09) ทางเข้าผ่าซาก/เครื่องในแดง/เครื่องในขาว', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   { dept: 'โรงฆ่า', area: '(10) ลานโหลดสินค้าห้องเลือด', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   { dept: 'โรงฆ่า', area: '(11) ห้องเลือด', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
   { dept: 'โรงฆ่า', area: '(12) ห้องช็อต/แทงคอ/ลวกซาก', flies: '', mosquitoes: '', ants: '', others: '', othersDetails: [] },
