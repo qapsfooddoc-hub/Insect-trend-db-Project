@@ -1493,6 +1493,18 @@ export default function DashboardPage() {
     }
   }, [rawData, isDemo]);
 
+  // Auto select latest quarter and reset month when switching to device tab
+  useEffect(() => {
+    if (activeTab === 'device') {
+      if (selectedQuarter === 'ALL') {
+        const availableQs = getAvailableQuarters(selectedYear);
+        const latestQ = availableQs.length > 0 ? availableQs[availableQs.length - 1].value : 'Q1';
+        setSelectedQuarter(latestQ);
+      }
+      setSelectedMonth('ALL');
+    }
+  }, [activeTab, selectedYear, selectedQuarter]);
+
   useEffect(() => {
     if (rawData.length > 0 && !isDemo) {
       const months = getAvailableMonths(selectedYear);
@@ -2890,11 +2902,11 @@ export default function DashboardPage() {
         {/* Global Filter Bar */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+            <p className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Sparkles className="w-4.5 h-4.5 text-yellow-500 animate-pulse" />
               <span>กำหนดตัวเลือกข้อมูลนำเสนอโรงงาน</span>
             </p>
-            <p className="text-[10px] text-slate-450 dark:text-slate-400 font-medium">สลับเพื่อทดสอบการเปลี่ยนรูปทรงกราฟและคำแนะนำ AI</p>
+            
           </div>
 
           <div className="flex items-center gap-3">
@@ -2926,7 +2938,7 @@ export default function DashboardPage() {
                   }}
                   className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
                 >
-                  <option value="ALL">รวมทั้งปี</option>
+                  {activeTab !== 'device' && <option value="ALL">รวมทั้งปี</option>}
                   {getAvailableQuarters(selectedYear).map(q => (
                     <option key={q.value} value={q.value}>{q.label}</option>
                   ))}
@@ -2935,7 +2947,8 @@ export default function DashboardPage() {
             )}
 
             {/* Month Selector */}
-            <div className="flex flex-col gap-0.5">
+            {activeTab !== 'device' && (
+              <div className="flex flex-col gap-0.5">
               <label className="text-[8px] font-bold text-slate-400 uppercase">เดือน</label>
               <select
                 value={selectedMonth}
@@ -2964,6 +2977,7 @@ export default function DashboardPage() {
                 ))}
               </select>
             </div>
+            )}
           </div>
         </div>
 
@@ -3507,7 +3521,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Local environment analysis box (4 Cols) */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 flex flex-col justify-between">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 flex flex-col justify-start gap-4">
                 <div>
                   <div className="flex items-center gap-1.5 mb-3 text-slate-700 dark:text-slate-200">
                     <HelpIcon className="w-5 h-5 text-indigo-500 flex-shrink-0" />
