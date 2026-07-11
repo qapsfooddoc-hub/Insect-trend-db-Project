@@ -1089,21 +1089,89 @@ export default function DashboardPage() {
               // Find items that are close to this value (diff <= 6)
               const closeItems = list.filter(item => Math.abs(item.val - myVal) <= 6);
               
-              let yShift = -8;
-              if (closeItems.length > 1) {
-                const closeIdx = closeItems.findIndex(item => item.key === dataKey);
-                // Stagger vertically by 14px each
-                yShift = -6 - (closeIdx * 14);
-              }
-
               let textAnchor = 'middle';
               let dx = 0;
-              if (index === 0) {
-                textAnchor = 'start';
-                dx = 6;
-              } else if (index === 2) {
-                textAnchor = 'end';
-                dx = -6;
+              let dy = -8; // default top position
+
+              if (closeItems.length > 1) {
+                // Find our index among the close items
+                const closeIdx = closeItems.findIndex(item => item.key === dataKey);
+                
+                if (index === 0) {
+                  // First month: cannot go left (overlaps YAxis ticks)
+                  if (closeIdx === 0) {
+                    // Item 1: Right
+                    textAnchor = 'start';
+                    dx = 8;
+                    dy = 4;
+                  } else if (closeIdx === 1) {
+                    // Item 2: Top
+                    textAnchor = 'middle';
+                    dx = 0;
+                    dy = -8;
+                  } else {
+                    // Item 3: Top-Right
+                    textAnchor = 'start';
+                    dx = 6;
+                    dy = -18;
+                  }
+                } else if (index === 2) {
+                  // Last month: cannot go right (clips card border)
+                  if (closeIdx === 0) {
+                    // Item 1: Left
+                    textAnchor = 'end';
+                    dx = -8;
+                    dy = 4;
+                  } else if (closeIdx === 1) {
+                    // Item 2: Top
+                    textAnchor = 'middle';
+                    dx = 0;
+                    dy = -8;
+                  } else {
+                    // Item 3: Top-Left
+                    textAnchor = 'end';
+                    dx = -6;
+                    dy = -18;
+                  }
+                } else {
+                  // Middle month: can go left, right, or top
+                  if (closeIdx === 0) {
+                    // Item 1: Left
+                    textAnchor = 'end';
+                    dx = -8;
+                    dy = 4;
+                  } else if (closeIdx === 1) {
+                    // Item 2: Right
+                    textAnchor = 'start';
+                    dx = 8;
+                    dy = 4;
+                  } else if (closeIdx === 2) {
+                    // Item 3: Top
+                    textAnchor = 'middle';
+                    dx = 0;
+                    dy = -8;
+                  } else {
+                    // Item 4: Top-Left
+                    textAnchor = 'end';
+                    dx = -6;
+                    dy = -18;
+                  }
+                }
+              } else {
+                // No collision: use default edge offsets to prevent Y-axis/card overflow
+                if (index === 0) {
+                  textAnchor = 'start';
+                  dx = 6;
+                  dy = -8;
+                } else if (index === 2) {
+                  textAnchor = 'end';
+                  dx = -6;
+                  dy = -8;
+                } else {
+                  textAnchor = 'middle';
+                  dx = 0;
+                  dy = -8;
+                }
               }
 
               const color = INSECT_CHART_COLORS[dataKey] || '#000000';
@@ -1113,7 +1181,7 @@ export default function DashboardPage() {
                   x={x}
                   y={y}
                   dx={dx}
-                  dy={yShift}
+                  dy={dy}
                   textAnchor={textAnchor}
                   fill={color}
                   fontSize={11}
