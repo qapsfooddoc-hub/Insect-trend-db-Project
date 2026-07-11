@@ -1062,6 +1062,72 @@ export default function DashboardPage() {
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
+
+            // Define custom renderer for this specific trap's data to completely avoid label overlap
+            const RenderPrintLabel = (props) => {
+              const { x, y, value, index, dataKey } = props;
+              if (value === undefined || value === null) return null;
+
+              const valFlies = trapData[index]?.flies ?? 0;
+              const valMos = trapData[index]?.mosquitoes ?? 0;
+              const valAnts = trapData[index]?.ants ?? 0;
+              const valOthers = trapData[index]?.others ?? 0;
+
+              const list = [
+                { key: 'flies', val: valFlies },
+                { key: 'mosquitoes', val: valMos },
+                { key: 'ants', val: valAnts },
+                { key: 'others', val: valOthers }
+              ];
+
+              // Sort by value ascending
+              list.sort((a, b) => a.val - b.val);
+
+              const sortedIdx = list.findIndex(item => item.key === dataKey);
+              const myVal = list[sortedIdx]?.val ?? 0;
+              
+              // Find items that are close to this value (diff <= 6)
+              const closeItems = list.filter(item => Math.abs(item.val - myVal) <= 6);
+              
+              let yShift = -8;
+              if (closeItems.length > 1) {
+                const closeIdx = closeItems.findIndex(item => item.key === dataKey);
+                // Stagger vertically by 14px each
+                yShift = -6 - (closeIdx * 14);
+              }
+
+              let textAnchor = 'middle';
+              let dx = 0;
+              if (index === 0) {
+                textAnchor = 'start';
+                dx = 6;
+              } else if (index === 2) {
+                textAnchor = 'end';
+                dx = -6;
+              }
+
+              const color = INSECT_CHART_COLORS[dataKey] || '#000000';
+
+              return (
+                <text
+                  x={x}
+                  y={y}
+                  dx={dx}
+                  dy={yShift}
+                  textAnchor={textAnchor}
+                  fill={color}
+                  fontSize={11}
+                  fontWeight="bold"
+                  fontFamily="inherit"
+                  stroke="#ffffff"
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                  strokeLinejoin="round"
+                >
+                  {value}
+                </text>
+              );
+            };
             
             return (
               <div 
@@ -1091,16 +1157,16 @@ export default function DashboardPage() {
                     />
                     <Legend content={<RenderCustomLegend hideTitle={true} />} wrapperStyle={{ bottom: -15, left: 0, width: '100%' }} />
                     <Line type="monotone" dataKey="flies" name="แมลงวัน" stroke={INSECT_CHART_COLORS.flies} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.flies }} isAnimationActive={false}>
-                      <LabelList dataKey="flies" position="top" offset={16} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.flies, fontSize: 11, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
+                      <LabelList dataKey="flies" content={<RenderPrintLabel dataKey="flies" />} />
                     </Line>
                     <Line type="monotone" dataKey="mosquitoes" name="ยุง" stroke={INSECT_CHART_COLORS.mosquitoes} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.mosquitoes }} isAnimationActive={false}>
-                      <LabelList dataKey="mosquitoes" position="top" offset={10} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.mosquitoes, fontSize: 11, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
+                      <LabelList dataKey="mosquitoes" content={<RenderPrintLabel dataKey="mosquitoes" />} />
                     </Line>
                     <Line type="monotone" dataKey="ants" name="มด" stroke={INSECT_CHART_COLORS.ants} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.ants }} isAnimationActive={false}>
-                      <LabelList dataKey="ants" position="top" offset={2} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.ants, fontSize: 11, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
+                      <LabelList dataKey="ants" content={<RenderPrintLabel dataKey="ants" />} />
                     </Line>
                     <Line type="monotone" dataKey="others" name="แมลงอื่นๆ" stroke={INSECT_CHART_COLORS.others} strokeWidth={1.5} dot={{ r: 3, fill: INSECT_CHART_COLORS.others }} isAnimationActive={false}>
-                      <LabelList dataKey="others" position="top" offset={6} formatter={(v) => (v === 0 ? '0' : v)} style={{ fill: INSECT_CHART_COLORS.others, fontSize: 11, fontWeight: 'bold', fontFamily: 'inherit', stroke: '#ffffff', strokeWidth: 3, paintOrder: 'stroke', strokeLinejoin: 'round' }} />
+                      <LabelList dataKey="others" content={<RenderPrintLabel dataKey="others" />} />
                     </Line>
                   </LineChart>
                 </div>
