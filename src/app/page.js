@@ -1051,28 +1051,26 @@ export default function DashboardPage() {
           <span>เอกสารควบคุมภายใน</span>
         </div>
 
-        <div style={{ textAlign: 'center', margin: '4px 0' }}>
+        <div style={{ textAlign: 'center', margin: '0 0 6px 0' }}>
           <h1 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>รายงานสถิติวิเคราะห์แนวโน้มแมลง จากเครื่องดักแมลงประจำไตรมาส</h1>
           <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px' }}>
             แผนก {dept} · ประจำไตรมาสที่ {selectedQuarter === 'ALL' ? '1' : selectedQuarter.replace('Q','')} ({quarterMonthsText}) ปี {getDisplayYear(selectedYear)} · หน้าที่ {pageIdx + 1}/{chunkedTraps.length}
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '380px', maxHeight: '430px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '480px', maxHeight: '520px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
-            let printFontSize = '11px';
+            let printFontSize = '11.5px';
             if (textLen > 600) {
-              printFontSize = '8px';
-            } else if (textLen > 500) {
-              printFontSize = '8.5px';
-            } else if (textLen > 400) {
-              printFontSize = '9px';
-            } else if (textLen > 300) {
               printFontSize = '10px';
+            } else if (textLen > 500) {
+              printFontSize = '10.5px';
+            } else if (textLen > 400) {
+              printFontSize = '11px';
             }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
@@ -1231,8 +1229,8 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '230px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={478} height={210} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '260px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={478} height={240} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" tickLine={false} interval={0} tick={{ fill: '#000000', fontSize: 11, fontWeight: 'bold' }} dy={10} />
                     <YAxis stroke="#64748b" tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} width={35} tick={{ fill: '#000000', fontSize: 10, fontWeight: 'bold' }}
@@ -1279,7 +1277,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '8px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingTop: '8px', marginTop: '8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
             <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>จัดทำโดย</p>
             <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
