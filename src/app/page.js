@@ -1493,7 +1493,7 @@ export default function DashboardPage() {
     }
   }, [rawData, isDemo]);
 
-  // Auto select latest quarter and reset month when switching to device tab
+  // Auto select latest quarter and reset month when switching to device tab, or clear quarter when switching to department tab
   useEffect(() => {
     if (activeTab === 'device') {
       if (selectedQuarter === 'ALL') {
@@ -1502,6 +1502,8 @@ export default function DashboardPage() {
         setSelectedQuarter(latestQ);
       }
       setSelectedMonth('ALL');
+    } else if (activeTab === 'department') {
+      setSelectedQuarter('ALL');
     }
   }, [activeTab, selectedYear, selectedQuarter]);
 
@@ -1599,13 +1601,13 @@ export default function DashboardPage() {
       
       if (itemYear !== selectedYear) return false;
       
-      if (selectedMonth !== 'ALL') {
+      if (selectedMonth !== 'ALL' && activeTab !== 'device') {
         const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
         const itemMonthName = months[date.getMonth()];
         if (itemMonthName !== selectedMonth) return false;
       }
       
-      if (selectedQuarter !== 'ALL') {
+      if (selectedQuarter !== 'ALL' && activeTab !== 'department') {
         const monthIdx = date.getMonth();
         let itemQuarter = '';
         if (monthIdx >= 0 && monthIdx <= 2) itemQuarter = 'Q1';
