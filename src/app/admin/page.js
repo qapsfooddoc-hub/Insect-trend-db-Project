@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   Users, Pencil, Trash2, RefreshCw, Plus, Sparkles, 
@@ -471,6 +471,18 @@ export default function AdminPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
 
+  const html2canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('html2canvas').then((module) => {
+        html2canvasRef.current = module.default;
+      }).catch((err) => {
+        console.error('Failed to load html2canvas:', err);
+      });
+    }
+  }, []);
+
   // --- PRESENTATION REPORT STATES ---
   const [selectedPresYear, setSelectedPresYear] = useState('2026');
   const [selectedPresMonth, setSelectedPresMonth] = useState('มกราคม');
@@ -540,16 +552,25 @@ export default function AdminPage() {
 
   const handleDownloadChart = async (containerId, fileName) => {
     if (typeof window === 'undefined') return;
+    const html2canvas = html2canvasRef.current;
+    if (!html2canvas) {
+      setAdminMessage({ text: 'ระบบกำลังโหลดไลบรารีสำหรับดาวน์โหลด กรุณาลองอีกครั้งใน 1-2 วินาที', type: 'error' });
+      return;
+    }
+
+    const element = document.getElementById(containerId);
+    if (!element) {
+      setAdminMessage({ text: 'ไม่พบกล่องข้อมูลกราฟที่ต้องการดาวน์โหลด', type: 'error' });
+      return;
+    }
+
+    setAdminMessage({ text: 'กำลังจัดเตรียมรูปภาพสำหรับดาวน์โหลด...', type: 'success' });
+
     try {
-      const html2canvas = (await import('html2canvas')).default;
-      const element = document.getElementById(containerId);
-      if (!element) return;
-      
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: true,
-        allowTaint: true,
         logging: false
       });
       
@@ -560,8 +581,13 @@ export default function AdminPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      setAdminMessage({ text: 'ดาวน์โหลดรูปภาพกราฟสำเร็จแล้ว!', type: 'success' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 3000);
     } catch (err) {
       console.error('Failed to export chart image:', err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกรูปภาพ: ' + err.message, type: 'error' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 5000);
     }
   };
 
