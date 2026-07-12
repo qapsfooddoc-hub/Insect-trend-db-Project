@@ -230,6 +230,10 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
   const { x, y, width, value } = props;
   if (value === undefined || value < 0.1) return null;
   const isOver = Math.round(value) > threshold;
+  const roundedValue = Math.round(value);
+  
+  const textLen = String(roundedValue).length;
+  const offsetOffset = textLen === 1 ? 12 : textLen === 2 ? 16 : 20;
   
   return (
     <g>
@@ -238,20 +242,20 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
         y={y - 8}
         fill="#475569"
         textAnchor="middle"
-        fontSize={9}
+        fontSize={10}
         fontWeight="bold"
       >
-        {Math.round(value)}
+        {roundedValue}
       </text>
       {isOver && (
-        <g transform={`translate(${x + width / 2 + 10}, ${y - 12})`}>
-          <circle cx={0} cy={0} r={6.5} fill="#ef4444" />
-          <circle cx={0} cy={0} r={5.5} fill="#ffffff" />
+        <g transform={`translate(${x + width / 2 + offsetOffset}, ${y - 12})`}>
+          <circle cx={0} cy={0} r={7.5} fill="#ef4444" />
+          <circle cx={0} cy={0} r={6.5} fill="#ffffff" />
           <text
             x={0}
-            y={2}
+            y={2.5}
             fill="#ef4444"
-            fontSize={6.5}
+            fontSize={8}
             fontWeight="black"
             textAnchor="middle"
             fontStyle="italic"
@@ -265,14 +269,171 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
 };
 
 
+const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return ['2026', '2025'];
+  }
+  
+  const yearsSet = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const year = item.inspected_at.split('-')[0];
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const hasApprovedMonth = months.some(m => {
+        if (typeof window === 'undefined') return false;
+        const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+        return status === 'Approved' || status === 'Pending';
+      });
+      
+      const isHistorical = parseInt(year, 10) < 2026;
+      
+      if (hasApprovedMonth || isHistorical) {
+        yearsSet.add(year);
+      }
+    }
+  });
+  
+  const arr = Array.from(yearsSet).sort().reverse();
+  return arr.length > 0 ? arr : ['2026'];
+};
+
+const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
+  const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return allMonths;
+  }
+  
+  return allMonths.filter(m => {
+    const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
+    if (isHistorical) return true;
+    
+    if (typeof window === 'undefined') return false;
+    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+    return status === 'Approved' || status === 'Pending';
+  });
+};
+
+const cleanTrapName = (fullName) => {
+  if (!fullName) return { number: '-', area: '-' };
+  let name = fullName.replace(/^[^:]+:\s*/, '');
+  const match = name.match(/^\((\d+)\)\s*(.*)$/);
+  if (match) {
+    return {
+      number: match[1],
+      area: match[2].trim()
+    };
+  }
+  return {
+    number: '-',
+    area: name
+  };
+};
+
+const generatePresentationSummary = (chartData) => {
+  const summaries = chartData
+    .map(item => {
+      const { name, flies, mosquitoes, ants, others } = item;
+      const { number, area } = cleanTrapName(name);
+      
+      const exceededList = [];
+      if (flies > 30) exceededList.push(`แมลงวัน ${flies} ตัว`);
+      if (mosquitoes > 50) exceededList.push(`ยุง ${mosquitoes} ตัว`);
+      if (ants > 10) exceededList.push(`มด ${ants} ตัว`);
+      if (others > 100) exceededList.push(`แมลงอื่นๆ ${others} ตัว`);
+      
+      if (exceededList.length === 0) return null;
+      
+      let insectText = '';
+      if (exceededList.length === 1) {
+        insectText = exceededList[0];
+      } else if (exceededList.length === 2) {
+        insectText = `${exceededList[0]} และ ${exceededList[1]}`;
+      } else {
+        const initial = exceededList.slice(0, -1).join(', ');
+        const last = exceededList[exceededList.length - 1];
+        insectText = `${initial} และ ${last}`;
+      }
+      
+      return `เครื่องดักแมลงหมายเลข ${number} (${area}) พบ ${insectText}`;
+    })
+    .filter(Boolean);
+    
+  if (summaries.length === 0) {
+    return 'ไม่มีเครื่องดักแมลงที่ตรวจพบจำนวนแมลงเกินเกณฑ์ที่กำหนดในเดือนนี้';
+  }
+  
+  return summaries.join('\n');
+};
+
+const getDeptDetailedDataForPresentation = (deptName, month, year, allInspections, isDemoMode) => {
+  const traps = DEPT_TRAPS_MAPPING[deptName] || [];
+  
+  const hasDataForFilter = allInspections.some(item => {
+    if (!item.inspected_at) return false;
+    const date = new Date(item.inspected_at);
+    const itemYear = String(date.getFullYear());
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const itemMonthName = months[date.getMonth()];
+    return itemYear === year && itemMonthName === month;
+  });
+
+  if (isDemoMode || !hasDataForFilter || allInspections.length === 0) {
+    // General mock data generator
+    return traps.map((trap, idx) => {
+      const label = trap;
+      const seed = idx + deptName.length + month.length + parseInt(year, 10);
+      const flies = Math.max(0, (seed % 5 === 0 ? 35 : 3) + (seed % 3) * 3);
+      const mosquitoes = Math.max(0, (seed % 7 === 0 ? 60 : 4) + (seed % 4) * 4);
+      const ants = Math.max(0, (seed % 6 === 0 ? 15 : 1) + (seed % 2) * 2);
+      const others = Math.max(0, (seed % 8 === 0 ? 40 : 2) + (seed % 5) * 5);
+
+      return {
+        name: label,
+        flies,
+        mosquitoes,
+        ants,
+        others
+      };
+    });
+  }
+
+  // Real data aggregation from allInspections
+  return traps.map(trap => {
+    const label = trap;
+    const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+    
+    allInspections.forEach(item => {
+      if (!item.inspected_at) return;
+      const date = new Date(item.inspected_at);
+      const itemYear = String(date.getFullYear());
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const itemMonthName = months[date.getMonth()];
+      
+      if (itemYear === year && itemMonthName === month && item.area && item.area.includes(trap)) {
+        const type = item.insect_type;
+        const count = Number(item.count) || 0;
+        if (type.includes('Flies')) totals.flies += count;
+        else if (type.includes('Mosquitoes')) totals.mosquitoes += count;
+        else if (type.includes('Ants')) totals.ants += count;
+        else totals.others += count;
+      }
+    });
+    
+    return {
+      name: label,
+      flies: totals.flies,
+      mosquitoes: totals.mosquitoes,
+      ants: totals.ants,
+      others: totals.others
+    };
+  });
+};
+
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('users'); // 'users', 'inspections', 'approvals', or 'presentation'
   
-  // --- PRESENTATION REPORT STATES ---
-  const [selectedPresYear, setSelectedPresYear] = useState('2026');
-  const [selectedPresMonth, setSelectedPresMonth] = useState('มกราคม');
-  const [selectedPresDept, setSelectedPresDept] = useState('ตัดแต่ง');
+
 
   // --- USER MANAGEMENT STATES ---
   const [users, setUsers] = useState([]);
@@ -309,6 +470,29 @@ export default function AdminPage() {
   const [adminMessage, setAdminMessage] = useState({ text: '', type: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+
+  // --- PRESENTATION REPORT STATES ---
+  const [selectedPresYear, setSelectedPresYear] = useState('2026');
+  const [selectedPresMonth, setSelectedPresMonth] = useState('มกราคม');
+  const [selectedPresDept, setSelectedPresDept] = useState('ตัดแต่ง');
+
+  // Auto select latest approved/available month when tab or year changes
+  useEffect(() => {
+    if (activeTab === 'presentation') {
+      const years = getAvailableYearsForPresentation(allInspections, isDemoMode);
+      let yearToSet = selectedPresYear;
+      if (years.length > 0 && !years.includes(selectedPresYear)) {
+        yearToSet = years[0];
+        setSelectedPresYear(yearToSet);
+      }
+      
+      const months = getAvailableMonthsForPresentation(yearToSet, allInspections, isDemoMode);
+      if (months.length > 0) {
+        const latestMonth = months[months.length - 1];
+        setSelectedPresMonth(latestMonth);
+      }
+    }
+  }, [activeTab, selectedPresYear, allInspections, isDemoMode]);
 
   // Fetch Users
   const fetchUsers = async () => {
@@ -353,122 +537,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- HELPERS FOR PRESENTATION REPORT ---
-  const cleanTrapName = (fullName) => {
-    if (!fullName) return { number: '-', area: '-' };
-    let name = fullName.replace(/^[^:]+:\s*/, '');
-    const match = name.match(/^\((\d+)\)\s*(.*)$/);
-    if (match) {
-      return {
-        number: match[1],
-        area: match[2].trim()
-      };
-    }
-    return {
-      number: '-',
-      area: name
-    };
-  };
-
-  const getDeptDetailedDataForPresentation = (deptName, month, year) => {
-    const traps = DEPT_TRAPS_MAPPING[deptName] || [];
-    
-    const hasDataForFilter = allInspections.some(item => {
-      if (!item.inspected_at) return false;
-      const date = new Date(item.inspected_at);
-      const itemYear = String(date.getFullYear());
-      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-      const itemMonthName = months[date.getMonth()];
-      return itemYear === year && itemMonthName === month;
-    });
-
-    if (isDemoMode || !hasDataForFilter || allInspections.length === 0) {
-      // General mock data generator
-      return traps.map((trap, idx) => {
-        const label = trap;
-        const seed = idx + deptName.length + month.length + parseInt(year, 10);
-        const flies = Math.max(0, (seed % 5 === 0 ? 35 : 3) + (seed % 3) * 3);
-        const mosquitoes = Math.max(0, (seed % 7 === 0 ? 60 : 4) + (seed % 4) * 4);
-        const ants = Math.max(0, (seed % 6 === 0 ? 15 : 1) + (seed % 2) * 2);
-        const others = Math.max(0, (seed % 8 === 0 ? 40 : 2) + (seed % 5) * 5);
-
-        return {
-          name: label,
-          flies,
-          mosquitoes,
-          ants,
-          others
-        };
-      });
-    }
-
-    // Real data aggregation from allInspections
-    return traps.map(trap => {
-      const label = trap;
-      const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
-      
-      allInspections.forEach(item => {
-        if (!item.inspected_at) return;
-        const date = new Date(item.inspected_at);
-        const itemYear = String(date.getFullYear());
-        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        const itemMonthName = months[date.getMonth()];
-        
-        if (itemYear === year && itemMonthName === month && item.area && item.area.includes(trap)) {
-          const type = item.insect_type;
-          const count = Number(item.count) || 0;
-          if (type.includes('Flies')) totals.flies += count;
-          else if (type.includes('Mosquitoes')) totals.mosquitoes += count;
-          else if (type.includes('Ants')) totals.ants += count;
-          else totals.others += count;
-        }
-      });
-      
-      return {
-        name: label,
-        flies: totals.flies,
-        mosquitoes: totals.mosquitoes,
-        ants: totals.ants,
-        others: totals.others
-      };
-    });
-  };
-
-  const generatePresentationSummary = (chartData) => {
-    const summaries = chartData
-      .map(item => {
-        const { name, flies, mosquitoes, ants, others } = item;
-        const { number, area } = cleanTrapName(name);
-        
-        const exceededList = [];
-        if (flies > 30) exceededList.push(`แมลงวัน ${flies} ตัว`);
-        if (mosquitoes > 50) exceededList.push(`ยุง ${mosquitoes} ตัว`);
-        if (ants > 10) exceededList.push(`มด ${ants} ตัว`);
-        if (others > 100) exceededList.push(`แมลงอื่นๆ ${others} ตัว`);
-        
-        if (exceededList.length === 0) return null;
-        
-        let insectText = '';
-        if (exceededList.length === 1) {
-          insectText = exceededList[0];
-        } else if (exceededList.length === 2) {
-          insectText = `${exceededList[0]} และ ${exceededList[1]}`;
-        } else {
-          const initial = exceededList.slice(0, -1).join(', ');
-          const last = exceededList[exceededList.length - 1];
-          insectText = `${initial} และ ${last}`;
-        }
-        
-        return `เครื่องดักแมลงหมายเลข ${number} (${area}) พบ ${insectText}`;
-      })
-      .filter(Boolean);
-      
-    if (summaries.length === 0) {
-      return 'ไม่มีเครื่องดักแมลงที่ตรวจพบจำนวนแมลงเกินเกณฑ์ที่กำหนดในเดือนนี้';
-    }
-    
-    return summaries.join('\n');
-  };
 
   const handleDownloadChart = async (containerId, fileName) => {
     if (typeof window === 'undefined') return;
@@ -480,7 +548,9 @@ export default function AdminPage() {
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
         scale: 2,
-        useCORS: true
+        useCORS: true,
+        allowTaint: true,
+        logging: false
       });
       
       const imgData = canvas.toDataURL('image/png');
@@ -1633,8 +1703,9 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedPresYear(e.target.value)}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-880 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
-                        <option value="2026">2569</option>
-                        <option value="2025">2568</option>
+                        {getAvailableYearsForPresentation(allInspections, isDemoMode).map(y => (
+                          <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -1645,37 +1716,32 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedPresMonth(e.target.value)}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-880 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
-                        <option value="มกราคม">มกราคม</option>
-                        <option value="กุมภาพันธ์">กุมภาพันธ์</option>
-                        <option value="มีนาคม">มีนาคม</option>
-                        <option value="เมษายน">เมษายน</option>
-                        <option value="พฤษภาคม">พฤษภาคม</option>
-                        <option value="มิถุนายน">มิถุนายน</option>
-                        <option value="กรกฎาคม">กรกฎาคม</option>
-                        <option value="สิงหาคม">สิงหาคม</option>
-                        <option value="กันยายน">กันยายน</option>
-                        <option value="ตุลาคม">ตุลาคม</option>
-                        <option value="พฤศจิกายน">พฤศจิกายน</option>
-                        <option value="ธันวาคม">ธันวาคม</option>
+                        {getAvailableMonthsForPresentation(selectedPresYear, allInspections, isDemoMode).map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-100 dark:border-slate-850">
-                    <p className="text-[10px] text-slate-450 leading-relaxed mb-4">
-                      เกณฑ์วัดระดับแมลงระบาด:
-                      <br />• 🪰 แมลงวัน &gt; 30 ตัว
-                      <br />• 🦟 ยุง &gt; 50 ตัว
-                      <br />• 🐜 มด &gt; 10 ตัว
-                      <br />• 🪲 อื่นๆ &gt; 100 ตัว
-                    </p>
+                  <div className="pt-4 border-t border-slate-100 dark:border-slate-855">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-950/65 rounded-2xl border border-slate-100 dark:border-slate-850">
+                      <h5 className="text-[11px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-wider mb-2">
+                        เกณฑ์วัดระดับแมลงระบาด
+                      </h5>
+                      <ul className="space-y-1.5 text-xs font-black text-slate-600 dark:text-slate-400">
+                        <li className="flex items-center gap-1.5">🪰 แมลงวัน &gt; 30 ตัว</li>
+                        <li className="flex items-center gap-1.5">🦟 ยุง &gt; 50 ตัว</li>
+                        <li className="flex items-center gap-1.5">🐜 มด &gt; 10 ตัว</li>
+                        <li className="flex items-center gap-1.5">🪲 อื่นๆ &gt; 100 ตัว</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
 
                 {/* Main Content Area - Right Column (8 cols) */}
                 <div className="lg:col-span-8 flex flex-col gap-6">
                   {/* Department selectors */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-855 rounded-3xl p-6 shadow-sm">
                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-4">
                       เลือกแผนกแสดงข้อมูล
                     </h4>
@@ -1687,7 +1753,7 @@ export default function AdminPage() {
                           className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer ${
                             selectedPresDept === d
                               ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white font-extrabold'
-                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50 dark:bg-slate-950 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-850'
+                              : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-955 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-855'
                           }`}
                         >
                           แผนก {d}
@@ -1698,7 +1764,7 @@ export default function AdminPage() {
 
                   {/* Chart Container wrapper */}
                   {(() => {
-                    const chartData = getDeptDetailedDataForPresentation(selectedPresDept, selectedPresMonth, selectedPresYear);
+                    const chartData = getDeptDetailedDataForPresentation(selectedPresDept, selectedPresMonth, selectedPresYear, allInspections, isDemoMode);
                     const formattedData = mapZeroToTinyDecimal(chartData);
                     
                     const isAllGreen = chartData.every(item => 
@@ -1710,7 +1776,8 @@ export default function AdminPage() {
 
                     const summaryText = generatePresentationSummary(chartData);
 
-                    const containerId = `pres-chart-${selectedPresDept}`;
+                    const deptIndex = DEPTS_LIST.indexOf(selectedPresDept);
+                    const containerId = `pres-chart-dept-${deptIndex}`;
                     const chartTitle = `กราฟแสดงรายงานการตรวจนับจำนวนแมลง ของทีม${selectedPresDept} ประจำเดือน ${selectedPresMonth} ${parseInt(selectedPresYear) + 543}`;
 
                     return (
@@ -1719,7 +1786,7 @@ export default function AdminPage() {
                           {/* Inner container to capture via html2canvas */}
                           <div id={containerId} className="bg-white dark:bg-slate-900 p-6 rounded-2xl relative w-full overflow-hidden">
                             {/* Chart Title */}
-                            <h4 className="text-center font-bold text-[14px] text-slate-800 dark:text-slate-100 mb-6 px-12">
+                            <h4 className="text-center font-bold text-[14px] text-slate-855 dark:text-slate-100 mb-6 px-12">
                               {chartTitle}
                             </h4>
                             
@@ -1727,7 +1794,7 @@ export default function AdminPage() {
                             {isAllGreen && (
                               <div className="absolute top-10 right-10 z-10 flex items-center justify-center pointer-events-none">
                                 <div className="w-16 h-16 rounded-full border-[4px] border-emerald-600 bg-white flex items-center justify-center shadow-md">
-                                  <span className="text-emerald-650 text-3xl font-black italic tracking-tighter">A+</span>
+                                  <span className="text-emerald-655 text-3xl font-black italic tracking-tighter text-emerald-600">A+</span>
                                 </div>
                               </div>
                             )}
@@ -1757,12 +1824,13 @@ export default function AdminPage() {
                                     tickLine={false} 
                                     style={{ fontFamily: 'inherit' }}
                                     domain={[0, (max) => Math.max(10, max)]}
+                                    tickCount={5}
                                     label={{ 
                                       value: 'จำนวน (ตัว)', 
                                       angle: -90, 
                                       position: 'insideLeft', 
                                       offset: 0, 
-                                      style: { fontSize: 11, fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } 
+                                      style: { fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } 
                                     }}
                                   />
                                   <Tooltip content={<CustomTooltip />} />
@@ -1786,7 +1854,7 @@ export default function AdminPage() {
                           </div>
 
                           {/* Export Actions & Summary display */}
-                          <div className="flex flex-col gap-4 border-t border-slate-100 dark:border-slate-855 pt-6">
+                          <div className="flex flex-col gap-4 border-t border-slate-100 dark:border-slate-850 pt-6">
                             <div className="flex items-center justify-between">
                               <h5 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
                                 <ShieldAlert className="w-4 h-4 text-amber-500" />
@@ -1826,8 +1894,6 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
-
-
             {activeTab === 'approvals' && (
               /* --- TAB 3: MONTHLY REPORT APPROVALS --- */
               <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
