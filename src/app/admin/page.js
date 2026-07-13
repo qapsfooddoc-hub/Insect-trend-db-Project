@@ -567,6 +567,37 @@ export default function AdminPage() {
     setAdminMessage({ text: 'กำลังจัดเตรียมรูปภาพสำหรับดาวน์โหลด...', type: 'success' });
 
     try {
+      // Save original styles
+      const originalWidth = element.style.width;
+      const originalHeight = element.style.height;
+      const originalMinWidth = element.style.minWidth;
+      const originalMinHeight = element.style.minHeight;
+      const originalAspectRatio = element.style.aspectRatio;
+
+      // Find internal chart wrapper and save original height
+      const chartWrapper = element.querySelector('.chart-wrapper');
+      let originalChartHeight = '';
+      if (chartWrapper) {
+        originalChartHeight = chartWrapper.style.height;
+      }
+
+      // Temporarily set a perfect 16:9 widescreen desktop size for high-quality capture
+      element.style.width = '1120px';
+      element.style.minWidth = '1120px';
+      element.style.height = '630px';
+      element.style.minHeight = '630px';
+      element.style.aspectRatio = '16/9';
+      
+      if (chartWrapper) {
+        chartWrapper.style.height = '480px';
+      }
+
+      // Force a reflow/repaint so Recharts resizes to the new dimensions
+      window.dispatchEvent(new Event('resize'));
+      
+      // Wait a bit for Recharts to update its responsive container size
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
         scale: 2,
@@ -574,6 +605,20 @@ export default function AdminPage() {
         logging: false
       });
       
+      // Restore original styles
+      element.style.width = originalWidth;
+      element.style.minWidth = originalMinWidth;
+      element.style.height = originalHeight;
+      element.style.minHeight = originalMinHeight;
+      element.style.aspectRatio = originalAspectRatio;
+      
+      if (chartWrapper) {
+        chartWrapper.style.height = originalChartHeight;
+      }
+      
+      // Trigger another resize to restore screen presentation layout
+      window.dispatchEvent(new Event('resize'));
+
       const imgData = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = imgData;
@@ -1834,7 +1879,7 @@ export default function AdminPage() {
                       <>
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm flex flex-col gap-6 relative">
                           {/* Inner container to capture via html2canvas */}
-                          <div id={containerId} className="bg-white dark:bg-slate-900 p-6 rounded-2xl relative w-full overflow-hidden">
+                          <div id={containerId} className="bg-white dark:bg-slate-900 p-6 rounded-2xl relative w-full md:aspect-[16/9] flex flex-col justify-between overflow-hidden">
                             {/* Chart Title */}
                             <h4 className="text-center font-bold text-[14px] text-slate-855 dark:text-slate-100 mb-6 px-12">
                               {chartTitle}
@@ -1850,7 +1895,7 @@ export default function AdminPage() {
                             )}
 
                             {/* Recharts chart */}
-                            <div className="h-[360px] w-full text-xs font-bold pb-2 relative">
+                            <div className="chart-wrapper flex-grow min-h-[340px] md:min-h-0 w-full text-xs font-bold pb-2 relative">
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart 
                                   data={formattedData} 
