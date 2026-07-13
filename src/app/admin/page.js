@@ -118,7 +118,7 @@ function CustomTick({ x, y, payload }) {
         dy={10}
         textAnchor="middle"
         className="fill-slate-500 dark:fill-slate-400 font-extrabold text-[9px]"
-        style={{ fontFamily: 'inherit' }}
+        style={{ fontFamily: 'Niramit, sans-serif' }}
       >
         <tspan x={0} dy="0">{line1}</tspan>
         {line2 && <tspan x={0} dy="12">{line2}</tspan>}
@@ -164,7 +164,7 @@ function RenderCustomLegend(props) {
           className="text-slate-500 dark:text-slate-400 font-extrabold"
           style={{
             fontSize: '11px',
-            fontFamily: 'inherit',
+            fontFamily: 'Niramit, sans-serif',
             lineHeight: '1.2'
           }}
         >
@@ -182,7 +182,7 @@ function RenderCustomLegend(props) {
           alignItems: 'center',
           gap: '24px',
           fontSize: '11.5px',
-          fontFamily: 'inherit'
+          fontFamily: 'Niramit, sans-serif'
         }}
       >
         {orderedItems.map((entry, index) => (
@@ -241,6 +241,7 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
         textAnchor="middle"
         fontSize={10}
         fontWeight="bold"
+        style={{ fontFamily: 'Niramit, sans-serif' }}
       >
         {roundedValue}
       </text>
@@ -257,6 +258,7 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
             fontWeight="black"
             textAnchor="middle"
             fontStyle="italic"
+            style={{ fontFamily: 'Niramit, sans-serif' }}
           >
             F-
           </text>
@@ -1918,7 +1920,7 @@ export default function AdminPage() {
                                     stroke="#94a3b8" 
                                     fontSize={9} 
                                     tickLine={false} 
-                                    style={{ fontFamily: 'inherit' }}
+                                    style={{ fontFamily: 'Niramit, sans-serif' }}
                                     interval={0}
                                     height={40}
                                     tick={<CustomTick />}
@@ -1927,7 +1929,7 @@ export default function AdminPage() {
                                     stroke="#94a3b8" 
                                     fontSize={10} 
                                     tickLine={false} 
-                                    style={{ fontFamily: 'inherit' }}
+                                    style={{ fontFamily: 'Niramit, sans-serif' }}
                                     domain={yAxisConfig.domain}
                                     ticks={yAxisConfig.ticks}
                                     label={{ 
@@ -1935,7 +1937,7 @@ export default function AdminPage() {
                                       angle: -90, 
                                       position: 'insideLeft', 
                                       offset: 0, 
-                                      style: { fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } 
+                                      style: { fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', fill: '#475569', fontFamily: 'Niramit, sans-serif' } 
                                     }}
                                   />
                                   {!isExporting && <Tooltip content={<CustomTooltip />} />}
