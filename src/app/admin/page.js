@@ -475,10 +475,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      import('html2canvas').then((module) => {
+      import('html2canvas-pro').then((module) => {
         html2canvasRef.current = module.default;
       }).catch((err) => {
-        console.error('Failed to load html2canvas:', err);
+        console.error('Failed to load html2canvas-pro:', err);
       });
     }
   }, []);
