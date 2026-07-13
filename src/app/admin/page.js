@@ -236,25 +236,25 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
     <g>
       <text
         x={x + width / 2}
-        y={y - 8}
-        fill="#475569"
+        y={y - 10}
+        fill="#334155"
         textAnchor="middle"
-        fontSize={10}
-        fontWeight="bold"
+        fontSize={17}
+        fontWeight="black"
         style={{ fontFamily: 'Niramit, sans-serif' }}
       >
         {roundedValue}
       </text>
       {isOver && (
-        /* Center the F- badge directly above the number label to avoid overlapping adjacent columns */
-        <g transform={`translate(${x + width / 2}, ${y - 25})`}>
-          <circle cx={0} cy={0} r={7.5} fill="#ef4444" />
-          <circle cx={0} cy={0} r={6.5} fill="#ffffff" />
+        /* Center the F- badge directly above the number label and space it out appropriately */
+        <g transform={`translate(${x + width / 2}, ${y - 44})`}>
+          <circle cx={0} cy={0} r={11} fill="#ef4444" />
+          <circle cx={0} cy={0} r={9.5} fill="#ffffff" />
           <text
             x={0}
-            y={2.5}
+            y={3.5}
             fill="#ef4444"
-            fontSize={8}
+            fontSize={11}
             fontWeight="black"
             textAnchor="middle"
             fontStyle="italic"
@@ -597,8 +597,13 @@ export default function AdminPage() {
       // Force a reflow/repaint so Recharts resizes to the new dimensions
       window.dispatchEvent(new Event('resize'));
       
+      // Wait for fonts to be completely loaded in the DOM before screenshot
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+      
       // Wait a bit for Recharts to update its responsive container size and hide tooltip
-      await new Promise(resolve => setTimeout(resolve, 600));
+      await new Promise(resolve => setTimeout(resolve, 700));
 
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
@@ -662,6 +667,16 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const existingLink = document.getElementById('google-font-niramit-link');
+      if (!existingLink) {
+        const link = document.createElement('link');
+        link.id = 'google-font-niramit-link';
+        link.href = 'https://fonts.googleapis.com/css2?family=Niramit:wght@300;400;500;600;700&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+      }
+    }
     setMounted(true);
     fetchUsers();
     fetchInspections();
