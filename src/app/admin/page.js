@@ -232,9 +232,6 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
   const roundedValue = value === 0.0001 ? 0 : Math.round(value);
   const isOver = roundedValue > threshold;
   
-  const textLen = String(roundedValue).length;
-  const offsetOffset = textLen === 1 ? 12 : textLen === 2 ? 16 : 20;
-  
   return (
     <g>
       <text
@@ -248,7 +245,8 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
         {roundedValue}
       </text>
       {isOver && (
-        <g transform={`translate(${x + width / 2 + offsetOffset}, ${y - 12})`}>
+        /* Center the F- badge directly above the number label to avoid overlapping adjacent columns */
+        <g transform={`translate(${x + width / 2}, ${y - 25})`}>
           <circle cx={0} cy={0} r={7.5} fill="#ef4444" />
           <circle cx={0} cy={0} r={6.5} fill="#ffffff" />
           <text
@@ -487,6 +485,7 @@ export default function AdminPage() {
   const [selectedPresYear, setSelectedPresYear] = useState('2026');
   const [selectedPresMonth, setSelectedPresMonth] = useState('มกราคม');
   const [selectedPresDept, setSelectedPresDept] = useState('ตัดแต่ง');
+  const [isExporting, setIsExporting] = useState(false);
 
   // Auto select latest approved/available month when tab or year changes
   useEffect(() => {
@@ -565,6 +564,7 @@ export default function AdminPage() {
     }
 
     setAdminMessage({ text: 'กำลังจัดเตรียมรูปภาพสำหรับดาวน์โหลด...', type: 'success' });
+    setIsExporting(true);
 
     try {
       // Save original styles
@@ -595,8 +595,8 @@ export default function AdminPage() {
       // Force a reflow/repaint so Recharts resizes to the new dimensions
       window.dispatchEvent(new Event('resize'));
       
-      // Wait a bit for Recharts to update its responsive container size
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait a bit for Recharts to update its responsive container size and hide tooltip
+      await new Promise(resolve => setTimeout(resolve, 600));
 
       const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
@@ -616,6 +616,8 @@ export default function AdminPage() {
         chartWrapper.style.height = originalChartHeight;
       }
       
+      setIsExporting(false);
+      
       // Trigger another resize to restore screen presentation layout
       window.dispatchEvent(new Event('resize'));
 
@@ -631,6 +633,7 @@ export default function AdminPage() {
       setTimeout(() => setAdminMessage({ text: '', type: '' }), 3000);
     } catch (err) {
       console.error('Failed to export chart image:', err);
+      setIsExporting(false);
       setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกรูปภาพ: ' + err.message, type: 'error' });
       setTimeout(() => setAdminMessage({ text: '', type: '' }), 5000);
     }
@@ -1877,6 +1880,13 @@ export default function AdminPage() {
 
                     return (
                       <>
+                        <style dangerouslySetInnerHTML={{ __html: `
+                          @import url('https://fonts.googleapis.com/css2?family=Niramit:wght@400;500;600;700&display=swap');
+                          
+                          #${containerId} * {
+                            font-family: 'Niramit', sans-serif !important;
+                          }
+                        `}} />
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm flex flex-col gap-6 relative">
                           {/* Inner container to capture via html2canvas */}
                           <div id={containerId} className="bg-white dark:bg-slate-900 p-6 rounded-2xl relative w-full md:aspect-[16/9] flex flex-col justify-between overflow-hidden">
@@ -1928,7 +1938,7 @@ export default function AdminPage() {
                                       style: { fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', fill: '#475569', fontFamily: 'inherit' } 
                                     }}
                                   />
-                                  <Tooltip content={<CustomTooltip />} />
+                                  {!isExporting && <Tooltip content={<CustomTooltip />} />}
                                   <Legend content={<RenderCustomLegend hideTitle={true} />} wrapperStyle={{ bottom: -20, left: 0, width: '100%' }} />
                                   
                                   <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
