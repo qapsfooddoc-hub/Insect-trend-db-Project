@@ -52,9 +52,11 @@ export default function Navbar() {
         {/* Brand / Logo */}
         <div className="flex items-center justify-between w-full md:w-auto">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-650 dark:text-indigo-400 flex items-center justify-center font-black text-lg">
-              🐜
-            </div>
+            <img 
+              src="/logo.jpg" 
+              alt="PS Logo" 
+              className="w-10 h-10 rounded-2xl object-cover bg-white dark:bg-slate-900 p-0.5 border border-slate-100 dark:border-slate-800 shadow-xs"
+            />
             <div>
               <h2 className="text-base font-extrabold text-slate-900 dark:text-white whitespace-nowrap">รายงานการตรวจนับจำนวนแมลง</h2>
               <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5">
