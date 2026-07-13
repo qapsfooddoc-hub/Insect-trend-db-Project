@@ -228,9 +228,9 @@ function CustomTooltip({ active, payload }) {
 
 const renderCustomLabelWithThreshold = (threshold) => (props) => {
   const { x, y, width, value } = props;
-  if (value === undefined || value < 0.1) return null;
-  const isOver = Math.round(value) > threshold;
-  const roundedValue = Math.round(value);
+  if (value === undefined) return null;
+  const roundedValue = value === 0.0001 ? 0 : Math.round(value);
+  const isOver = roundedValue > threshold;
   
   const textLen = String(roundedValue).length;
   const offsetOffset = textLen === 1 ? 12 : textLen === 2 ? 16 : 20;
@@ -1806,6 +1806,30 @@ export default function AdminPage() {
                     const containerId = `pres-chart-dept-${deptIndex}`;
                     const chartTitle = `กราฟแสดงรายงานการตรวจนับจำนวนแมลง ของทีม${selectedPresDept} ประจำเดือน ${selectedPresMonth} ${parseInt(selectedPresYear) + 543}`;
 
+                    const yAxisConfig = (() => {
+                      let maxVal = 10;
+                      chartData.forEach(item => {
+                        const sum = Math.max(item.flies || 0, item.mosquitoes || 0, item.ants || 0, item.others || 0);
+                        if (sum > maxVal) {
+                          maxVal = sum;
+                        }
+                      });
+
+                      const neededStep = Math.ceil(maxVal / 5);
+                      const cleanSteps = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 150, 200, 250, 300, 400, 500, 1000];
+                      let finalStep = cleanSteps.find(s => s >= neededStep) || neededStep;
+                      
+                      const finalTicks = [];
+                      for (let i = 0; i <= 5; i++) {
+                        finalTicks.push(i * finalStep);
+                      }
+                      
+                      return {
+                        domain: [0, finalTicks[5]],
+                        ticks: finalTicks
+                      };
+                    })();
+
                     return (
                       <>
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm flex flex-col gap-6 relative">
@@ -1849,8 +1873,8 @@ export default function AdminPage() {
                                     fontSize={10} 
                                     tickLine={false} 
                                     style={{ fontFamily: 'inherit' }}
-                                    domain={[0, (max) => Math.max(10, max)]}
-                                    tickCount={5}
+                                    domain={yAxisConfig.domain}
+                                    ticks={yAxisConfig.ticks}
                                     label={{ 
                                       value: 'จำนวน (ตัว)', 
                                       angle: -90, 
