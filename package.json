@@ -13,6 +13,7 @@
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.108.2",
     "html2canvas-pro": "^2.2.3",
+    "jimp": "^1.6.1",
     "lucide-react": "^1.21.0",
     "next": "16.2.9",
     "pdf-parse": "^2.4.5",

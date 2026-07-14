@@ -53,9 +53,9 @@ export default function Navbar() {
         <div className="flex items-center justify-between w-full md:w-auto">
           <div className="flex items-center gap-3">
             <img 
-              src="/logo.jpg" 
+              src="/logo.png" 
               alt="PS Logo" 
-              className="w-10 h-10 rounded-2xl object-cover bg-white dark:bg-slate-900 p-0.5 border border-slate-100 dark:border-slate-800 shadow-xs"
+              className="w-10 h-10 object-contain"
             />
             <div>
               <h2 className="text-base font-extrabold text-slate-900 dark:text-white whitespace-nowrap">รายงานการตรวจนับจำนวนแมลง</h2>
