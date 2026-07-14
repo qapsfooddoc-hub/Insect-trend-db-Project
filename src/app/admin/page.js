@@ -646,6 +646,108 @@ export default function AdminPage() {
     }
   };
 
+  const handleDownloadAllCharts = async () => {
+    if (typeof window === 'undefined') return;
+    const html2canvas = html2canvasRef.current;
+    if (!html2canvas) {
+      setAdminMessage({ text: 'ระบบกำลังโหลดไลบรารีสำหรับดาวน์โหลด กรุณาลองอีกครั้งใน 1-2 วินาที', type: 'error' });
+      return;
+    }
+
+    const originalDept = selectedPresDept;
+    setAdminMessage({ text: 'กำลังเริ่มต้นบันทึกรูปภาพกราฟของทุกแผนก...', type: 'success' });
+
+    try {
+      for (let i = 0; i < DEPTS_LIST.length; i++) {
+        const dept = DEPTS_LIST[i];
+        setSelectedPresDept(dept);
+
+        // Wait for React re-render & Recharts layout computation
+        await new Promise(resolve => setTimeout(resolve, 950));
+
+        const containerId = `pres-chart-dept-${i}`;
+        const fileName = `chart_${dept}_${selectedPresMonth}_${selectedPresYear}`;
+        
+        setAdminMessage({ 
+          text: `กำลังบันทึกรูปภาพแผนกที่ ${i + 1}/${DEPTS_LIST.length}: แผนก ${dept}...`, 
+          type: 'success' 
+        });
+
+        // Run the custom download capture logic synchronously inside loop
+        const element = document.getElementById(containerId);
+        if (element) {
+          setIsExporting(true);
+          const originalWidth = element.style.width;
+          const originalHeight = element.style.height;
+          const originalMinWidth = element.style.minWidth;
+          const originalMinHeight = element.style.minHeight;
+          const originalAspectRatio = element.style.aspectRatio;
+
+          const chartWrapper = element.querySelector('.chart-wrapper');
+          let originalChartHeight = '';
+          if (chartWrapper) {
+            originalChartHeight = chartWrapper.style.height;
+          }
+
+          element.style.width = '1120px';
+          element.style.minWidth = '1120px';
+          element.style.height = '630px';
+          element.style.minHeight = '630px';
+          element.style.aspectRatio = '16/9';
+          
+          if (chartWrapper) {
+            chartWrapper.style.height = '480px';
+          }
+
+          window.dispatchEvent(new Event('resize'));
+          
+          if (document.fonts) {
+            await document.fonts.ready;
+          }
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          const canvas = await html2canvas(element, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            logging: false
+          });
+          
+          element.style.width = originalWidth;
+          element.style.minWidth = originalMinWidth;
+          element.style.height = originalHeight;
+          element.style.minHeight = originalMinHeight;
+          element.style.aspectRatio = originalAspectRatio;
+          
+          if (chartWrapper) {
+            chartWrapper.style.height = originalChartHeight;
+          }
+          
+          setIsExporting(false);
+          window.dispatchEvent(new Event('resize'));
+
+          const imgData = canvas.toDataURL('image/png');
+          const link = document.createElement('a');
+          link.href = imgData;
+          link.download = `${fileName}.png`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+
+      setSelectedPresDept(originalDept);
+      setAdminMessage({ text: 'บันทึกรูปภาพกราฟของทุกแผนกสำเร็จครบถ้วนแล้ว!', type: 'success' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 4000);
+    } catch (err) {
+      console.error('Failed to export all charts:', err);
+      setSelectedPresDept(originalDept);
+      setIsExporting(false);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกรูปภาพรวม: ' + err.message, type: 'error' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 5055);
+    }
+  };
+
   const handleCopySummary = (text) => {
     if (typeof window === 'undefined') return;
     navigator.clipboard.writeText(text);
@@ -1812,6 +1914,16 @@ export default function AdminPage() {
                         ))}
                       </select>
                     </div>
+                    
+                    <button
+                      onClick={handleDownloadAllCharts}
+                      disabled={isExporting}
+                      className={`w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-650 hover:to-violet-750 text-white text-xs font-black shadow-md cursor-pointer flex items-center justify-center gap-1.5 transition-all ${
+                        isExporting ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <span>📥 บันทึกทุกภาพ (ทุกแผนก)</span>
+                    </button>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 dark:border-slate-855">
