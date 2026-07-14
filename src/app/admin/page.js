@@ -236,10 +236,10 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
     <g>
       <text
         x={x + width / 2}
-        y={y - 10}
+        y={y - 6}
         fill="#334155"
         textAnchor="middle"
-        fontSize={17}
+        fontSize={13.5}
         fontWeight="black"
         style={{ fontFamily: 'Niramit, sans-serif' }}
       >
@@ -247,14 +247,14 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
       </text>
       {isOver && (
         /* Center the F- badge directly above the number label and space it out appropriately */
-        <g transform={`translate(${x + width / 2}, ${y - 44})`}>
-          <circle cx={0} cy={0} r={11} fill="#ef4444" />
-          <circle cx={0} cy={0} r={9.5} fill="#ffffff" />
+        <g transform={`translate(${x + width / 2}, ${y - 27})`}>
+          <circle cx={0} cy={0} r={8} fill="#ef4444" />
+          <circle cx={0} cy={0} r={6.8} fill="#ffffff" />
           <text
             x={0}
-            y={3.5}
+            y={2.5}
             fill="#ef4444"
-            fontSize={11}
+            fontSize={8.5}
             fontWeight="black"
             textAnchor="middle"
             fontStyle="italic"
@@ -1926,7 +1926,7 @@ export default function AdminPage() {
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart 
                                   data={formattedData} 
-                                  margin={{ top: 30, right: 10, left: -10, bottom: 40 }}
+                                  margin={{ top: 48, right: 10, left: -10, bottom: 40 }}
                                 >
                                   <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
                                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
