@@ -34,7 +34,7 @@ export default function Navbar() {
 
   // Helper to determine active link styles
   const getLinkClass = (path, activeColorClass) => {
-    const baseClass = "px-3 py-2 md:py-1.5 text-xs font-black rounded-xl border transition-all whitespace-nowrap w-full md:w-auto text-center block";
+    const baseClass = "px-3 py-2 lg:py-1.5 text-xs font-black rounded-xl border transition-all whitespace-nowrap w-full lg:w-auto text-center block";
     const isActive = pathname === path;
     
     if (isActive) {
@@ -47,10 +47,10 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col lg:flex-row items-center justify-between gap-4 lg:flex-wrap">
         
         {/* Brand / Logo */}
-        <div className="flex items-center justify-between w-full md:w-auto">
+        <div className="flex items-center justify-between w-full lg:w-auto">
           <div className="flex items-center gap-3">
             <img 
               src="/logo.png" 
@@ -68,15 +68,15 @@ export default function Navbar() {
           {/* Mobile hamburger menu toggle */}
           <button 
             onClick={() => setIsOpen(!isOpen)}
-            className="p-2 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl md:hidden transition-all focus:outline-none cursor-pointer"
+            className="p-2 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-xl lg:hidden transition-all focus:outline-none cursor-pointer"
           >
             {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
         {/* Navigation links & user controls (Desktop: flex-row, Mobile: vertical slide-down list) */}
-        <div className={`${isOpen ? 'flex' : 'hidden'} md:flex flex-col md:flex-row items-center gap-3 w-full md:w-auto justify-end mt-2 md:mt-0 transition-all duration-300`}>
-          <div className="flex flex-col md:flex-row items-center gap-1.5 w-full md:w-auto">
+        <div className={`${isOpen ? 'flex' : 'hidden'} lg:flex flex-col lg:flex-row items-center gap-3 w-full lg:w-auto justify-end mt-2 lg:mt-0 transition-all duration-300 lg:flex-wrap`}>
+          <div className="flex flex-col lg:flex-row lg:flex-wrap items-center gap-1.5 w-full lg:w-auto">
             <Link 
               href="/"
               onClick={() => setIsOpen(false)}
@@ -111,10 +111,10 @@ export default function Navbar() {
           </div>
 
           {/* User Profile & Logout / Login */}
-          <div className="w-full md:w-auto flex flex-col md:flex-row items-center gap-3 border-t md:border-t-0 pt-3 md:pt-0 border-slate-100 dark:border-slate-800">
+          <div className="w-full lg:w-auto flex flex-col lg:flex-row items-center gap-3 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 dark:border-slate-800">
             {currentUser ? (
-              <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
-                <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-800 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-2xl w-full justify-center md:justify-start">
+              <div className="flex flex-col lg:flex-row items-center gap-3 w-full lg:w-auto">
+                <div className="flex items-center gap-2 border border-indigo-100 dark:border-slate-880 bg-indigo-50/30 dark:bg-slate-900/50 px-2.5 py-1.5 rounded-2xl w-full justify-center lg:justify-start">
                   <Users className="w-3.5 h-3.5 text-indigo-500" />
                   <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 truncate max-w-[180px]">
                     คุณ {currentUser.full_name} ({currentUser.role})
@@ -126,7 +126,7 @@ export default function Navbar() {
                     localStorage.removeItem('currentSimulatedUser');
                     window.location.href = '/login';
                   }}
-                  className="px-3 py-2 md:py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-650 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full md:w-auto text-center"
+                  className="px-3 py-2 lg:py-1.5 text-xs font-black text-white bg-red-500 hover:bg-red-650 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full lg:w-auto text-center"
                 >
                   ออกจากระบบ
                 </button>
@@ -135,7 +135,7 @@ export default function Navbar() {
               <Link
                 href="/login"
                 onClick={() => setIsOpen(false)}
-                className="px-3 py-2 md:py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full md:w-auto text-center block"
+                className="px-3 py-2 lg:py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm active:scale-[0.98] cursor-pointer w-full lg:w-auto text-center block"
               >
                 เข้าสู่ระบบ (Login)
               </Link>
