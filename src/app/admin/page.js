@@ -748,6 +748,239 @@ export default function AdminPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    if (typeof window === 'undefined') return;
+    setAdminMessage({ text: 'กำลังจัดเตรียมไฟล์รายงาน Excel...', type: 'success' });
+    
+    try {
+      const XLSX = await import('xlsx');
+      
+      const yearNum = parseInt(selectedPresYear, 10);
+      const monthNamesTh = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+      const monthIndex = monthNamesTh.indexOf(selectedPresMonth);
+
+      // Filter inspections matching this month and year
+      const monthlyInspections = allInspections.filter(ins => {
+        if (!ins.inspected_at) return false;
+        const parts = ins.inspected_at.split('-');
+        if (parts.length < 3) return false;
+        return parseInt(parts[0], 10) === yearNum && (parseInt(parts[1], 10) - 1) === monthIndex;
+      });
+
+      // Find and sort unique inspection dates (weeks)
+      const dates = [...new Set(monthlyInspections.map(ins => ins.inspected_at))].sort();
+      // Ensure we have at least 4 weeks representing standard months (even if empty) to look beautiful
+      const displayWeeksCount = Math.max(4, dates.length);
+
+      // Create worksheet data array
+      const dataRows = [];
+
+      // Row 1: Left header & Right header
+      const totalCols = 2 + 4 * displayWeeksCount;
+      const r1 = Array(totalCols).fill('');
+      r1[0] = 'บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด';
+      r1[totalCols - 2] = 'FM - QC - 08/03 Rev.07';
+      dataRows.push(r1);
+
+      // Row 2: Title
+      const r2 = Array(totalCols).fill('');
+      r2[0] = 'รายงานการตรวจนับจำนวนแมลง';
+      dataRows.push(r2);
+
+      // Row 3: Subtitle showing Year & Month
+      const r3 = Array(totalCols).fill('');
+      r3[0] = `ประจำเดือน ${selectedPresMonth} พ.ศ. ${yearNum + 543}`;
+      dataRows.push(r3);
+
+      // Row 4: Column Headers - Row A (Dates / Weeks)
+      const r4 = Array(totalCols).fill('');
+      r4[0] = 'แผนก';
+      r4[1] = 'NO. เครื่องดักแมลง';
+      for (let w = 0; w < displayWeeksCount; w++) {
+        const colIdx = 2 + w * 4;
+        const dateStr = dates[w] || `สัปดาห์ที่ ${w + 1}`;
+        r4[colIdx] = `วันตรวจนับ: ${dateStr}`;
+      }
+      dataRows.push(r4);
+
+      // Row 5: Column Headers - Row B (Label)
+      const r5 = Array(totalCols).fill('');
+      r5[0] = '';
+      r5[1] = '';
+      for (let w = 0; w < displayWeeksCount; w++) {
+        const colIdx = 2 + w * 4;
+        r5[colIdx] = 'จำนวนแมลงบนแผ่นกาว (ตัว)';
+      }
+      dataRows.push(r5);
+
+      // Row 6: Column Headers - Row C (Flies, Mosquitoes, Ants, Others)
+      const r6 = Array(totalCols).fill('');
+      r6[0] = '';
+      r6[1] = '';
+      for (let w = 0; w < displayWeeksCount; w++) {
+        const colIdx = 2 + w * 4;
+        r6[colIdx] = 'แมลงวัน';
+        r6[colIdx + 1] = 'ยุง';
+        r6[colIdx + 2] = 'มด';
+        r6[colIdx + 3] = 'อื่นๆ';
+      }
+      dataRows.push(r6);
+
+      // Row index mapping for merges
+      const mergeRanges = [];
+
+      // Merges for headers:
+      mergeRanges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } });
+      mergeRanges.push({ s: { r: 0, c: totalCols - 2 }, e: { r: 0, c: totalCols - 1 } });
+      mergeRanges.push({ s: { r: 1, c: 0 }, e: { r: 1, c: totalCols - 1 } });
+      mergeRanges.push({ s: { r: 2, c: 0 }, e: { r: 2, c: totalCols - 1 } });
+
+      // Merge "แผนก" vertically Row 4-6
+      mergeRanges.push({ s: { r: 3, c: 0 }, e: { r: 5, c: 0 } });
+      // Merge "NO. เครื่องดักแมลง" vertically Row 4-6
+      mergeRanges.push({ s: { r: 3, c: 1 }, e: { r: 5, c: 1 } });
+
+      // Merges for date groups
+      for (let w = 0; w < displayWeeksCount; w++) {
+        const colIdx = 2 + w * 4;
+        mergeRanges.push({ s: { r: 3, c: colIdx }, e: { r: 3, c: colIdx + 3 } });
+        mergeRanges.push({ s: { r: 4, c: colIdx }, e: { r: 4, c: colIdx + 3 } });
+      }
+
+      // Populate Trap Data Rows
+      let currentRowIdx = 6;
+      
+      const deptsOrder = [
+        'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6',
+        'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
+      ];
+
+      deptsOrder.forEach(dept => {
+        const traps = DEPT_TRAPS_MAPPING[dept] || [];
+        if (traps.length === 0) return;
+
+        const startRow = currentRowIdx;
+        
+        traps.forEach(trap => {
+          const row = Array(totalCols).fill('');
+          row[0] = dept;
+          row[1] = trap;
+
+          // Fill weekly data for this trap
+          for (let w = 0; w < displayWeeksCount; w++) {
+            const colIdx = 2 + w * 4;
+            const dateStr = dates[w];
+            if (!dateStr) {
+              row[colIdx] = 0;
+              row[colIdx + 1] = 0;
+              row[colIdx + 2] = 0;
+              row[colIdx + 3] = 0;
+              continue;
+            }
+
+            const dbArea = `${dept}: ${trap}`;
+            const matches = monthlyInspections.filter(ins => ins.area === dbArea && ins.inspected_at === dateStr);
+            
+            let flies = 0, mosquitoes = 0, ants = 0, others = 0;
+            matches.forEach(m => {
+              const type = m.insect_type || '';
+              if (type.includes('Flies') || type.includes('แมลงวัน')) flies += m.count || 0;
+              else if (type.includes('Mosquitoes') || type.includes('ยุง')) mosquitoes += m.count || 0;
+              else if (type.includes('Ants') || type.includes('มด')) ants += m.count || 0;
+              else others += m.count || 0;
+            });
+
+            row[colIdx] = flies;
+            row[colIdx + 1] = mosquitoes;
+            row[colIdx + 2] = ants;
+            row[colIdx + 3] = others;
+          }
+
+          dataRows.push(row);
+          currentRowIdx++;
+        });
+
+        const endRow = currentRowIdx - 1;
+        mergeRanges.push({ s: { r: startRow, c: 0 }, e: { r: endRow, c: 0 } });
+      });
+
+      // Add Inspector signing row
+      const rFooter = Array(totalCols).fill('');
+      rFooter[0] = 'ผู้ตรวจนับ: ...........................................................';
+      dataRows.push(rFooter);
+      mergeRanges.push({ s: { r: currentRowIdx, c: 0 }, e: { r: currentRowIdx, c: totalCols - 1 } });
+
+      const ws = XLSX.utils.aoa_to_sheet(dataRows);
+      ws['!merges'] = mergeRanges;
+
+      const colWidths = [
+        { wch: 15 },
+        { wch: 45 },
+      ];
+      for (let i = 2; i < totalCols; i++) {
+        colWidths.push({ wch: 10 });
+      }
+      ws['!cols'] = colWidths;
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'รายงานตรวจนับแมลง');
+
+      XLSX.writeFile(wb, `รายงานตรวจนับแมลง_${selectedPresMonth}_${selectedPresYear}.xlsx`);
+      setAdminMessage({ text: 'ดาวน์โหลดไฟล์รายงาน Excel สำเร็จแล้ว!', type: 'success' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 3000);
+
+    } catch (err) {
+      console.error('Failed to export Excel report:', err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการสร้าง Excel: ' + err.message, type: 'error' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 5000);
+    }
+  };
+
+  const handleDownloadJsonBackup = async () => {
+    if (typeof window === 'undefined') return;
+    setAdminMessage({ text: 'กำลังดาวน์โหลดข้อมูลสำรองฐานข้อมูล...', type: 'success' });
+
+    try {
+      const resUsers = await fetch('/api/users');
+      const jsonUsers = await resUsers.json();
+      const usersData = jsonUsers.data || [];
+
+      const resInspections = await fetch('/api/inspection');
+      const jsonInspections = await resInspections.json();
+      const inspectionsData = jsonInspections.data || [];
+
+      const backupData = {
+        backup_timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        users_profile: usersData,
+        insect_inspections: inspectionsData
+      };
+
+      const jsonStr = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      const nowStr = new Date().toISOString().slice(0, 10);
+      const timeStr = new Date().toTimeString().slice(0, 5).replace(':', '');
+      link.href = url;
+      link.download = `insect_db_backup_${nowStr}_${timeStr}.json`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setAdminMessage({ text: 'ดาวน์โหลดข้อมูลสำรองฐานข้อมูลระบบสำเร็จแล้ว!', type: 'success' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 3000);
+
+    } catch (err) {
+      console.error('Failed to backup database:', err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการสำรองฐานข้อมูล: ' + err.message, type: 'error' });
+      setTimeout(() => setAdminMessage({ text: '', type: '' }), 5000);
+    }
+  };
+
   const handleCopySummary = (text) => {
     if (typeof window === 'undefined') return;
     navigator.clipboard.writeText(text);
@@ -1924,6 +2157,24 @@ export default function AdminPage() {
                     >
                       <span>📥 บันทึกทุกภาพ (ทุกแผนก)</span>
                     </button>
+
+                    <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-850 space-y-2">
+                      <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">
+                        จัดการและส่งออกข้อมูล
+                      </h4>
+                      <button
+                        onClick={handleExportExcel}
+                        className="w-full py-2 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <span>📥 ส่งออกรายงาน Excel (ตามฟอร์ม QC)</span>
+                      </button>
+                      <button
+                        onClick={handleDownloadJsonBackup}
+                        className="w-full py-2 px-3.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                      >
+                        <span>💾 สำรองข้อมูลระบบ (.json Backup)</span>
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pt-4 border-t border-slate-100 dark:border-slate-855">
