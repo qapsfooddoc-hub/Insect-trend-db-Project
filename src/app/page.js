@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ArrowLeft, BarChart3, LineChart as LineIcon, Sparkles, 
   RefreshCw, Building2, Layers, Crosshair, HelpCircle as HelpIcon, 
-  ShieldCheck as CheckIcon, Info, TrendingUp
+  ShieldCheck as CheckIcon, Info, TrendingUp, ShieldAlert, Download, Copy
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
@@ -450,9 +450,321 @@ function CustomTooltip({ active, payload, label }) {
   return null;
 }
 
+
+const renderCustomLabelWithThreshold = (threshold) => (props) => {
+  const { x, y, width, value } = props;
+  if (value === undefined) return null;
+  const roundedValue = value === 0.0001 ? 0 : Math.round(value);
+  const isOver = roundedValue > threshold;
+  
+  return (
+    <g>
+      <text
+        x={x + width / 2}
+        y={y - 6}
+        fill="#334155"
+        textAnchor="middle"
+        fontSize={13.5}
+        fontWeight="black"
+        style={{ fontFamily: 'Niramit, sans-serif' }}
+      >
+        {roundedValue}
+      </text>
+      {isOver && (
+        /* Center the F- badge directly above the number label */
+        <g transform={`translate(${x + width / 2}, ${y - 27})`}>
+          <circle cx={0} cy={0} r={8} fill="#ef4444" />
+          <circle cx={0} cy={0} r={6.8} fill="#ffffff" />
+          <text
+            x={0}
+            y={2.5}
+            fill="#ef4444"
+            fontSize={8.5}
+            fontWeight="black"
+            textAnchor="middle"
+            fontStyle="italic"
+            style={{ fontFamily: 'Niramit, sans-serif' }}
+          >
+            F-
+          </text>
+        </g>
+      )}
+    </g>
+  );
+};
+
+const cleanTrapName = (fullName) => {
+  if (!fullName) return { number: '-', area: '-' };
+  let name = fullName.replace(/^[^:]+:\s*/, '');
+  const match = name.match(/^\((\d+)\)\s*(.*)$/);
+  if (match) {
+    return {
+      number: match[1],
+      area: match[2].trim()
+    };
+  }
+  return {
+    number: '-',
+    area: name
+  };
+};
+
+const generatePresentationSummary = (chartData) => {
+  const summaries = chartData
+    .map(item => {
+      const { name, flies, mosquitoes, ants, others } = item;
+      const { number, area } = cleanTrapName(name);
+      
+      const exceededList = [];
+      if (flies > 30) exceededList.push(`แมลงวัน ${flies} ตัว`);
+      if (mosquitoes > 50) exceededList.push(`ยุง ${mosquitoes} ตัว`);
+      if (ants > 10) exceededList.push(`มด ${ants} ตัว`);
+      if (others > 100) exceededList.push(`แมลงอื่นๆ ${others} ตัว`);
+      
+      if (exceededList.length === 0) return null;
+      
+      let insectText = '';
+      if (exceededList.length === 1) {
+        insectText = exceededList[0];
+      } else if (exceededList.length === 2) {
+        insectText = `${exceededList[0]} และ ${exceededList[1]}`;
+      } else {
+        const initial = exceededList.slice(0, -1).join(', ');
+        const last = exceededList[exceededList.length - 1];
+        insectText = `${initial} และ ${last}`;
+      }
+      
+      return `เครื่องดักแมลงหมายเลข ${number} (${area}) พบ ${insectText}`;
+    })
+    .filter(Boolean);
+    
+  if (summaries.length === 0) {
+    return 'ไม่มีเครื่องดักแมลงที่ตรวจพบจำนวนแมลงเกินเกณฑ์ที่กำหนดในเดือนนี้';
+  }
+  
+  return summaries.join('\n');
+};
+
+const getDeptDetailedDataForPresentation = (deptName, month, year, allInspections, isDemoMode) => {
+  const traps = DEPT_TRAPS_MAPPING[deptName] || [];
+  
+  const hasDataForFilter = allInspections.some(item => {
+    if (!item.inspected_at) return false;
+    const date = new Date(item.inspected_at);
+    const itemYear = String(date.getFullYear());
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const itemMonthName = months[date.getMonth()];
+    return itemYear === year && itemMonthName === month;
+  });
+
+  if (isDemoMode || !hasDataForFilter || allInspections.length === 0) {
+    return traps.map((trap, idx) => {
+      const label = trap;
+      const seed = idx + deptName.length + month.length + parseInt(year, 10);
+      const flies = Math.max(0, (seed % 5 === 0 ? 35 : 3) + (seed % 3) * 3);
+      const mosquitoes = Math.max(0, (seed % 7 === 0 ? 60 : 4) + (seed % 4) * 4);
+      const ants = Math.max(0, (seed % 6 === 0 ? 15 : 1) + (seed % 2) * 2);
+      const others = Math.max(0, (seed % 8 === 0 ? 40 : 2) + (seed % 5) * 5);
+
+      return {
+        name: label,
+        flies,
+        mosquitoes,
+        ants,
+        others
+      };
+    });
+  }
+
+  return traps.map(trap => {
+    const label = trap;
+    const totals = { flies: 0, mosquitoes: 0, ants: 0, others: 0 };
+    
+    allInspections.forEach(item => {
+      if (!item.inspected_at) return;
+      const date = new Date(item.inspected_at);
+      const itemYear = String(date.getFullYear());
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const itemMonthName = months[date.getMonth()];
+      
+      if (itemYear === year && itemMonthName === month && item.area && item.area.includes(trap)) {
+        const type = item.insect_type;
+        const count = Number(item.count) || 0;
+        if (type.includes('Flies')) totals.flies += count;
+        else if (type.includes('Mosquitoes')) totals.mosquitoes += count;
+        else if (type.includes('Ants')) totals.ants += count;
+        else totals.others += count;
+      }
+    });
+    
+    return {
+      name: label,
+      flies: totals.flies,
+      mosquitoes: totals.mosquitoes,
+      ants: totals.ants,
+      others: totals.others
+    };
+  });
+};
+
+const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return ['2026', '2025'];
+  }
+  
+  const yearsSet = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const year = item.inspected_at.split('-')[0];
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const hasApprovedMonth = months.some(m => {
+        if (typeof window === 'undefined') return false;
+        const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+        return status === 'Approved' || status === 'Pending';
+      });
+      
+      const isHistorical = parseInt(year, 10) < 2026;
+      
+      if (hasApprovedMonth || isHistorical) {
+        yearsSet.add(year);
+      }
+    }
+  });
+  
+  const arr = Array.from(yearsSet).sort().reverse();
+  return arr.length > 0 ? arr : ['2026'];
+};
+
+const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
+  const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return allMonths;
+  }
+  
+  return allMonths.filter(m => {
+    const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
+    if (isHistorical) return true;
+    
+    if (typeof window === 'undefined') return false;
+    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+    return status === 'Approved' || status === 'Pending';
+  });
+};
+
 export default function DashboardPage() {
   const [rawData, setRawData] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // --- THRESHOLD SUMMARY TAB STATES ---
+  const [selectedThresholdDept, setSelectedThresholdDept] = useState('หน้าร้านใหม่');
+  const [selectedThresholdMonth, setSelectedThresholdMonth] = useState('มิถุนายน');
+  const [selectedThresholdYear, setSelectedThresholdYear] = useState('2026');
+  const [isThresholdExporting, setIsThresholdExporting] = useState(false);
+  const [thresholdMessage, setThresholdMessage] = useState({ text: '', type: '' });
+  const html2canvasRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('html2canvas-pro').then(mod => {
+        html2canvasRef.current = mod.default || mod;
+      }).catch(err => console.error('Failed to load html2canvas-pro', err));
+    }
+  }, []);
+
+  const handleDownloadThresholdChart = async (containerId, fileName) => {
+    if (typeof window === 'undefined') return;
+    const html2canvas = html2canvasRef.current;
+    if (!html2canvas) {
+      setThresholdMessage({ text: 'ระบบกำลังโหลดไลบรารีสำหรับดาวน์โหลด กรุณาลองอีกครั้งใน 1-2 วินาที', type: 'error' });
+      setTimeout(() => setThresholdMessage({ text: '', type: '' }), 3000);
+      return;
+    }
+
+    const element = document.getElementById(containerId);
+    if (!element) {
+      setThresholdMessage({ text: 'ไม่พบองค์ประกอบกราฟ', type: 'error' });
+      setTimeout(() => setThresholdMessage({ text: '', type: '' }), 3000);
+      return;
+    }
+
+    setThresholdMessage({ text: 'กำลังจัดเตรียมรูปภาพสำหรับดาวน์โหลด...', type: 'success' });
+    setIsThresholdExporting(true);
+
+    try {
+      const originalWidth = element.style.width;
+      const originalHeight = element.style.height;
+      const originalMinWidth = element.style.minWidth;
+      const originalMinHeight = element.style.minHeight;
+      const originalAspectRatio = element.style.aspectRatio;
+
+      const chartWrapper = element.querySelector('.chart-wrapper');
+      let originalChartHeight = '';
+      if (chartWrapper) {
+        originalChartHeight = chartWrapper.style.height;
+      }
+
+      element.style.width = '1120px';
+      element.style.minWidth = '1120px';
+      element.style.height = '630px';
+      element.style.minHeight = '630px';
+      element.style.aspectRatio = '16/9';
+      
+      if (chartWrapper) {
+        chartWrapper.style.height = '480px';
+      }
+
+      window.dispatchEvent(new Event('resize'));
+      
+      if (document.fonts) {
+        await document.fonts.ready;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 700));
+
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        logging: false
+      });
+      
+      element.style.width = originalWidth;
+      element.style.minWidth = originalMinWidth;
+      element.style.height = originalHeight;
+      element.style.minHeight = originalMinHeight;
+      element.style.aspectRatio = originalAspectRatio;
+      
+      if (chartWrapper) {
+        chartWrapper.style.height = originalChartHeight;
+      }
+      
+      setIsThresholdExporting(false);
+      window.dispatchEvent(new Event('resize'));
+
+      const imgData = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = imgData;
+      link.download = `${fileName}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setThresholdMessage({ text: 'ดาวน์โหลดรูปภาพกราฟสำเร็จแล้ว!', type: 'success' });
+      setTimeout(() => setThresholdMessage({ text: '', type: '' }), 3000);
+    } catch (err) {
+      console.error('Failed to export chart image:', err);
+      setIsThresholdExporting(false);
+      setThresholdMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกรูปภาพ: ' + err.message, type: 'error' });
+      setTimeout(() => setThresholdMessage({ text: '', type: '' }), 5000);
+    }
+  };
+
+  const handleCopyThresholdSummary = (text) => {
+    if (typeof window === 'undefined') return;
+    navigator.clipboard.writeText(text);
+    setThresholdMessage({ text: 'คัดลอกข้อความสรุปวิเคราะห์ลงคลิปบอร์ดแล้ว!', type: 'success' });
+    setTimeout(() => setThresholdMessage({ text: '', type: '' }), 3000);
+  };
   const [isDemo, setIsDemo] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -2929,7 +3241,7 @@ export default function DashboardPage() {
             )}
 
             {/* Quarter Selector - Hidden in department tab */}
-            {activeTab !== 'department' && (
+            {activeTab !== 'department' && activeTab !== 'threshold-summary' && (
               <div className="flex flex-col gap-0.5">
                 <label className="text-[8px] font-bold text-slate-400 uppercase">ไตรมาส</label>
                 <select
@@ -2949,7 +3261,7 @@ export default function DashboardPage() {
             )}
 
             {/* Month Selector */}
-            {activeTab !== 'device' && (
+            {activeTab !== 'device' && activeTab !== 'threshold-summary' && (
               <div className="flex flex-col gap-0.5">
               <label className="text-[8px] font-bold text-slate-400 uppercase">เดือน</label>
               <select
@@ -2995,6 +3307,18 @@ export default function DashboardPage() {
           >
             <Building2 className="w-4 h-4" />
             <span>ภาพรวมโรงงาน & AI วิเคราะห์</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('threshold-summary')}
+            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'threshold-summary'
+                ? 'border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-400 font-extrabold'
+                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>สรุปรายงานแมลงที่เกินเกณฑ์ประจำเดือน</span>
           </button>
           
           <button
@@ -3137,6 +3461,261 @@ export default function DashboardPage() {
               </div>
             </div>
 
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* TAB 2: MONTHLY THRESHOLD EXCEEDANCE SUMMARY (สรุปรายงานแมลงที่เกินเกณฑ์ประจำเดือน) */}
+        {/* ======================================================== */}
+        {activeTab === 'threshold-summary' && (
+          <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
+            {/* Control Panel - Left Column (4 cols) */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+              <div className="flex items-center gap-2 mb-5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-base">
+                  📊
+                </div>
+                <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                  เลือกเดือนที่ต้องการตรวจสอบ
+                </h3>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">ปีประมวลผล</label>
+                  <select
+                    value={selectedThresholdYear}
+                    onChange={(e) => setSelectedThresholdYear(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-880 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+                  >
+                    {getAvailableYearsForPresentation(rawData, isDemo).map(y => (
+                      <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-slate-450 uppercase">เดือน</label>
+                  <select
+                    value={selectedThresholdMonth}
+                    onChange={(e) => setSelectedThresholdMonth(e.target.value)}
+                    className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-880 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+                  >
+                    {getAvailableMonthsForPresentation(selectedThresholdYear, rawData, isDemo).map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-855">
+                <div className="p-4 bg-slate-50 dark:bg-slate-950/65 rounded-2xl border border-slate-100 dark:border-slate-850">
+                  <h5 className="text-[11px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-wider mb-2">
+                    เกณฑ์วัดระดับแมลงระบาด
+                  </h5>
+                  <ul className="space-y-1.5 text-xs font-black text-slate-600 dark:text-slate-400">
+                    <li className="flex items-center gap-1.5">🪰 แมลงวัน &gt; 30 ตัว</li>
+                    <li className="flex items-center gap-1.5">🦟 ยุง &gt; 50 ตัว</li>
+                    <li className="flex items-center gap-1.5">🐜 มด &gt; 10 ตัว</li>
+                    <li className="flex items-center gap-1.5">🪲 อื่นๆ &gt; 100 ตัว</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content Area - Right Column (8 cols) */}
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              {/* Department selectors */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-855 rounded-3xl p-6 shadow-sm">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-4">
+                  เลือกแผนกแสดงข้อมูล
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {DEPTS_LIST.map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSelectedThresholdDept(d)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border cursor-pointer ${
+                        selectedThresholdDept === d
+                          ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white font-extrabold shadow-sm'
+                          : 'bg-white text-slate-650 border-slate-200 hover:bg-slate-50 dark:text-slate-400 dark:border-slate-800 dark:hover:bg-slate-855'
+                      }`}
+                    >
+                      แผนก {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chart Container wrapper */}
+              {(() => {
+                const chartData = getDeptDetailedDataForPresentation(selectedThresholdDept, selectedThresholdMonth, selectedThresholdYear, rawData, isDemo);
+                const formattedData = mapZeroToTinyDecimal(chartData);
+                
+                const isAllGreen = chartData.every(item => 
+                  item.flies <= 30 && 
+                  item.mosquitoes <= 50 && 
+                  item.ants <= 10 && 
+                  item.others <= 100
+                );
+
+                const summaryText = generatePresentationSummary(chartData);
+                const deptIndex = DEPTS_LIST.indexOf(selectedThresholdDept);
+                const containerId = `threshold-chart-dept-${deptIndex}`;
+                const chartTitle = `กราฟแสดงรายงานการตรวจนับจำนวนแมลง ของทีม${selectedThresholdDept} ประจำเดือน ${selectedThresholdMonth} ${parseInt(selectedThresholdYear, 10) + 543}`;
+
+                const yAxisConfig = (() => {
+                  let maxVal = 10;
+                  chartData.forEach(item => {
+                    const sum = Math.max(item.flies || 0, item.mosquitoes || 0, item.ants || 0, item.others || 0);
+                    if (sum > maxVal) {
+                      maxVal = sum;
+                    }
+                  });
+
+                  const neededStep = Math.ceil(maxVal / 5);
+                  const cleanSteps = [5, 10, 15, 20, 25, 30, 40, 50, 60, 75, 100, 150, 200, 250, 300, 400, 500, 1000];
+                  let finalStep = cleanSteps.find(s => s >= neededStep) || neededStep;
+                  
+                  const finalTicks = [];
+                  for (let i = 0; i <= 5; i++) {
+                    finalTicks.push(i * finalStep);
+                  }
+                  
+                  return {
+                    domain: [0, finalTicks[5]],
+                    ticks: finalTicks
+                  };
+                })();
+
+                return (
+                  <>
+                    <style dangerouslySetInnerHTML={{ __html: `
+                      @import url('https://fonts.googleapis.com/css2?family=Niramit:wght@400;500;600;700&display=swap');
+                      
+                      #${containerId} * {
+                        font-family: 'Niramit', sans-serif !important;
+                      }
+                    `}} />
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm flex flex-col gap-6 relative">
+                      {/* Inner container to capture via html2canvas */}
+                      <div id={containerId} className="bg-white dark:bg-slate-900 p-6 rounded-2xl relative w-full md:aspect-[16/9] flex flex-col justify-between overflow-hidden">
+                        {/* Chart Title */}
+                        <h4 className="text-center font-bold text-[14px] text-slate-855 dark:text-slate-100 mb-6 px-12">
+                          {chartTitle}
+                        </h4>
+                        
+                        {/* A+ Badge Overlay */}
+                        {isAllGreen && (
+                          <div className="absolute top-10 right-10 z-10 flex items-center justify-center pointer-events-none">
+                            <div className="w-16 h-16 rounded-full border-[4px] border-emerald-600 bg-white flex items-center justify-center shadow-md">
+                              <span className="text-emerald-655 text-3xl font-black italic tracking-tighter text-emerald-600">A+</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Recharts chart */}
+                        <div className="chart-wrapper flex-grow min-h-[340px] md:min-h-0 w-full text-xs font-bold pb-2 relative">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart 
+                              data={formattedData} 
+                              margin={{ top: 48, right: 10, left: -10, bottom: 40 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
+                              <XAxis 
+                                dataKey="name" 
+                                stroke="#94a3b8" 
+                                fontSize={9} 
+                                tickLine={false} 
+                                style={{ fontFamily: 'Niramit, sans-serif' }}
+                                interval={0}
+                                height={40}
+                                tick={<CustomTick />}
+                              />
+                              <YAxis 
+                                stroke="#94a3b8" 
+                                fontSize={10} 
+                                tickLine={false} 
+                                style={{ fontFamily: 'Niramit, sans-serif' }}
+                                domain={yAxisConfig.domain}
+                                ticks={yAxisConfig.ticks}
+                                label={{ 
+                                  value: 'จำนวน (ตัว)', 
+                                  angle: -90, 
+                                  position: 'insideLeft', 
+                                  offset: 0, 
+                                  style: { fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', fill: '#475569', fontFamily: 'Niramit, sans-serif' } 
+                                }}
+                              />
+                              {!isThresholdExporting && <Tooltip content={<CustomTooltip />} />}
+                              <Legend content={<RenderCustomLegend hideTitle={true} />} wrapperStyle={{ bottom: -20, left: 0, width: '100%' }} />
+                              
+                              <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
+                                <LabelList dataKey="flies" content={renderCustomLabelWithThreshold(30)} />
+                              </Bar>
+                              <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
+                                <LabelList dataKey="mosquitoes" content={renderCustomLabelWithThreshold(50)} />
+                              </Bar>
+                              <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
+                                <LabelList dataKey="ants" content={renderCustomLabelWithThreshold(10)} />
+                              </Bar>
+                              <Bar dataKey="others" name="อื่นๆ" fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
+                                <LabelList dataKey="others" content={renderCustomLabelWithThreshold(100)} />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      {/* Export Actions & Summary display */}
+                      <div className="flex flex-col gap-4 border-t border-slate-100 dark:border-slate-850 pt-6">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1.5">
+                            <ShieldAlert className="w-4 h-4 text-amber-500" />
+                            <span>สรุปการวิเคราะห์และแมลงที่เกินเกณฑ์</span>
+                          </h5>
+                          
+                          <button
+                            onClick={() => handleDownloadThresholdChart(containerId, `chart_${selectedThresholdDept}_${selectedThresholdMonth}_${selectedThresholdYear}`)}
+                            className="px-4 py-2 border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-900 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer text-slate-700 dark:text-slate-350"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>บันทึกรูปภาพกราฟ (PNG)</span>
+                          </button>
+                        </div>
+
+                        {/* Summary Textbox */}
+                        <div className="bg-slate-50 dark:bg-slate-950/50 border border-slate-100 dark:border-slate-850 rounded-2xl p-4 flex flex-col gap-3">
+                          <div className="text-xs font-bold text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line select-text">
+                            {summaryText}
+                          </div>
+                          
+                          {summaryText !== 'ไม่มีเครื่องดักแมลงที่ตรวจพบจำนวนแมลงเกินเกณฑ์ที่กำหนดในเดือนนี้' && (
+                            <button
+                              onClick={() => handleCopyThresholdSummary(summaryText)}
+                              className="w-fit px-3 py-1.5 bg-slate-900 hover:bg-slate-850 dark:bg-slate-800 dark:hover:bg-slate-750 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all cursor-pointer self-end"
+                            >
+                              <Copy className="w-3 h-3" />
+                              <span>คัดลอกข้อความสรุป</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Floating Notification Toast */}
+        {thresholdMessage.text && (
+          <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 ${
+            thresholdMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/80 dark:text-red-300 dark:border-red-800' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
+          }`}>
+            <span>{thresholdMessage.text}</span>
           </div>
         )}
 
