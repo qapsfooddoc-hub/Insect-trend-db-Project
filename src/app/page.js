@@ -661,6 +661,7 @@ export default function DashboardPage() {
   const [selectedThresholdYear, setSelectedThresholdYear] = useState('2026');
   const [isThresholdExporting, setIsThresholdExporting] = useState(false);
   const [thresholdMessage, setThresholdMessage] = useState({ text: '', type: '' });
+  const [zoomedLayoutImg, setZoomedLayoutImg] = useState(null);
   const html2canvasRef = useRef(null);
 
   useEffect(() => {
@@ -3508,7 +3509,8 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 dark:border-slate-855">
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-855 space-y-4">
+                {/* Criteria Reference */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-950/65 rounded-2xl border border-slate-100 dark:border-slate-850">
                   <h5 className="text-[11px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-wider mb-2">
                     เกณฑ์วัดระดับแมลงระบาด
@@ -3519,6 +3521,64 @@ export default function DashboardPage() {
                     <li className="flex items-center gap-1.5">🐜 มด &gt; 10 ตัว</li>
                     <li className="flex items-center gap-1.5">🪲 อื่นๆ &gt; 100 ตัว</li>
                   </ul>
+                </div>
+
+                {/* Trap Layout Map Card */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-950/65 rounded-2xl border border-slate-100 dark:border-slate-850 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-black text-slate-700 dark:text-slate-350 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🗺️ แผนผังจุดติดตั้งเครื่องดัก</span>
+                    </h5>
+                    <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      {selectedThresholdDept}
+                    </span>
+                  </div>
+
+                  {/* Image container with click-to-zoom */}
+                  <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 group">
+                    <img 
+                      src={`/layouts/${selectedThresholdDept}.png`}
+                      alt={`แผนผังจุดติดตั้งเครื่องดักแมลง แผนก ${selectedThresholdDept}`}
+                      className="w-full h-44 object-contain p-1 rounded-xl cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextElementSibling) {
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }
+                      }}
+                      onClick={() => setZoomedLayoutImg(`/layouts/${selectedThresholdDept}.png`)}
+                    />
+                    {/* Fallback Placeholder when layout image is pending */}
+                    <div 
+                      className="flex-col items-center justify-center p-4 text-center h-44 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950"
+                      style={{ display: 'none' }}
+                    >
+                      <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black text-lg mb-2 shadow-xs">
+                        📍
+                      </div>
+                      <p className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                        ผังจุดติดตั้ง แผนก{selectedThresholdDept}
+                      </p>
+                      <p className="text-[9px] text-slate-400 font-bold leading-tight max-w-[200px]">
+                        วางไฟล์รูปภาพชื่อ <span className="font-mono text-indigo-500 font-extrabold">{selectedThresholdDept}.png</span> ในโฟลเดอร์ <span className="font-mono">public/layouts/</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Traps List in this department */}
+                  <div className="space-y-1 mt-1">
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                      รายการเครื่องดัก ({DEPT_TRAPS_MAPPING[selectedThresholdDept]?.length || 0} เครื่อง):
+                    </p>
+                    <div className="flex flex-col gap-1 max-h-32 overflow-y-auto no-scrollbar pr-1 text-[10px] font-bold text-slate-600 dark:text-slate-400">
+                      {DEPT_TRAPS_MAPPING[selectedThresholdDept]?.map((t, idx) => (
+                        <div key={idx} className="flex items-center gap-1.5 bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-100 dark:border-slate-800">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                          <span className="truncate">{t}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3711,6 +3771,29 @@ export default function DashboardPage() {
         )}
 
         {/* Floating Notification Toast */}
+        
+        {/* Layout Image Zoom Lightbox Modal */}
+        {zoomedLayoutImg && (
+          <div 
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200 cursor-pointer"
+            onClick={() => setZoomedLayoutImg(null)}
+          >
+            <div className="relative max-w-4xl max-h-[90vh] bg-white dark:bg-slate-900 p-3 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center">
+              <button 
+                onClick={() => setZoomedLayoutImg(null)}
+                className="absolute top-4 right-4 z-10 p-2 bg-slate-900/80 hover:bg-slate-900 text-white rounded-full transition-all cursor-pointer font-bold text-xs"
+              >
+                ✕ ปิด
+              </button>
+              <img 
+                src={zoomedLayoutImg} 
+                alt="Layout zoom" 
+                className="max-h-[80vh] w-auto object-contain rounded-2xl" 
+              />
+            </div>
+          </div>
+        )}
+
         {thresholdMessage.text && (
           <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 ${
             thresholdMessage.type === 'error' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/80 dark:text-red-300 dark:border-red-800' : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-300 dark:border-emerald-800'
