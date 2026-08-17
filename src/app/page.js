@@ -3575,35 +3575,50 @@ export default function DashboardPage() {
                   </div>
 
                   {/* Image container with click-to-zoom */}
-                  <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 group">
-                    <img 
-                      src={`/layouts/${selectedThresholdDept}.png`}
-                      alt={`แผนผังจุดติดตั้งเครื่องดักแมลง แผนก ${selectedThresholdDept}`}
-                      className="w-full h-44 object-contain p-1 rounded-xl cursor-pointer hover:scale-[1.02] transition-transform duration-200"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        if (e.target.nextElementSibling) {
-                          e.target.nextElementSibling.style.display = 'flex';
-                        }
-                      }}
-                      onClick={() => setZoomedLayoutImg(`/layouts/${selectedThresholdDept}.png`)}
-                    />
-                    {/* Fallback Placeholder when layout image is pending */}
-                    <div 
-                      className="flex-col items-center justify-center p-4 text-center h-44 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950"
-                      style={{ display: 'none' }}
-                    >
-                      <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black text-lg mb-2 shadow-xs">
-                        📍
+                  {selectedThresholdDept === 'ล้างตะกร้า' ? (
+                    <div className="flex flex-col items-center justify-center p-4 text-center h-44 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-xl mb-2 shadow-xs">
+                        🧺
                       </div>
-                      <p className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
-                        ผังจุดติดตั้ง แผนก{selectedThresholdDept}
+                      <p className="text-xs font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                        จุดติดตั้งทีมล้างตะกร้า
                       </p>
-                      <p className="text-[9px] text-slate-400 font-bold leading-tight max-w-[200px]">
-                        วางไฟล์รูปภาพชื่อ <span className="font-mono text-indigo-500 font-extrabold">{selectedThresholdDept}.png</span> ในโฟลเดอร์ <span className="font-mono">public/layouts/</span>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed max-w-[220px]">
+                        เป็นพื้นที่ทางเชื่อมเฉพาะ (ไม่มีผังแยกอาคาร)<br />
+                        จุดติดตั้ง: <span className="text-indigo-600 dark:text-indigo-400 font-extrabold">(32) ทางลำเลียงตะกร้าเข้าไลน์ผลิต</span>
                       </p>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 group">
+                      <img 
+                        src={`/layouts/${selectedThresholdDept}.png`}
+                        alt={`แผนผังจุดติดตั้งเครื่องดักแมลง แผนก ${selectedThresholdDept}`}
+                        className="w-full h-44 object-contain p-1 rounded-xl cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          if (e.target.nextElementSibling) {
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }
+                        }}
+                        onClick={() => setZoomedLayoutImg(`/layouts/${selectedThresholdDept}.png`)}
+                      />
+                      {/* Fallback Placeholder when layout image is pending */}
+                      <div 
+                        className="flex-col items-center justify-center p-4 text-center h-44 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950"
+                        style={{ display: 'none' }}
+                      >
+                        <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black text-lg mb-2 shadow-xs">
+                          📍
+                        </div>
+                        <p className="text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                          ผังจุดติดตั้ง แผนก{selectedThresholdDept}
+                        </p>
+                        <p className="text-[9px] text-slate-400 font-bold leading-tight max-w-[200px]">
+                          วางไฟล์รูปภาพชื่อ <span className="font-mono text-indigo-500 font-extrabold">{selectedThresholdDept}.png</span> ในโฟลเดอร์ <span className="font-mono">public/layouts/</span>
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Traps List in this department */}
                   <div className="space-y-1 mt-1">
