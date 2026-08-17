@@ -77,6 +77,34 @@ const mapZeroToTinyDecimal = (dataArray) => {
   }));
 };
 
+const calculateEqualYAxisTicks = (chartData) => {
+  let maxVal = 10;
+  if (Array.isArray(chartData)) {
+    chartData.forEach(item => {
+      const highest = Math.max(item.flies || 0, item.mosquitoes || 0, item.ants || 0, item.others || 0);
+      if (highest > maxVal) {
+        maxVal = highest;
+      }
+    });
+  }
+
+  const neededStep = Math.ceil(maxVal / 5);
+  // All clean steps ending with 0 or 5
+  const cleanSteps = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 70, 75, 80, 90, 100, 125, 150, 175, 200, 250, 300, 400, 500, 1000];
+  let finalStep = cleanSteps.find(s => s >= neededStep) || (Math.ceil(neededStep / 5) * 5);
+  
+  const finalTicks = [];
+  for (let i = 0; i <= 5; i++) {
+    finalTicks.push(i * finalStep);
+  }
+  
+  return {
+    domain: [0, finalTicks[5]],
+    ticks: finalTicks
+  };
+};
+
+
 const DEPTS_LIST = [
   'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
   'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
@@ -1225,11 +1253,21 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', maxHeight: '380px' }}>
-          <BarChart width={1009} height={350} data={mapZeroToTinyDecimal(chartData)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
-            <YAxis stroke="#64748b" fontSize={9} tickLine={false} tickCount={5} allowDecimals={false} domain={[0, (max) => Math.max(10, max)]} />
+        {(() => {
+          const yAxisConfig = calculateEqualYAxisTicks(chartData);
+          return (
+            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', maxHeight: '380px' }}>
+              <BarChart width={1009} height={350} data={mapZeroToTinyDecimal(chartData)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
+                <YAxis 
+                  stroke="#64748b" 
+                  fontSize={9} 
+                  tickLine={false} 
+                  domain={yAxisConfig.domain}
+                  ticks={yAxisConfig.ticks}
+                  allowDecimals={false} 
+                />
             <Tooltip formatter={(value) => (value < 0.1 ? 0 : value)} />
             <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
             <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
@@ -1246,6 +1284,8 @@ export default function DashboardPage() {
             </Bar>
           </BarChart>
         </div>
+          );
+        })()}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ margin: '0' }}>
@@ -3883,11 +3923,14 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="h-[450px] w-full overflow-x-auto no-scrollbar text-xs font-bold pb-2">
-                      {mounted ? (
+                      {mounted ? (() => {
+                        const rawDeptData = getDepartmentDetailedData(selectedDept, selectedMonth, selectedYear);
+                        const yAxisConfig = calculateEqualYAxisTicks(rawDeptData);
+                        return (
                         <div className="h-full min-w-[750px] md:min-w-0">
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart 
-                            data={mapZeroToTinyDecimal(getDepartmentDetailedData(selectedDept, selectedMonth, selectedYear))} 
+                            data={mapZeroToTinyDecimal(rawDeptData)} 
                             margin={{ top: 30, right: 10, left: -10, bottom: 75 }}
                           >
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
@@ -3907,7 +3950,8 @@ export default function DashboardPage() {
                               fontSize={10} 
                               tickLine={false} 
                               style={{ fontFamily: 'inherit' }}
-                              domain={[0, (max) => Math.max(10, max)]}
+                              domain={yAxisConfig.domain}
+                              ticks={yAxisConfig.ticks}
                               label={{ 
                                 value: 'จำนวน (ตัว)', 
                                 angle: -90, 
@@ -3934,7 +3978,8 @@ export default function DashboardPage() {
                           </BarChart>
                         </ResponsiveContainer>
                         </div>
-                      ) : null}
+                        );
+                      })() : null}
                     </div>
                   </div>
 
