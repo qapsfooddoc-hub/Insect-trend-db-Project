@@ -1310,13 +1310,13 @@ export default function DashboardPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>ผู้จัดทำ (QA Staff)</p>
+              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>ผู้จัดทำ</p>
               <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
               <p>วันที่......./......./.......</p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าแผนก (Department Head)</p>
+              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าแผนก</p>
               {deptApproved ? (
                 <>
                   <p style={{ fontWeight: 'bold', color: '#10b981', marginBottom: '2px' }}>✓ {deptApproverName ? deptApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
@@ -1332,7 +1332,7 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าฝ่ายประกันคุณภาพ (QA Head)</p>
+              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าฝ่ายประกันคุณภาพ</p>
               {qaApproved ? (
                 <>
                   <p style={{ fontWeight: 'bold', color: '#3b82f6', marginBottom: '2px' }}>✓ {qaApproverName ? qaApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
