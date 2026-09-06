@@ -206,8 +206,11 @@ export default function InspectionPage() {
     return dateStr;
   };
 
-  const getRequiredWeeksCount = (year, month) => {
-    return 4; // Always 4 weeks per month to align with YoY dashboard chart
+  const getRequiredWeeksCount = (year, month, weeksMap, uniqueDates) => {
+    if ((weeksMap && weeksMap[5]) || (uniqueDates && uniqueDates.size >= 5)) {
+      return 5;
+    }
+    return 4;
   };
 
   const getWeekOfMonth = (dateString) => {
@@ -216,7 +219,8 @@ export default function InspectionPage() {
     if (day <= 7) return 1;
     if (day <= 14) return 2;
     if (day <= 21) return 3;
-    return 4; // Group everything day > 21 into week 4
+    if (day <= 28) return 4;
+    return 5; // Day 29, 30, 31
   };
 
   const isAutoApprovedDate = (dateStr) => {
@@ -315,8 +319,6 @@ export default function InspectionPage() {
       
       setMonthStatus(currentStatus);
       
-      const required = getRequiredWeeksCount(year, month);
-      
       const uniqueDates = new Set();
       allInspections.forEach(item => {
         const itemDate = new Date(item.inspected_at);
@@ -330,6 +332,8 @@ export default function InspectionPage() {
         const wNum = getWeekOfMonth(dStr);
         weeksMap[wNum] = true;
       });
+
+      const required = getRequiredWeeksCount(year, month, weeksMap, uniqueDates);
       
       const submittedWeeksList = [];
       for (let w = 1; w <= required; w++) {

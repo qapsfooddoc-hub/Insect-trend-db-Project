@@ -666,17 +666,30 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   if (isDemoMode || !allInspections || allInspections.length === 0) {
-    return allMonths;
+    return allMonths.slice().reverse();
   }
   
-  return allMonths.filter(m => {
+  const monthsWithData = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const d = new Date(item.inspected_at);
+      if (d.getFullYear() === parseInt(year, 10)) {
+        monthsWithData.add(allMonths[d.getMonth()]);
+      }
+    }
+  });
+
+  const filtered = allMonths.filter(m => {
+    if (!monthsWithData.has(m)) return false;
     const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
     if (isHistorical) return true;
     
     if (typeof window === 'undefined') return false;
     const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
     return status === 'Approved' || status === 'Pending';
-  });
+  }).reverse();
+
+  return filtered.length > 0 ? filtered : allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
 export default function DashboardPage() {
@@ -1788,7 +1801,7 @@ export default function DashboardPage() {
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
     if (isDemo || rawData.length === 0) {
-      return monthsOrder;
+      return monthsOrder.slice().reverse();
     }
     const monthsSet = new Set();
     rawData.forEach(r => {
@@ -1800,7 +1813,7 @@ export default function DashboardPage() {
         }
       }
     });
-    return monthsOrder.filter(m => monthsSet.has(m));
+    return monthsOrder.filter(m => monthsSet.has(m)).reverse();
   };
 
   const getAvailableQuarters = (year) => {
@@ -1843,6 +1856,18 @@ export default function DashboardPage() {
           setSelectedMonth(months[0]);
         }
       }
+
+      // Auto-select latest threshold year and month
+      const threshYears = getAvailableYearsForPresentation(rawData, isDemo);
+      let tYear = selectedThresholdYear;
+      if (threshYears.length > 0 && !threshYears.includes(selectedThresholdYear)) {
+        tYear = threshYears[0];
+        setSelectedThresholdYear(tYear);
+      }
+      const threshMonths = getAvailableMonthsForPresentation(tYear, rawData, isDemo);
+      if (threshMonths.length > 0 && !threshMonths.includes(selectedThresholdMonth)) {
+        setSelectedThresholdMonth(threshMonths[0]);
+      }
     }
   }, [rawData, isDemo]);
 
@@ -1870,6 +1895,15 @@ export default function DashboardPage() {
       }
     }
   }, [selectedYear]);
+
+  useEffect(() => {
+    if (rawData.length > 0 && !isDemo) {
+      const threshMonths = getAvailableMonthsForPresentation(selectedThresholdYear, rawData, isDemo);
+      if (threshMonths.length > 0 && !threshMonths.includes(selectedThresholdMonth)) {
+        setSelectedThresholdMonth(threshMonths[0]);
+      }
+    }
+  }, [selectedThresholdYear]);
 
   const getThaiMonthName = (dateString) => {
     if (!dateString) return '';
@@ -2772,7 +2806,16 @@ export default function DashboardPage() {
     };
 
     if (month !== 'ALL') {
-      const weeks = ['สัปดาห์ที่ 1', 'สัปดาห์ที่ 2', 'สัปดาห์ที่ 3', 'สัปดาห์ที่ 4'];
+      const hasWeek5 = approvedRawData.some(item => {
+        const date = new Date(item.inspected_at);
+        const day = date.getDate();
+        return day > 28 && (filterByPeriod(item, '2025', 'ALL', month) || filterByPeriod(item, '2026', 'ALL', month));
+      });
+
+      const weeks = hasWeek5 
+        ? ['สัปดาห์ที่ 1', 'สัปดาห์ที่ 2', 'สัปดาห์ที่ 3', 'สัปดาห์ที่ 4', 'สัปดาห์ที่ 5']
+        : ['สัปดาห์ที่ 1', 'สัปดาห์ที่ 2', 'สัปดาห์ที่ 3', 'สัปดาห์ที่ 4'];
+
       return weeks.map((w, idx) => {
         let sum2025 = 0;
         let sum2026 = 0;
@@ -2784,7 +2827,8 @@ export default function DashboardPage() {
           if (idx === 0 && day <= 7) isTargetWeek = true;
           else if (idx === 1 && day > 7 && day <= 14) isTargetWeek = true;
           else if (idx === 2 && day > 14 && day <= 21) isTargetWeek = true;
-          else if (idx === 3 && day > 21) isTargetWeek = true;
+          else if (idx === 3 && day > 21 && (hasWeek5 ? day <= 28 : true)) isTargetWeek = true;
+          else if (idx === 4 && day > 28) isTargetWeek = true;
 
           if (isTargetWeek) {
             if (filterByPeriod(item, '2025', 'ALL', month)) sum2025 += Number(item.count) || 0;

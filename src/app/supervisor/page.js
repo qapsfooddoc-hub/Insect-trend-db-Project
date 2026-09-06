@@ -685,7 +685,7 @@ export default function SupervisorPortal() {
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
     if (isDemo || rawData.length === 0) {
-      return monthsOrder;
+      return monthsOrder.slice().reverse();
     }
     const monthsSet = new Set();
     rawData.forEach(r => {
@@ -697,7 +697,7 @@ export default function SupervisorPortal() {
         }
       }
     });
-    return monthsOrder.filter(m => monthsSet.has(m));
+    return monthsOrder.filter(m => monthsSet.has(m)).reverse();
   };
 
   useEffect(() => {

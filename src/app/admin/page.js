@@ -269,6 +269,42 @@ const renderCustomLabelWithThreshold = (threshold) => (props) => {
 };
 
 
+const getAvailableYearsForApproval = (allInspections, isDemoMode) => {
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return ['2026', '2025'];
+  }
+  const yearsSet = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const year = item.inspected_at.split('-')[0];
+      if (year) yearsSet.add(year);
+    }
+  });
+  const arr = Array.from(yearsSet).sort().reverse();
+  return arr.length > 0 ? arr : ['2026'];
+};
+
+const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
+  const allMonths = [
+    'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+  ];
+  if (isDemoMode || !allInspections || allInspections.length === 0) {
+    return allMonths.slice().reverse();
+  }
+  const monthsWithData = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const d = new Date(item.inspected_at);
+      if (d.getFullYear() === parseInt(year, 10)) {
+        monthsWithData.add(allMonths[d.getMonth()]);
+      }
+    }
+  });
+  const filtered = allMonths.filter(m => monthsWithData.has(m)).reverse();
+  return filtered.length > 0 ? filtered : allMonths.slice().reverse();
+};
+
 const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
   if (isDemoMode || !allInspections || allInspections.length === 0) {
     return ['2026', '2025'];
@@ -300,17 +336,30 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
   if (isDemoMode || !allInspections || allInspections.length === 0) {
-    return allMonths;
+    return allMonths.slice().reverse();
   }
   
-  return allMonths.filter(m => {
+  const monthsWithData = new Set();
+  allInspections.forEach(item => {
+    if (item.inspected_at) {
+      const d = new Date(item.inspected_at);
+      if (d.getFullYear() === parseInt(year, 10)) {
+        monthsWithData.add(allMonths[d.getMonth()]);
+      }
+    }
+  });
+
+  const filtered = allMonths.filter(m => {
+    if (!monthsWithData.has(m)) return false;
     const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
     if (isHistorical) return true;
     
     if (typeof window === 'undefined') return false;
     const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
     return status === 'Approved' || status === 'Pending';
-  });
+  }).reverse();
+
+  return filtered.length > 0 ? filtered : allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
 const cleanTrapName = (fullName) => {
@@ -502,11 +551,38 @@ export default function AdminPage() {
       
       const months = getAvailableMonthsForPresentation(yearToSet, allInspections, isDemoMode);
       if (months.length > 0) {
-        const latestMonth = months[months.length - 1];
-        setSelectedPresMonth(latestMonth);
+        setSelectedPresMonth(months[0]);
       }
     }
   }, [activeTab, selectedPresYear, allInspections, isDemoMode]);
+
+  // Auto select latest available year and month for Approvals tab
+  useEffect(() => {
+    if (allInspections && allInspections.length > 0) {
+      const years = getAvailableYearsForApproval(allInspections, isDemoMode);
+      let yearToSet = selectedApprovalYear;
+      if (years.length > 0 && !years.includes(selectedApprovalYear)) {
+        yearToSet = years[0];
+        setSelectedApprovalYear(yearToSet);
+      }
+      
+      const months = getAvailableMonthsForApproval(yearToSet, allInspections, isDemoMode);
+      if (months.length > 0) {
+        if (!months.includes(selectedApprovalMonth)) {
+          setSelectedApprovalMonth(months[0]);
+        }
+      }
+    }
+  }, [activeTab, allInspections, isDemoMode]);
+
+  useEffect(() => {
+    if (allInspections && allInspections.length > 0) {
+      const months = getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode);
+      if (months.length > 0 && !months.includes(selectedApprovalMonth)) {
+        setSelectedApprovalMonth(months[0]);
+      }
+    }
+  }, [selectedApprovalYear]);
 
   // Fetch Users
   const fetchUsers = async () => {
@@ -1167,8 +1243,11 @@ export default function AdminPage() {
   }, [activeTab]);
 
   // --- MONTHLY COMPLETENESS & APPROVAL LOGIC ---
-  const getRequiredWeeksCount = (year, month) => {
-    return 4; // Always 4 weeks per month to align with YoY dashboard chart
+  const getRequiredWeeksCount = (year, monthIdx, weeksMap, uniqueDates) => {
+    if ((weeksMap && weeksMap[5]) || (uniqueDates && uniqueDates.size >= 5)) {
+      return 5;
+    }
+    return 4;
   };
 
   const getWeekOfMonth = (dateString) => {
@@ -1177,7 +1256,8 @@ export default function AdminPage() {
     if (day <= 7) return 1;
     if (day <= 14) return 2;
     if (day <= 21) return 3;
-    return 4; // Group everything day > 21 into week 4
+    if (day <= 28) return 4;
+    return 5; // Day 29, 30, 31
   };
 
   const isAutoApprovedDate = (dateStr) => {
@@ -1210,7 +1290,6 @@ export default function AdminPage() {
       
       setApprovalStatus(currentStatus);
       
-      const required = getRequiredWeeksCount(year, monthIdx);
       const uniqueDates = new Set();
       allInspections.forEach(item => {
         const itemDate = new Date(item.inspected_at);
@@ -1224,6 +1303,8 @@ export default function AdminPage() {
         const wNum = getWeekOfMonth(dStr);
         weeksMap[wNum] = true;
       });
+      
+      const required = getRequiredWeeksCount(year, monthIdx, weeksMap, uniqueDates);
       
       const submittedWeeksList = [];
       for (let w = 1; w <= required; w++) {
@@ -2632,8 +2713,9 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedApprovalYear(e.target.value)}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
-                        <option value="2026">2569</option>
-                        <option value="2025">2568</option>
+                        {getAvailableYearsForApproval(allInspections, isDemoMode).map(y => (
+                          <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                        ))}
                       </select>
                     </div>
 
@@ -2644,18 +2726,9 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedApprovalMonth(e.target.value)}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
-                        <option value="มกราคม">มกราคม</option>
-                        <option value="กุมภาพันธ์">กุมภาพันธ์</option>
-                        <option value="มีนาคม">มีนาคม</option>
-                        <option value="เมษายน">เมษายน</option>
-                        <option value="พฤษภาคม">พฤษภาคม</option>
-                        <option value="มิถุนายน">มิถุนายน</option>
-                        <option value="กรกฎาคม">กรกฎาคม</option>
-                        <option value="สิงหาคม">สิงหาคม</option>
-                        <option value="กันยายน">กันยายน</option>
-                        <option value="ตุลาคม">ตุลาคม</option>
-                        <option value="พฤศจิกายน">พฤศจิกายน</option>
-                        <option value="ธันวาคม">ธันวาคม</option>
+                        {getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode).map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
                       </select>
                     </div>
                   </div>
