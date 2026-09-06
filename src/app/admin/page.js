@@ -289,8 +289,8 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
   ];
-  if (isDemoMode || !allInspections || allInspections.length === 0) {
-    return allMonths.slice().reverse();
+  if (!allInspections || allInspections.length === 0) {
+    return [];
   }
   const monthsWithData = new Set();
   allInspections.forEach(item => {
@@ -301,8 +301,7 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
       }
     }
   });
-  const filtered = allMonths.filter(m => monthsWithData.has(m)).reverse();
-  return filtered.length > 0 ? filtered : allMonths.slice().reverse();
+  return allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
 const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
@@ -505,8 +504,8 @@ export default function AdminPage() {
   const [inspectionRows, setInspectionRows] = useState([]);
 
   // --- MONTHLY APPROVAL STATES ---
-  const [selectedApprovalYear, setSelectedApprovalYear] = useState('2026');
-  const [selectedApprovalMonth, setSelectedApprovalMonth] = useState('มกราคม');
+  const [selectedApprovalYear, setSelectedApprovalYear] = useState('');
+  const [selectedApprovalMonth, setSelectedApprovalMonth] = useState('');
   const [approvalStatus, setApprovalStatus] = useState('Draft');
   const [approvalCompleteness, setApprovalCompleteness] = useState({ submittedWeeks: [], requiredWeeks: 4, isComplete: false });
   
@@ -558,31 +557,17 @@ export default function AdminPage() {
 
   // Auto select latest available year and month for Approvals tab
   useEffect(() => {
-    if (allInspections && allInspections.length > 0) {
+    if (activeTab === 'approvals' && allInspections && allInspections.length > 0) {
       const years = getAvailableYearsForApproval(allInspections, isDemoMode);
-      let yearToSet = selectedApprovalYear;
-      if (years.length > 0 && !years.includes(selectedApprovalYear)) {
-        yearToSet = years[0];
-        setSelectedApprovalYear(yearToSet);
-      }
+      const latestYear = years[0] || '2026';
+      setSelectedApprovalYear(latestYear);
       
-      const months = getAvailableMonthsForApproval(yearToSet, allInspections, isDemoMode);
+      const months = getAvailableMonthsForApproval(latestYear, allInspections, isDemoMode);
       if (months.length > 0) {
-        if (!months.includes(selectedApprovalMonth)) {
-          setSelectedApprovalMonth(months[0]);
-        }
-      }
-    }
-  }, [activeTab, allInspections, isDemoMode]);
-
-  useEffect(() => {
-    if (allInspections && allInspections.length > 0) {
-      const months = getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode);
-      if (months.length > 0 && !months.includes(selectedApprovalMonth)) {
         setSelectedApprovalMonth(months[0]);
       }
     }
-  }, [selectedApprovalYear]);
+  }, [activeTab, allInspections, isDemoMode]);
 
   // Fetch Users
   const fetchUsers = async () => {
@@ -1235,7 +1220,7 @@ export default function AdminPage() {
 
   // Auto-refresh when tab changes
   useEffect(() => {
-    if (activeTab === 'inspections' || activeTab === 'presentation') {
+    if (activeTab === 'inspections' || activeTab === 'presentation' || activeTab === 'approvals') {
       fetchInspections();
     } else {
       fetchUsers();
@@ -2710,7 +2695,16 @@ export default function AdminPage() {
                       <label className="text-[10px] font-bold text-slate-450 uppercase">ปีประมวลผล</label>
                       <select
                         value={selectedApprovalYear}
-                        onChange={(e) => setSelectedApprovalYear(e.target.value)}
+                        onChange={(e) => {
+                          const newYear = e.target.value;
+                          setSelectedApprovalYear(newYear);
+                          const months = getAvailableMonthsForApproval(newYear, allInspections, isDemoMode);
+                          if (months.length > 0) {
+                            setSelectedApprovalMonth(months[0]);
+                          } else {
+                            setSelectedApprovalMonth('');
+                          }
+                        }}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
                         {getAvailableYearsForApproval(allInspections, isDemoMode).map(y => (
@@ -2726,9 +2720,13 @@ export default function AdminPage() {
                         onChange={(e) => setSelectedApprovalMonth(e.target.value)}
                         className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                       >
-                        {getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode).map(m => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
+                        {getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode).length === 0 ? (
+                          <option value="">-- ไม่พบข้อมูลเดือนที่บันทึก --</option>
+                        ) : (
+                          getAvailableMonthsForApproval(selectedApprovalYear, allInspections, isDemoMode).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))
+                        )}
                       </select>
                     </div>
                   </div>
