@@ -1311,8 +1311,7 @@ export default function DashboardPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
               <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>ผู้จัดทำ (QA Staff)</p>
-              <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
-              <p style={{ marginBottom: '4px' }}>(..................................................)</p>
+              <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
               <p>วันที่......./......./.......</p>
             </div>
 
@@ -1321,13 +1320,12 @@ export default function DashboardPage() {
               {deptApproved ? (
                 <>
                   <p style={{ fontWeight: 'bold', color: '#10b981', marginBottom: '2px' }}>✓ {deptApproverName ? deptApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>(ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
+                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>แผนก {dept} (ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
                   <p>วันที่ {deptApprovedAt}</p>
                 </>
               ) : (
                 <>
-                  <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
-                  <p style={{ marginBottom: '4px' }}>(..................................................)</p>
+                  <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
                   <p>วันที่......./......./.......</p>
                 </>
               )}
@@ -1338,13 +1336,12 @@ export default function DashboardPage() {
               {qaApproved ? (
                 <>
                   <p style={{ fontWeight: 'bold', color: '#3b82f6', marginBottom: '2px' }}>✓ {qaApproverName ? qaApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>(ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
+                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>ฝ่ายประกันคุณภาพ (ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
                   <p>วันที่ {qaApprovedAt}</p>
                 </>
               ) : (
                 <>
-                  <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
-                  <p style={{ marginBottom: '4px' }}>(..................................................)</p>
+                  <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
                   <p>วันที่......./......./.......</p>
                 </>
               )}
@@ -1646,8 +1643,7 @@ export default function DashboardPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingTop: '8px', marginTop: '8px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
             <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>จัดทำโดย</p>
-            <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
-            <p style={{ marginBottom: '4px' }}>(..................................................)</p>
+            <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
             <p>วันที่......./......./.......</p>
           </div>
 
@@ -1656,13 +1652,12 @@ export default function DashboardPage() {
             {isApproved ? (
               <>
                 <p style={{ fontWeight: 'bold', color: '#10b981', marginBottom: '2px' }}>✓ {approverName ? approverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>(ระบบบันทึกอนุมัติรับทราบแล้ว)</p>
+                <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>แผนก {dept} (ระบบบันทึกอนุมัติรับทราบแล้ว)</p>
                 <p>วันที่ {approvedAt}</p>
               </>
             ) : (
               <>
-                <p style={{ marginBottom: '4px' }}>ลงชื่อ..................................................</p>
-                <p style={{ marginBottom: '4px' }}>(..................................................)</p>
+                <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
                 <p>วันที่......./......./.......</p>
               </>
             )}
