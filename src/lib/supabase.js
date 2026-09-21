@@ -1,20 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+// Use Service Role / Secret Key for server-side API routes (bypasses RLS), fallback to Anon Key
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 // Initialize the Supabase Client
-// We verify that keys are configured. If not, queries will fail, which is handled gracefully in the app.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
  * Helper to check if Supabase is properly configured with real credentials
  */
 export function isSupabaseConfigured() {
   return (
-    supabaseUrl &&
-    supabaseAnonKey &&
+    Boolean(supabaseUrl) &&
+    Boolean(supabaseKey) &&
     !supabaseUrl.includes('your-project-id') &&
-    !supabaseAnonKey.includes('your-anon-key')
+    !supabaseKey.includes('your-anon-key')
   );
 }
