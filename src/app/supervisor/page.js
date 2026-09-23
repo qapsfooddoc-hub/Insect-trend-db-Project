@@ -657,7 +657,7 @@ export default function SupervisorPortal() {
 
   const fetchData = async () => {
     try {
-      const res = await fetch('/api/inspection');
+      const res = await fetch('/api/inspection', { cache: 'no-store' });
       const result = await res.json();
       if (res.ok) { setRawData(result.data || []); setIsDemo(result.isDemo || false); }
     } catch {}

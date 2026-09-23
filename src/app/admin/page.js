@@ -600,7 +600,7 @@ export default function AdminPage() {
   const fetchInspections = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('/api/inspection');
+      const res = await fetch('/api/inspection', { cache: 'no-store' });
       const result = await res.json();
       if (res.ok && result.data) {
         setAllInspections(result.data);
@@ -1140,7 +1140,7 @@ export default function AdminPage() {
       const jsonUsers = await resUsers.json();
       const usersData = jsonUsers.data || [];
 
-      const resInspections = await fetch('/api/inspection');
+      const resInspections = await fetch('/api/inspection', { cache: 'no-store' });
       const jsonInspections = await resInspections.json();
       const inspectionsData = jsonInspections.data || [];
 

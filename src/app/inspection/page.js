@@ -243,7 +243,7 @@ export default function InspectionPage() {
 
   const fetchInspections = async () => {
     try {
-      const res = await fetch('/api/inspection');
+      const res = await fetch('/api/inspection', { cache: 'no-store' });
       const result = await res.json();
       if (res.ok && result.data) {
         setAllInspections(result.data);

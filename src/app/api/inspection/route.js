@@ -115,7 +115,16 @@ export async function GET() {
       inspected_at: normalizeDate(r.inspected_at)
     }));
 
-    return NextResponse.json({ data: normalizedData, isDemo: false });
+    return NextResponse.json(
+      { data: normalizedData, isDemo: false },
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        },
+      }
+    );
   } catch (error) {
     console.error('API Error in fetching data:', error);
     // If Supabase fails, fall back to global mock inspections

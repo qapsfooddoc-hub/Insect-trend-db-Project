@@ -647,7 +647,7 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
       const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
       const hasApprovedMonth = months.some(m => {
         if (typeof window === 'undefined') return false;
-        const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+        const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Approved';
         return status === 'Approved' || status === 'Pending';
       });
       
@@ -685,7 +685,7 @@ const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => 
     if (isHistorical) return true;
     
     if (typeof window === 'undefined') return false;
-    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
+    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Approved';
     return status === 'Approved' || status === 'Pending';
   }).reverse();
 
@@ -1007,7 +1007,7 @@ export default function DashboardPage() {
       return 'Approved';
     }
     
-    return localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Draft';
+    return localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Approved';
   };
 
   const getApprovedRawData = (dataList) => {
@@ -1023,7 +1023,7 @@ export default function DashboardPage() {
       ];
       const monthName = months[date.getMonth()];
       const year = date.getFullYear();
-      const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Draft';
+      const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Approved';
       return status === 'Approved' || status === 'Pending';
     });
   };
@@ -1698,7 +1698,7 @@ export default function DashboardPage() {
         ];
         const monthName = months[date.getMonth()];
         const year = date.getFullYear();
-        const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Draft';
+        const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Approved';
         return status === 'Approved' || status === 'Pending';
       });
 
@@ -1735,17 +1735,15 @@ export default function DashboardPage() {
         return;
       }
 
-      const cacheKey = `ai_report_${selectedYear}_${selectedQuarter}_${selectedMonth}`;
+      // Check cache first
+      const cacheKey = `ai_report_${selectedDept}_${selectedMonth}_${selectedQuarter}_${selectedYear}`;
       const cached = localStorage.getItem(cacheKey);
-
       if (cached) {
         try {
-          const { report, recordCount } = JSON.parse(cached);
-          // Only trigger a new AI analysis if the current record count is greater than the cached count
-          if (currentCount > recordCount) {
-            triggerAnalysis(activeFilteredData, cacheKey, currentCount);
-          } else {
-            setAiReport(report);
+          const parsed = JSON.parse(cached);
+          if (parsed.recordCount === currentCount && parsed.report) {
+            setAiReport(parsed.report);
+            return;
           }
         } catch (e) {
           triggerAnalysis(activeFilteredData, cacheKey, currentCount);
@@ -1761,7 +1759,7 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/inspection');
+      const response = await fetch('/api/inspection', { cache: 'no-store' });
       const result = await response.json();
       if (response.ok) {
         setRawData(result.data || []);
