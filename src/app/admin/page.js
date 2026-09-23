@@ -508,6 +508,7 @@ export default function AdminPage() {
   const [selectedApprovalMonth, setSelectedApprovalMonth] = useState('');
   const [approvalStatus, setApprovalStatus] = useState('Draft');
   const [approvalCompleteness, setApprovalCompleteness] = useState({ submittedWeeks: [], requiredWeeks: 4, isComplete: false });
+  const [adminMonthlyReports, setAdminMonthlyReports] = useState([]);
   
   // Others Breakdown Modal
   const [isOthersModalOpen, setIsOthersModalOpen] = useState(false);
@@ -530,6 +531,14 @@ export default function AdminPage() {
         console.error('Failed to load html2canvas-pro:', err);
       });
     }
+
+    // Load monthly_reports from Supabase
+    fetch('/api/monthly-reports', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(res => {
+        if (res.data) setAdminMonthlyReports(res.data);
+      })
+      .catch(() => {});
   }, []);
 
   // --- PRESENTATION REPORT STATES ---
@@ -1269,8 +1278,20 @@ export default function AdminPage() {
         currentStatus = 'Approved';
         localStorage.setItem(statusKey, 'Approved');
       } else if (!currentStatus) {
-        currentStatus = 'Draft';
-        localStorage.setItem(statusKey, 'Draft');
+        // Check in adminMonthlyReports from Supabase
+        const yStr = String(year);
+        const mStr = String(monthIdx + 1).padStart(2, '0');
+        const targetPrefix = `${yStr}-${mStr}`;
+        const rep = (adminMonthlyReports || []).find(r => r.report_month && r.report_month.startsWith(targetPrefix));
+        if (rep && rep.dept_head_signed && rep.qa_manager_signed) {
+          currentStatus = 'Approved';
+          localStorage.setItem(statusKey, 'Approved');
+        } else if (rep && (rep.dept_head_signed || rep.qa_manager_signed)) {
+          currentStatus = 'Pending';
+          localStorage.setItem(statusKey, 'Pending');
+        } else {
+          currentStatus = 'Draft';
+        }
       }
       
       setApprovalStatus(currentStatus);
@@ -1304,7 +1325,114 @@ export default function AdminPage() {
         isComplete: submittedWeeksList.length >= required
       });
     }
-  }, [selectedApprovalYear, selectedApprovalMonth, allInspections, mounted]);
+  }, [selectedApprovalYear, selectedApprovalMonth, allInspections, mounted, adminMonthlyReports]);
+
+  // Handle Admin approving month for the ENTIRE system
+  const handleAdminApproveMonth = async () => {
+    if (typeof window !== 'undefined') {
+      const year = parseInt(selectedApprovalYear, 10);
+      const statusKey = `monthStatus_${selectedApprovalMonth}_${year}`;
+      
+      // 1. Set status in localStorage
+      localStorage.setItem(statusKey, 'Approved');
+      setApprovalStatus('Approved');
+
+      // 2. Auto-stamp approval for all 10 departments for this month
+      const beYear = year + 543;
+      const now = new Date().toLocaleString('th-TH', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      DEPTS_LIST.forEach(dept => {
+        const key = `approval_${dept}_${selectedApprovalMonth}_${beYear}`;
+        const existing = localStorage.getItem(key);
+        let data = {};
+        if (existing) {
+          try { data = JSON.parse(existing); } catch {}
+        }
+        data.deptApproved = true;
+        data.deptApprovedAt = data.deptApprovedAt || now;
+        data.deptApproverName = data.deptApproverName || 'แอดมิน สูงสุด (Admin Approval)';
+        data.deptComment = data.deptComment || 'อนุมัติรายงานตรวจนับแมลงทั้งระบบโดยผู้ดูแลระบบ (Admin)';
+        data.qaApproved = true;
+        data.qaApprovedAt = data.qaApprovedAt || now;
+        data.qaApproverName = data.qaApproverName || 'แอดมิน สูงสุด (Admin Approval)';
+        data.qaComment = data.qaComment || 'อนุมัติการประมวลผลสถิติภาพรวมทั้งระบบเรียบร้อย';
+        localStorage.setItem(key, JSON.stringify(data));
+      });
+
+      // 3. Sync to Supabase monthly_reports (shared across all browsers)
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const mIdx = months.indexOf(selectedApprovalMonth);
+      if (mIdx !== -1) {
+        const monthStr = String(mIdx + 1).padStart(2, '0');
+        const reportMonth = `${year}-${monthStr}-01`;
+        try {
+          await fetch('/api/monthly-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              report_month: reportMonth,
+              department: 'ALL',
+              dept_head_signed: true,
+              dept_head_date: new Date().toISOString(),
+              qa_manager_signed: true,
+              qa_manager_date: new Date().toISOString(),
+              ai_analysis_text: 'อนุมัติทั้งระบบโดย Admin'
+            })
+          });
+          // Update local state
+          setAdminMonthlyReports(prev => [
+            ...prev.filter(r => !(r.report_month && r.report_month.startsWith(`${year}-${monthStr}`))),
+            { report_month: reportMonth, department: 'ALL', dept_head_signed: true, qa_manager_signed: true }
+          ]);
+        } catch (err) {
+          console.error('Failed to sync to Supabase monthly_reports:', err);
+        }
+      }
+
+      setAdminMessage({ 
+        text: `อนุมัติรายงานประจำเดือน ${selectedApprovalMonth} ${year + 543} ทั้งระบบเรียบร้อยแล้ว! ทุกแผนกและผู้ใช้งานทุกคนจะมองเห็นข้อมูลที่อนุมัตินี้ทันที`, 
+        type: 'success' 
+      });
+    }
+  };
+
+  // Handle Admin resetting month to Draft
+  const handleAdminResetMonth = async () => {
+    if (!confirm(`ยืนยันการยกเลิกการอนุมัติเดือน ${selectedApprovalMonth} ใช่หรือไม่? (สถานะจะกลับเป็น Draft)`)) return;
+    if (typeof window !== 'undefined') {
+      const year = parseInt(selectedApprovalYear, 10);
+      const statusKey = `monthStatus_${selectedApprovalMonth}_${year}`;
+      localStorage.setItem(statusKey, 'Draft');
+      setApprovalStatus('Draft');
+
+      // Sync to Supabase monthly_reports
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const mIdx = months.indexOf(selectedApprovalMonth);
+      if (mIdx !== -1) {
+        const monthStr = String(mIdx + 1).padStart(2, '0');
+        const reportMonth = `${year}-${monthStr}-01`;
+        try {
+          await fetch('/api/monthly-reports', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              report_month: reportMonth,
+              department: 'ALL',
+              dept_head_signed: false,
+              qa_manager_signed: false
+            })
+          });
+          setAdminMonthlyReports(prev => prev.filter(r => !(r.report_month && r.report_month.startsWith(`${year}-${monthStr}`))));
+        } catch (err) {
+          console.error('Failed to sync to Supabase monthly_reports:', err);
+        }
+      }
+
+      setAdminMessage({ 
+        text: `ยกเลิกการอนุมัติเดือน ${selectedApprovalMonth} ${year + 543} แล้ว (เปลี่ยนสถานะกลับเป็น Draft)`, 
+        type: 'info' 
+      });
+    }
+  };
 
   const handleSendApprovalReport = () => {
     if (typeof window !== 'undefined') {
@@ -2795,27 +2923,50 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-3">
-                        <button
-                          type="button"
-                          disabled={!approvalCompleteness.isComplete || approvalStatus !== 'Draft'}
-                          onClick={handleSendApprovalReport}
-                          className={`w-full py-3 text-xs font-extrabold rounded-2xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer ${
-                            approvalCompleteness.isComplete && approvalStatus === 'Draft'
-                              ? 'bg-blue-600 hover:bg-blue-500 text-white hover:scale-[1.01] hover:shadow-md'
-                              : 'bg-slate-100 text-slate-400 dark:bg-slate-800/40 dark:text-slate-650 cursor-not-allowed'
-                          }`}
-                        >
-                          🚀 ตรวจสอบครบถ้วน ส่งรายงานประจำเดือนให้หัวหน้าอนุมัติ
-                        </button>
+                        {approvalStatus !== 'Approved' ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={!approvalCompleteness.isComplete}
+                              onClick={handleAdminApproveMonth}
+                              className={`w-full py-3.5 text-xs font-black rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
+                                approvalCompleteness.isComplete
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-[1.01] active:scale-[0.99] shadow-emerald-500/20'
+                                  : 'bg-slate-100 text-slate-400 dark:bg-slate-800/40 dark:text-slate-650 cursor-not-allowed'
+                              }`}
+                            >
+                              <span>👑</span>
+                              <span>อนุมัติรายงานประจำเดือน (อนุมัติทั้งระบบทันที)</span>
+                            </button>
+
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center font-bold">
+                              💡 <strong>นโยบายระบบ:</strong> เมื่อแอดมินอนุมัติ ถือว่าอนุมัติทั้งระบบ ทุกแผนกและผู้ใช้งานทุกคนจะมองเห็นข้อมูลทันที
+                            </p>
+                          </>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 rounded-2xl flex items-center justify-between text-xs font-bold shadow-sm">
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">✅</span>
+                                <div>
+                                  <p className="font-extrabold">เดือนนี้ได้รับการอนุมัติทั้งระบบเรียบร้อยแล้ว</p>
+                                  <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400 font-medium">ข้อมูลถูกปลดล็อกให้แสดงผลบนแดชบอร์ดแก่ผู้ใช้งานทุกคนแล้ว</p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={handleAdminResetMonth}
+                                className="px-3.5 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-700 dark:text-red-300 text-[11px] font-extrabold rounded-xl transition-all cursor-pointer shrink-0"
+                              >
+                                🔄 ยกเลิกการอนุมัติ (กลับเป็น Draft)
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         
                         {!approvalCompleteness.isComplete && (
                           <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold text-center">
-                            * ต้องบันทึกข้อมูลสถิติให้ครบถ้วนทุกสัปดาห์ก่อนจึงจะส่งรายงานให้หัวหน้าอนุมัติได้
-                          </p>
-                        )}
-                        {approvalStatus !== 'Draft' && approvalCompleteness.isComplete && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold text-center">
-                            * ส่งรายงานประจำเดือนเรียบร้อยแล้ว อยู่ในสถานะ {approvalStatus === 'Pending' ? 'รอหัวหน้างานอนุมัติ' : 'อนุมัติเรียบร้อยแล้ว'}
+                            * ต้องบันทึกข้อมูลสถิติให้ครบถ้วนทุกสัปดาห์ก่อน ({approvalCompleteness.submittedWeeks.length}/{approvalCompleteness.requiredWeeks} สัปดาห์) จึงจะกดอนุมัติทั้งระบบได้
                           </p>
                         )}
                       </div>
