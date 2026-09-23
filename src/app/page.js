@@ -869,8 +869,20 @@ export default function DashboardPage() {
   // --- PRINT JOB STATE ---
   const [printJob, setPrintJob] = useState('none'); // 'none', 'monthly', 'monthly-all', 'quarterly', 'quarterly-all'
 
+  // --- MONTHLY REPORTS FROM SUPABASE (CROSS-BROWSER SYNC) ---
+  const [monthlyReports, setMonthlyReports] = useState([]);
+
   // --- CURRENT USER SIMULATION STATE ---
   const [currentUser, setCurrentUser] = useState(null);
+
+  // Permission: Check if current user is an Admin, QA Manager, or Supervisor who has permission to view Draft data
+  const canViewDraft = Boolean(
+    currentUser && (
+      currentUser.role?.toLowerCase() === 'admin' ||
+      currentUser.role?.toLowerCase() === 'qa manager' ||
+      currentUser.role?.toLowerCase() === 'department supervisor'
+    )
+  );
 
   const syncCurrentUser = () => {
     if (typeof window !== 'undefined') {
@@ -993,21 +1005,41 @@ export default function DashboardPage() {
 
   // --- MONTH STATUS & APPROVED DATA HELPERS ---
   const getMonthStatus = (monthName, year) => {
-    if (typeof window === 'undefined') return 'Draft';
+    if (typeof window === 'undefined') return 'Approved';
     const months = [
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
     const mIdx = months.indexOf(monthName);
     if (mIdx === -1) return 'Approved';
-    const date = new Date(parseInt(year), mIdx, 15);
+    const date = new Date(parseInt(year, 10), mIdx, 15);
     
     // Auto-approved if before June 1, 2026 (BE 2569 / 2026 AD)
     if (date < new Date('2026-06-01')) {
       return 'Approved';
     }
+
+    // 1. Check in Supabase monthly_reports (shared across all browsers)
+    const yStr = String(year);
+    const mStr = String(mIdx + 1).padStart(2, '0');
+    const targetPrefix = `${yStr}-${mStr}`;
+    const report = monthlyReports.find(r => r.report_month && r.report_month.startsWith(targetPrefix));
+    if (report) {
+      if (report.dept_head_signed && report.qa_manager_signed) {
+        return 'Approved';
+      }
+      if (report.dept_head_signed || report.qa_manager_signed) {
+        return 'Pending';
+      }
+    }
+
+    // 2. Check localStorage if set in this browser
+    const localStatus = localStorage.getItem(`monthStatus_${monthName}_${year}`);
+    if (localStatus) {
+      return localStatus;
+    }
     
-    return localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Approved';
+    return 'Draft';
   };
 
   const getApprovedRawData = (dataList) => {
@@ -1017,14 +1049,19 @@ export default function DashboardPage() {
       if (date < new Date('2026-06-01')) {
         return true;
       }
+      // If user has privilege (Admin / QA Manager / Supervisor), show all records including Draft
+      if (canViewDraft) {
+        return true;
+      }
+      // For general viewers or operators, only show records from Approved months
       const months = [
         'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
         'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
       ];
       const monthName = months[date.getMonth()];
-      const year = date.getFullYear();
-      const status = localStorage.getItem(`monthStatus_${monthName}_${year}`) || 'Approved';
-      return status === 'Approved' || status === 'Pending';
+      const year = String(date.getFullYear());
+      const status = getMonthStatus(monthName, year);
+      return status === 'Approved';
     });
   };
 
@@ -1759,11 +1796,18 @@ export default function DashboardPage() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/inspection', { cache: 'no-store' });
-      const result = await response.json();
-      if (response.ok) {
+      const [resInspection, resReports] = await Promise.all([
+        fetch('/api/inspection', { cache: 'no-store' }),
+        fetch('/api/monthly-reports', { cache: 'no-store' }).catch(() => ({ ok: false }))
+      ]);
+      const result = await resInspection.json();
+      if (resInspection.ok) {
         setRawData(result.data || []);
         setIsDemo(result.isDemo || false);
+      }
+      if (resReports && resReports.ok) {
+        const repData = await resReports.json();
+        setMonthlyReports(repData.data || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -1802,7 +1846,16 @@ export default function DashboardPage() {
       if (r.inspected_at && d.getFullYear() === parseInt(year, 10)) {
         const monthName = monthsOrder[d.getMonth()];
         if (monthName) {
-          monthsSet.add(monthName);
+          // If privileged user (Admin / QA / Supervisor), show all months
+          if (canViewDraft) {
+            monthsSet.add(monthName);
+          } else {
+            // General users only see Approved months
+            const status = getMonthStatus(monthName, year);
+            if (status === 'Approved') {
+              monthsSet.add(monthName);
+            }
+          }
         }
       }
     });
@@ -3364,11 +3417,26 @@ export default function DashboardPage() {
                 className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
               >
                 {activeTab !== 'department' && <option value="ALL">รวมทุกเดือน</option>}
-                {getAvailableMonths(selectedYear).map(m => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
+                {getAvailableMonths(selectedYear).map(m => {
+                  const mStatus = getMonthStatus(m, selectedYear);
+                  return (
+                    <option key={m} value={m}>
+                      {m}{canViewDraft && mStatus === 'Draft' ? ' (Draft - ร่าง)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
+            )}
+
+            {/* Draft status indicator for privileged viewers */}
+            {selectedMonth !== 'ALL' && getMonthStatus(selectedMonth, selectedYear) === 'Draft' && canViewDraft && (
+              <div className="flex items-center self-end pb-1.5">
+                <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-xl animate-pulse flex items-center gap-1">
+                  <span>📝</span>
+                  <span>สถานะ: Draft (ยังไม่อนุมัติ)</span>
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -3946,7 +4014,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {status === 'Draft' ? (
+              {status === 'Draft' && !canViewDraft ? (
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto my-6">
                   <div className="w-16 h-16 bg-slate-50 dark:bg-slate-955 border border-slate-100 dark:border-slate-850 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl animate-pulse">
                     📝
@@ -3966,6 +4034,25 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <>
+                  {status === 'Draft' && canViewDraft && (
+                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-4 rounded-3xl flex items-center justify-between text-xs font-bold text-amber-800 dark:text-amber-300 shadow-sm animate-in fade-in mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">📝</span>
+                        <div>
+                          <p className="text-sm font-extrabold">เดือน {selectedMonth} {getDisplayYear(selectedYear)} อยู่ในสถานะ Draft (ร่าง / ยังไม่อนุมัติ)</p>
+                          <p className="text-[11px] text-amber-700/80 dark:text-amber-400 font-semibold">แสดงผลเฉพาะระดับหัวหน้างานและแอดมิน ({currentUser?.role}) เพื่อตรวจสอบตัวเลขและกราฟก่อนลงนาม</p>
+                        </div>
+                      </div>
+                      <Link 
+                        href="/supervisor" 
+                        className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-2xl transition-all shrink-0 cursor-pointer shadow-sm flex items-center gap-1"
+                      >
+                        <span>ไปหน้าลงนามอนุมัติ</span>
+                        <span>→</span>
+                      </Link>
+                    </div>
+                  )}
+
                   {/* Large Single Chart Card */}
                   <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm">
                     <div className="text-center mb-6">
