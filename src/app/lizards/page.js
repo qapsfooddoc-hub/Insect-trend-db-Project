@@ -70,6 +70,24 @@ export default function LizardsPage() {
       setSelectedMonth(availableMonths[availableMonths.length - 1] || 'สิงหาคม');
     }
   }, [availableMonths, selectedMonth]);
+  // Number of days in the currently selected month and year
+  const daysInMonth = useMemo(() => {
+    const monthIndex = MONTH_NAMES.indexOf(selectedMonth);
+    if (monthIndex === -1) return 31;
+    const yearCE = (parseInt(selectedYear, 10) || 2569) - 543;
+    return new Date(yearCE, monthIndex + 1, 0).getDate();
+  }, [selectedMonth, selectedYear]);
+
+  // Current month number (1 - 12)
+  const monthNumber = useMemo(() => {
+    const idx = MONTH_NAMES.indexOf(selectedMonth);
+    return idx >= 0 ? idx + 1 : 1;
+  }, [selectedMonth]);
+
+  // 2-digit Buddhist year (e.g. 2568 -> 68, 2569 -> 69)
+  const yearShort = useMemo(() => {
+    return String(selectedYear).slice(-2);
+  }, [selectedYear]);
 
   // Daily records state: 31 days x 6 stations
   const [dailyRecords, setDailyRecords] = useState(() => {
@@ -136,13 +154,14 @@ export default function LizardsPage() {
   // Calculate station totals for current month
   const stationTotals = useMemo(() => {
     const totals = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-    Object.values(dailyRecords).forEach(dayRow => {
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayRow = dailyRecords[day] || {};
       for (let s = 1; s <= 6; s++) {
         totals[s] += Number(dayRow[s]) || 0;
       }
-    });
+    }
     return totals;
-  }, [dailyRecords]);
+  }, [dailyRecords, daysInMonth]);
 
   // Calculate day total
   const getDayTotal = (day) => {
@@ -228,8 +247,8 @@ export default function LizardsPage() {
     if (monthlyTotal === 0) {
       return `จากผลการตรวจติดตามสถานีจิ้งจกทั้ง 6 สถานี ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ไม่พบจิ้งจกในทุกสถานีตรวจวัดตลอดทั้งเดือน (ยอดตรวจพบสะสม 0 ตัว) มาตรการควบคุมการป้องกันสัตว์รบกวนรอบอาคารมีประสิทธิภาพ อยู่ในเกณฑ์มาตรฐานความปลอดภัยทางชีวภาพ GMP/HACCP ของโรงงาน`;
     }
-    return `จากผลการตรวจติดตามสถานีจิ้งจกทั้ง 6 สถานี ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบจิ้งจกรวมทั้งสิ้น ${monthlyTotal} ตัว โดยสถานีที่พบมากที่สุดคือ สถานีที่ ${maxStation} (พบสะสม ${maxCount} ตัว) และพบเฉลี่ยวันละ ${(monthlyTotal / 31).toFixed(1)} ตัว ฝ่ายควบคุมคุณภาพได้ประสานงานให้ตรวจสอบสุขาภิบาลรอบจุดตรวจดังกล่าว รวมถึงเร่งเปลี่ยนแผ่นกาวดักจับและตรวจเช็คการปิดซีลรอยต่อขอบประตู/หน้าต่างเพื่อป้องกันสัตว์เลื้อยคลานเข้าสู่พื้นที่การผลิต`;
-  }, [monthlyTotal, stationTotals, selectedMonth, selectedYear]);
+    return `จากผลการตรวจติดตามสถานีจิ้งจกทั้ง 6 สถานี ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบจิ้งจกรวมทั้งสิ้น ${monthlyTotal} ตัว โดยสถานีที่พบมากที่สุดคือ สถานีที่ ${maxStation} (พบสะสม ${maxCount} ตัว) และพบเฉลี่ยวันละ ${(monthlyTotal / daysInMonth).toFixed(1)} ตัว ฝ่ายควบคุมคุณภาพได้ประสานงานให้ตรวจสอบสุขาภิบาลรอบจุดตรวจดังกล่าว รวมถึงเร่งเปลี่ยนแผ่นกาวดักจับและตรวจเช็คการปิดซีลรอยต่อขอบประตู/หน้าต่างเพื่อป้องกันสัตว์เลื้อยคลานเข้าสู่พื้นที่การผลิต`;
+  }, [monthlyTotal, stationTotals, selectedMonth, selectedYear, daysInMonth]);
 
   // Station detailed descriptions (verified from company QC format)
   const STATION_AREAS_DETAIL = {
@@ -1117,7 +1136,7 @@ export default function LizardsPage() {
                   ตารางตรวจนับจำนวนจิ้งจกประจำเดือน {selectedMonth} {selectedYear}
                 </h3>
                 <p className="text-xs text-slate-400">
-                  กรอกจำนวนจิ้งจกที่พบในแต่ละวัน (วันที่ 1 ถึง 31) แยกตามสถานีที่ 1 ถึง 6
+                  กรอกจำนวนจิ้งจกที่พบในแต่ละวัน (วันที่ 1 ถึง {daysInMonth}) แยกตามสถานีที่ 1 ถึง 6
                 </p>
               </div>
 
@@ -1171,9 +1190,9 @@ export default function LizardsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
+                  {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                     const rowTotal = getDayTotal(day);
-                    const dayFormatted = `${day}/${selectedMonth === 'สิงหาคม' ? '8' : 'X'}/69`;
+                    const dayFormatted = `${day}/${monthNumber}/${yearShort}`;
                     return (
                       <tr 
                         key={day}
