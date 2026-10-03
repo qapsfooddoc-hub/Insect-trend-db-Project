@@ -684,8 +684,11 @@ export default function SupervisorPortal() {
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
+    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+    const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+
     if (isDemo || rawData.length === 0) {
-      return monthsOrder.slice().reverse();
+      return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
     }
     const monthsSet = new Set();
     rawData.forEach(r => {
@@ -697,6 +700,9 @@ export default function SupervisorPortal() {
         }
       }
     });
+    if (monthsSet.size === 0) {
+      return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
+    }
     return monthsOrder.filter(m => monthsSet.has(m)).reverse();
   };
 

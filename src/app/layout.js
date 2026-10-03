@@ -1,6 +1,6 @@
 import { Niramit } from "next/font/google";
 import "./globals.css";
-import Navbar from "./Navbar";
+import AppShell from "@/components/AppShell";
 
 const niramit = Niramit({
   weight: ["300", "400", "500", "700"],
@@ -15,9 +15,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="th" className="h-full antialiased">
-      <body className={`${niramit.className} min-h-full flex flex-col`}>
-        <Navbar />
-        {children}
+      <body className={`${niramit.className} min-h-full flex flex-col bg-[#F4F7FC]`}>
+        <AppShell>
+          {children}
+        </AppShell>
       </body>
     </html>
   );

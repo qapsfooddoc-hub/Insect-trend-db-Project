@@ -5,12 +5,26 @@ import Link from 'next/link';
 import { 
   Users, Pencil, Trash2, RefreshCw, Plus, Sparkles, 
   Calendar, Save, Trash, AlertCircle, PlusCircle, Check,
-  Download, Copy, ShieldAlert, Award
+  Download, Copy, ShieldAlert, Award, MapPin, HardDrive
 } from 'lucide-react';
 import { 
   ResponsiveContainer, BarChart, Bar, CartesianGrid, 
   XAxis, YAxis, Tooltip, Legend, LabelList 
 } from 'recharts';
+import PointsManagementTab from '@/components/admin/PointsManagementTab';
+import BackupModal from '@/components/BackupModal';
+import { 
+  deriveDeptTrapsMapping, 
+  deriveDepartmentsList,
+  deriveCockroachPoints,
+  deriveCockroachZones,
+  deriveRodentStations,
+  deriveLizardStations,
+  addPoint,
+  updatePoint,
+  deletePoint,
+  getStoredPoints
+} from '@/lib/data/pointsManager';
 
 const DEPTS_LIST = [
   'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
@@ -289,8 +303,11 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
   ];
-  if (!allInspections || allInspections.length === 0) {
-    return [];
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+
+  if (!allInspections || allInspections.length === 0 || isDemoMode) {
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   const monthsWithData = new Set();
   allInspections.forEach(item => {
@@ -301,6 +318,9 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
       }
     }
   });
+  if (monthsWithData.size === 0) {
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
+  }
   return allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
@@ -334,8 +354,11 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+
   if (isDemoMode || !allInspections || allInspections.length === 0) {
-    return allMonths.slice().reverse();
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   
   const monthsWithData = new Set();
@@ -348,17 +371,11 @@ const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => 
     }
   });
 
-  const filtered = allMonths.filter(m => {
-    if (!monthsWithData.has(m)) return false;
-    const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
-    if (isHistorical) return true;
-    
-    if (typeof window === 'undefined') return false;
-    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Draft';
-    return status === 'Approved' || status === 'Pending';
-  }).reverse();
+  if (monthsWithData.size === 0) {
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
+  }
 
-  return filtered.length > 0 ? filtered : allMonths.filter(m => monthsWithData.has(m)).reverse();
+  return allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
 const cleanTrapName = (fullName) => {
@@ -479,7 +496,9 @@ const getDeptDetailedDataForPresentation = (deptName, month, year, allInspection
 
 export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState('users'); // 'users', 'inspections', 'approvals', or 'presentation'
+  const [activeTab, setActiveTab] = useState('users'); // 'users', 'inspections', 'approvals', 'presentation', 'points'
+  const [pointInitialCategory, setPointInitialCategory] = useState('light_traps');
+  const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   
 
 
@@ -503,6 +522,31 @@ export default function AdminPage() {
   const [selectedInspectionDate, setSelectedInspectionDate] = useState('');
   const [inspectionRows, setInspectionRows] = useState([]);
 
+  // --- MULTI-PEST INSPECTION EDITING STATES (TAB 2) ---
+  const [inspectionPestCategory, setInspectionPestCategory] = useState('light_traps'); // 'light_traps', 'cockroaches', 'rodents', 'lizards'
+  
+  // Cockroach editing
+  const [cockroachYear, setCockroachYear] = useState('2569');
+  const [cockroachMonth, setCockroachMonth] = useState('สิงหาคม');
+  const [cockroachZoneFilter, setCockroachZoneFilter] = useState('all');
+  const [cockroachRows, setCockroachRows] = useState([]);
+  const [cockroachEditReason, setCockroachEditReason] = useState('');
+
+  // Rodent editing
+  const [rodentYear, setRodentYear] = useState('2569');
+  const [rodentMonth, setRodentMonth] = useState('สิงหาคม');
+  const [rodentRows, setRodentRows] = useState([]);
+  const [rodentEditReason, setRodentEditReason] = useState('');
+
+  // Lizard editing
+  const [lizardYear, setLizardYear] = useState('2569');
+  const [lizardMonth, setLizardMonth] = useState('สิงหาคม');
+  const [lizardRows, setLizardRows] = useState([]);
+  const [lizardEditReason, setLizardEditReason] = useState('');
+
+  // Point Quick Edit / Add Modal from Inspection screen
+  const [inspectionPointModal, setInspectionPointModal] = useState(null);
+
   // --- MONTHLY APPROVAL STATES ---
   const [selectedApprovalYear, setSelectedApprovalYear] = useState('');
   const [selectedApprovalMonth, setSelectedApprovalMonth] = useState('');
@@ -524,6 +568,19 @@ export default function AdminPage() {
   const html2canvasRef = useRef(null);
 
   useEffect(() => {
+    setMounted(true);
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['users', 'inspections', 'approvals', 'presentation', 'points'].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+      const catParam = params.get('category');
+      if (catParam && ['light_traps', 'cockroaches', 'rodents', 'lizards'].includes(catParam)) {
+        setPointInitialCategory(catParam);
+      }
+    }
+
     if (typeof window !== 'undefined') {
       import('html2canvas-pro').then((module) => {
         html2canvasRef.current = module.default;
@@ -867,7 +924,7 @@ export default function AdminPage() {
       // Row 1: Company Name & Form Reference
       const row1 = ws.getRow(1);
       row1.height = 24;
-      row1.getCell(1).value = 'บริษัท พี.เอ.ฟู้ด โปรดักส์ จำกัด';
+      row1.getCell(1).value = 'บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด';
       row1.getCell(1).font = { name: 'Sarabun', size: 12, bold: true, color: { argb: 'FF1E293B' } };
       row1.getCell(1).alignment = { vertical: 'middle', horizontal: 'left' };
 
@@ -1460,14 +1517,15 @@ export default function AdminPage() {
     }
   }, [adminMessage.text]);
 
-  // Load inspection rows for selected department and date
+  // Load inspection rows for selected department and date (Light Traps)
   const handleLoadInspectionData = () => {
     if (!selectedInspectionDept || !selectedInspectionDate) {
       setInspectionRows([]);
       return;
     }
 
-    const areas = DEPT_TRAPS_MAPPING[selectedInspectionDept] || [];
+    const dynamicMapping = deriveDeptTrapsMapping();
+    const areas = dynamicMapping[selectedInspectionDept] || DEPT_TRAPS_MAPPING[selectedInspectionDept] || [];
     const targetDate = selectedInspectionDate;
 
     // Filter matching date & department
@@ -1516,9 +1574,472 @@ export default function AdminPage() {
     setInspectionRows(rows);
   };
 
+  // Load Cockroach Inspection Data
+  const loadCockroachInspectionData = (month, year) => {
+    const points = deriveCockroachPoints(null, true);
+    const key = `cockroach_daily_${year}_${month}`;
+    let savedRecords = {};
+    let storedReason = '';
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          savedRecords = parsed.records || {};
+          storedReason = parsed.editReason || '';
+        } catch (e) {}
+      }
+    }
+
+    const rows = points.map(pt => {
+      const rec = savedRecords[pt.id] || {};
+      const german = rec.german !== undefined && rec.german !== null ? rec.german : '';
+      const american = rec.american !== undefined && rec.american !== null ? rec.american : '';
+      const total = (Number(german) || 0) + (Number(american) || 0);
+      return {
+        id: pt.id,
+        no: pt.no,
+        zone: pt.zone,
+        name: pt.name,
+        german,
+        american,
+        total,
+        notes: rec.notes || ''
+      };
+    });
+    setCockroachRows(rows);
+    setCockroachEditReason(storedReason);
+  };
+
+  // Load Rodent Inspection Data
+  const loadRodentInspectionData = (month, year) => {
+    const stations = deriveRodentStations(null, true);
+    const key = `rodent_${year}_${month}`;
+    let savedRecords = {};
+    let storedReason = '';
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          savedRecords = parsed.records || {};
+          storedReason = parsed.editReason || '';
+        } catch (e) {}
+      }
+    }
+
+    const rows = stations.map(st => {
+      const rec = savedRecords[st.id] || {};
+      const bait = rec.bait !== undefined && rec.bait !== null ? rec.bait : '';
+      const cage = rec.cage !== undefined && rec.cage !== null ? rec.cage : '';
+      const bucket = rec.bucket !== undefined && rec.bucket !== null ? rec.bucket : '';
+      const rat = rec.rat !== undefined && rec.rat !== null ? rec.rat : '';
+      const total = (Number(bait) || 0) + (Number(cage) || 0) + (Number(bucket) || 0) + (Number(rat) || 0);
+      return {
+        id: st.id,
+        name: st.name,
+        code: st.code,
+        area: st.area,
+        bait,
+        cage,
+        bucket,
+        rat,
+        total,
+        notes: rec.notes || ''
+      };
+    });
+    setRodentRows(rows);
+    setRodentEditReason(storedReason);
+  };
+
+  // Load Lizard Inspection Data
+  const loadLizardInspectionData = (month, year) => {
+    const stations = deriveLizardStations(null, true);
+    const key = `lizard_daily_${year}_${month}`;
+    let savedDaily = {};
+    let savedTotals = {};
+    let savedStationNotes = {};
+    let storedReason = '';
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          savedDaily = parsed.records || {};
+          savedTotals = parsed.monthlyTotals || {};
+          savedStationNotes = parsed.stationNotes || {};
+          storedReason = parsed.editReason || '';
+        } catch (e) {}
+      }
+    }
+
+    const rows = stations.map(st => {
+      let count = savedTotals[st.id] !== undefined && savedTotals[st.id] !== null ? savedTotals[st.id] : '';
+      if (count === '') {
+        let sum = 0;
+        let hasData = false;
+        Object.values(savedDaily).forEach(dayObj => {
+          if (dayObj && dayObj[st.id] !== undefined && dayObj[st.id] !== '') {
+            sum += Number(dayObj[st.id]) || 0;
+            hasData = true;
+          }
+        });
+        if (hasData) count = sum;
+      }
+
+      return {
+        id: st.id,
+        name: st.name,
+        area: st.area,
+        count,
+        notes: savedStationNotes[st.id] || ''
+      };
+    });
+    setLizardRows(rows);
+    setLizardEditReason(storedReason);
+  };
+
   useEffect(() => {
     handleLoadInspectionData();
   }, [selectedInspectionDept, selectedInspectionDate, allInspections]);
+
+  // Trigger loads when month/year/tab changes
+  useEffect(() => {
+    if (inspectionPestCategory === 'cockroaches') {
+      loadCockroachInspectionData(cockroachMonth, cockroachYear);
+    } else if (inspectionPestCategory === 'rodents') {
+      loadRodentInspectionData(rodentMonth, rodentYear);
+    } else if (inspectionPestCategory === 'lizards') {
+      loadLizardInspectionData(lizardMonth, lizardYear);
+    }
+  }, [inspectionPestCategory, cockroachMonth, cockroachYear, rodentMonth, rodentYear, lizardMonth, lizardYear]);
+
+  // Sync when points are modified anywhere in the app
+  useEffect(() => {
+    const handlePointsSync = () => {
+      if (inspectionPestCategory === 'light_traps') {
+        handleLoadInspectionData();
+      } else if (inspectionPestCategory === 'cockroaches') {
+        loadCockroachInspectionData(cockroachMonth, cockroachYear);
+      } else if (inspectionPestCategory === 'rodents') {
+        loadRodentInspectionData(rodentMonth, rodentYear);
+      } else if (inspectionPestCategory === 'lizards') {
+        loadLizardInspectionData(lizardMonth, lizardYear);
+      }
+    };
+    window.addEventListener('points-updated', handlePointsSync);
+    return () => window.removeEventListener('points-updated', handlePointsSync);
+  }, [inspectionPestCategory, selectedInspectionDept, selectedInspectionDate, cockroachMonth, cockroachYear, rodentMonth, rodentYear, lizardMonth, lizardYear]);
+
+  // Cockroach Cell Change
+  const handleCellChangeCockroach = (idx, field, val) => {
+    const updated = [...cockroachRows];
+    if (val === '') {
+      updated[idx][field] = '';
+    } else {
+      const num = parseInt(val, 10);
+      updated[idx][field] = isNaN(num) ? '' : Math.max(0, num);
+    }
+    const g = Number(updated[idx].german) || 0;
+    const a = Number(updated[idx].american) || 0;
+    updated[idx].total = g + a;
+    setCockroachRows(updated);
+  };
+
+  // Save Cockroach Edits
+  const handleSaveCockroachEdits = () => {
+    if (!cockroachEditReason.trim()) {
+      setAdminMessage({ text: 'กรุณาระบุเหตุผลที่แก้ไขข้อมูลก่อนบันทึก', type: 'error' });
+      return;
+    }
+    try {
+      const key = `cockroach_daily_${cockroachYear}_${cockroachMonth}`;
+      const recKey = `cockroach_records_${cockroachMonth}_${cockroachYear}`;
+      const records = {};
+      cockroachRows.forEach(r => {
+        records[r.id] = {
+          german: r.german === '' ? 0 : Number(r.german),
+          american: r.american === '' ? 0 : Number(r.american),
+          total: r.total,
+          notes: r.notes || ''
+        };
+      });
+      const payload = {
+        year: cockroachYear,
+        month: cockroachMonth,
+        records,
+        editReason: cockroachEditReason.trim(),
+        editedBy: currentUser?.name || currentUser?.username || 'admin',
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.setItem(recKey, JSON.stringify(payload));
+      setAdminMessage({ text: `บันทึกข้อมูลผลตรวจนับบ้านแมลงสาบ (${cockroachMonth} ${cockroachYear}) เรียบร้อยแล้ว`, type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', type: 'error' });
+    }
+  };
+
+  // Clear Cockroach Edits
+  const handleClearCockroachEdits = () => {
+    if (!confirm(`คุณต้องการล้างข้อมูลผลตรวจนับบ้านแมลงสาบเดือน ${cockroachMonth} ${cockroachYear} ทั้งหมดใช่หรือไม่?`)) return;
+    const key = `cockroach_daily_${cockroachYear}_${cockroachMonth}`;
+    const recKey = `cockroach_records_${cockroachMonth}_${cockroachYear}`;
+    localStorage.removeItem(key);
+    localStorage.removeItem(recKey);
+    loadCockroachInspectionData(cockroachMonth, cockroachYear);
+    setAdminMessage({ text: `ล้างข้อมูลบ้านแมลงสาบเดือน ${cockroachMonth} ${cockroachYear} เรียบร้อยแล้ว`, type: 'info' });
+  };
+
+  // Rodent Cell Change
+  const handleCellChangeRodent = (idx, field, val) => {
+    const updated = [...rodentRows];
+    if (val === '') {
+      updated[idx][field] = '';
+    } else {
+      const num = parseInt(val, 10);
+      updated[idx][field] = isNaN(num) ? '' : Math.max(0, num);
+    }
+    const b = Number(updated[idx].bait) || 0;
+    const c = Number(updated[idx].cage) || 0;
+    const bu = Number(updated[idx].bucket) || 0;
+    const r = Number(updated[idx].rat) || 0;
+    updated[idx].total = b + c + bu + r;
+    setRodentRows(updated);
+  };
+
+  // Save Rodent Edits
+  const handleSaveRodentEdits = () => {
+    if (!rodentEditReason.trim()) {
+      setAdminMessage({ text: 'กรุณาระบุเหตุผลที่แก้ไขข้อมูลก่อนบันทึก', type: 'error' });
+      return;
+    }
+    try {
+      const key = `rodent_${rodentYear}_${rodentMonth}`;
+      const recKey = `rodent_records_${rodentMonth}_${rodentYear}`;
+      const records = {};
+      rodentRows.forEach(r => {
+        records[r.id] = {
+          bait: r.bait === '' ? 0 : Number(r.bait),
+          cage: r.cage === '' ? 0 : Number(r.cage),
+          bucket: r.bucket === '' ? 0 : Number(r.bucket),
+          rat: r.rat === '' ? 0 : Number(r.rat),
+          total: r.total,
+          notes: r.notes || ''
+        };
+      });
+      const payload = {
+        year: rodentYear,
+        month: rodentMonth,
+        records,
+        editReason: rodentEditReason.trim(),
+        editedBy: currentUser?.name || currentUser?.username || 'admin',
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.setItem(recKey, JSON.stringify(payload));
+      setAdminMessage({ text: `บันทึกข้อมูลผลตรวจนับกับดักหนู (${rodentMonth} ${rodentYear}) เรียบร้อยแล้ว`, type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', type: 'error' });
+    }
+  };
+
+  // Clear Rodent Edits
+  const handleClearRodentEdits = () => {
+    if (!confirm(`คุณต้องการล้างข้อมูลผลตรวจนับกับดักหนูเดือน ${rodentMonth} ${rodentYear} ทั้งหมดใช่หรือไม่?`)) return;
+    const key = `rodent_${rodentYear}_${rodentMonth}`;
+    const recKey = `rodent_records_${rodentMonth}_${rodentYear}`;
+    localStorage.removeItem(key);
+    localStorage.removeItem(recKey);
+    loadRodentInspectionData(rodentMonth, rodentYear);
+    setAdminMessage({ text: `ล้างข้อมูลกับดักหนูเดือน ${rodentMonth} ${rodentYear} เรียบร้อยแล้ว`, type: 'info' });
+  };
+
+  // Lizard Cell Change
+  const handleCellChangeLizard = (idx, field, val) => {
+    const updated = [...lizardRows];
+    if (field === 'count') {
+      if (val === '') {
+        updated[idx].count = '';
+      } else {
+        const num = parseInt(val, 10);
+        updated[idx].count = isNaN(num) ? '' : Math.max(0, num);
+      }
+    } else {
+      updated[idx][field] = val;
+    }
+    setLizardRows(updated);
+  };
+
+  // Save Lizard Edits
+  const handleSaveLizardEdits = () => {
+    if (!lizardEditReason.trim()) {
+      setAdminMessage({ text: 'กรุณาระบุเหตุผลที่แก้ไขข้อมูลก่อนบันทึก', type: 'error' });
+      return;
+    }
+    try {
+      const key = `lizard_daily_${lizardYear}_${lizardMonth}`;
+      const recKey = `lizard_records_${lizardMonth}_${lizardYear}`;
+      const monthlyTotals = {};
+      const stationNotes = {};
+      lizardRows.forEach(r => {
+        monthlyTotals[r.id] = r.count === '' ? 0 : Number(r.count);
+        if (r.notes) stationNotes[r.id] = r.notes;
+      });
+      const existing = localStorage.getItem(key);
+      let parsed = {};
+      if (existing) {
+        try { parsed = JSON.parse(existing); } catch (e) {}
+      }
+      const payload = {
+        ...parsed,
+        year: lizardYear,
+        month: lizardMonth,
+        monthlyTotals,
+        stationNotes,
+        records: parsed.records || {},
+        editReason: lizardEditReason.trim(),
+        editedBy: currentUser?.name || currentUser?.username || 'admin',
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem(key, JSON.stringify(payload));
+      localStorage.setItem(recKey, JSON.stringify(payload));
+      setAdminMessage({ text: `บันทึกข้อมูลผลตรวจนับกับดักจิ้งจก (${lizardMonth} ${lizardYear}) เรียบร้อยแล้ว`, type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setAdminMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล', type: 'error' });
+    }
+  };
+
+  // Clear Lizard Edits
+  const handleClearLizardEdits = () => {
+    if (!confirm(`คุณต้องการล้างข้อมูลผลตรวจนับกับดักจิ้งจกเดือน ${lizardMonth} ${lizardYear} ทั้งหมดใช่หรือไม่?`)) return;
+    const key = `lizard_daily_${lizardYear}_${lizardMonth}`;
+    const recKey = `lizard_records_${lizardMonth}_${lizardYear}`;
+    localStorage.removeItem(key);
+    localStorage.removeItem(recKey);
+    loadLizardInspectionData(lizardMonth, lizardYear);
+    setAdminMessage({ text: `ล้างข้อมูลกับดักจิ้งจกเดือน ${lizardMonth} ${lizardYear} เรียบร้อยแล้ว`, type: 'info' });
+  };
+
+  // Inspection Point Modal Handlers
+  const handleOpenAddPointFromInspection = (category, defaultDept = '') => {
+    const points = getStoredPoints(category);
+    let nextNo = '';
+    if (category === 'light_traps') {
+      let maxNum = 0;
+      points.forEach(p => {
+        const m = p.no?.match(/\d+/);
+        if (m) {
+          const n = parseInt(m[0], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      nextNo = `(${String(maxNum + 1).padStart(2, '0')})`;
+    } else if (category === 'cockroaches') {
+      let maxNum = 0;
+      points.forEach(p => {
+        const n = parseInt(p.no, 10);
+        if (!isNaN(n) && n > maxNum) maxNum = n;
+      });
+      nextNo = String(maxNum + 1).padStart(2, '0');
+    } else if (category === 'lizards') {
+      let maxNum = 0;
+      points.forEach(p => {
+        const m = p.no?.match(/\d+/) || p.name?.match(/\d+/);
+        if (m) {
+          const n = parseInt(m[0], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+      nextNo = `สถานีที่ ${maxNum + 1}`;
+    } else {
+      nextNo = `สถานี ${points.length + 1}`;
+    }
+
+    setInspectionPointModal({
+      open: true,
+      mode: 'add',
+      category,
+      no: nextNo,
+      departmentOrZone: defaultDept || (category === 'lizards' ? 'โรงงาน' : ''),
+      location: '',
+      code: '',
+      notes: ''
+    });
+  };
+
+  const handleOpenEditPointFromInspection = (category, ptObj) => {
+    setInspectionPointModal({
+      open: true,
+      mode: 'edit',
+      category,
+      id: ptObj.id,
+      no: ptObj.no || ptObj.name || '',
+      departmentOrZone: ptObj.department || ptObj.zone || (category === 'lizards' ? 'โรงงาน' : ''),
+      location: ptObj.location || ptObj.area || '',
+      code: ptObj.code || '',
+      notes: ptObj.notes || ''
+    });
+  };
+
+  const handleSaveInspectionPointModal = () => {
+    if (!inspectionPointModal) return;
+    const { mode, category, id, no, departmentOrZone, location, code, notes } = inspectionPointModal;
+    if (!no?.trim()) {
+      alert('กรุณาระบุหมายเลขจุด');
+      return;
+    }
+
+    const payload = {
+      no: no.trim(),
+      department: (category !== 'cockroaches' && category !== 'lizards') ? (departmentOrZone?.trim() || '') : (category === 'lizards' ? 'โรงงาน' : ''),
+      zone: category === 'cockroaches' ? (departmentOrZone?.trim() || '') : '',
+      location: location.trim() || departmentOrZone.trim() || (category === 'lizards' ? `จุดตรวจดักจับจิ้งจก ${no.trim()}` : ''),
+      code: code ? code.trim() : '',
+      status: 'active',
+      notes: notes ? notes.trim() : ''
+    };
+
+    if (mode === 'add') {
+      addPoint(category, payload);
+      setAdminMessage({ text: `เพิ่มจุด/สถานี ${no} สำเร็จ`, type: 'success' });
+    } else {
+      updatePoint(category, id, payload);
+      setAdminMessage({ text: `บันทึกการแก้ไขจุด/สถานี ${no} สำเร็จ`, type: 'success' });
+    }
+
+    setInspectionPointModal(null);
+
+    // Refresh active view
+    if (category === 'light_traps') {
+      handleLoadInspectionData();
+    } else if (category === 'cockroaches') {
+      loadCockroachInspectionData(cockroachMonth, cockroachYear);
+    } else if (category === 'rodents') {
+      loadRodentInspectionData(rodentMonth, rodentYear);
+    } else if (category === 'lizards') {
+      loadLizardInspectionData(lizardMonth, lizardYear);
+    }
+  };
+
+  const handleDeletePointFromInspection = (category, ptId, ptName) => {
+    if (!confirm(`คุณต้องการลบจุด "${ptName}" ออกจากระบบใช่หรือไม่?\nการดำเนินการนี้จะอัปเดตแบบฟอร์มบันทึกทันที`)) return;
+    deletePoint(category, ptId);
+    setAdminMessage({ text: `ลบจุด ${ptName} เรียบร้อยแล้ว`, type: 'success' });
+
+    if (category === 'light_traps') {
+      handleLoadInspectionData();
+    } else if (category === 'cockroaches') {
+      loadCockroachInspectionData(cockroachMonth, cockroachYear);
+    } else if (category === 'rodents') {
+      loadRodentInspectionData(rodentMonth, rodentYear);
+    } else if (category === 'lizards') {
+      loadLizardInspectionData(lizardMonth, lizardYear);
+    }
+  };
 
   // Get unique dates available in database
   const getUniqueDates = () => {
@@ -1968,6 +2489,16 @@ export default function AdminPage() {
               >
                 📊 ดึงข้อมูลทำรายงานนำเสนอ
               </button>
+              <button
+                onClick={() => setActiveTab('points')}
+                className={`pb-2.5 px-4 text-xs font-black border-b-2 transition-all cursor-pointer ${
+                  activeTab === 'points'
+                    ? 'border-indigo-650 text-indigo-650 dark:border-indigo-500 dark:text-indigo-400'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                📍 จัดการจุดตรวจและเครื่องดัก (Points & Traps)
+              </button>
             </div>
 
             {/* Admin Alerts Panel */}
@@ -2222,216 +2753,1110 @@ export default function AdminPage() {
             )}
 
             {activeTab === 'inspections' && (
-              /* --- TAB 2: INSPECTION DATA EDITING --- */
-              <div className="grid lg:grid-cols-12 gap-8 animate-in fade-in duration-200">
-                {/* Control Panel - Left Column (4 cols) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
-                  <div className="flex items-center gap-2 mb-5">
-                    <div className="w-8 h-8 rounded-xl bg-purple-550/10 text-purple-650 dark:text-purple-400 flex items-center justify-center font-bold text-base">
-                      ⚙️
+              /* --- TAB 2: INSPECTION DATA EDITING (MULTI-PEST & INLINE POINTS MANAGEMENT) --- */
+              <div className="space-y-6 animate-in fade-in duration-200">
+                {/* Category Switcher Banner */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
+                        Data & Points Editor
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        แก้ไขผลตรวจนับและจุดติดตั้ง
+                      </span>
                     </div>
-                    <h3 className="text-sm font-bold text-slate-855 dark:text-white">
-                      เลือกชุดข้อมูลที่ต้องการแก้ไข
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white mt-1">
+                      เลือกหมวดหมู่ที่ต้องการแก้ไขปรับปรุง
                     </h3>
                   </div>
 
-                  <div className="space-y-4">
-                    {/* Department Selector */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกแผนก</label>
-                      <select
-                        value={selectedInspectionDept}
-                        onChange={(e) => setSelectedInspectionDept(e.target.value)}
-                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
-                      >
-                        <option value="">-- เลือกแผนก --</option>
-                        {DEPTS_LIST.map((d) => (
-                          <option key={d} value={d}>แผนก {d}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Date Selector */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกวันที่มีบันทึกแล้วในระบบ</label>
-                      <select
-                        value={selectedInspectionDate}
-                        onChange={(e) => setSelectedInspectionDate(e.target.value)}
-                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200 mb-2"
-                      >
-                        <option value="">-- เลือกวันที่ --</option>
-                        {getUniqueDates().map((d) => (
-                          <option key={d} value={d}>
-                            {d.split('-').reverse().join('/')} (ค.ศ. {d.split('-')[0]})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-slate-400 py-1">
-                      <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">หรือระบุวันที่เอง</span>
-                      <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ระบุวันที่ตรวจนับ (ปฏิทิน)</label>
-                      <input
-                        type="date"
-                        value={selectedInspectionDate}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          // If selected BE calendar year, normalize to CE
-                          const parts = val.split('-');
-                          if (parts.length === 3) {
-                            let y = parseInt(parts[0], 10);
-                            if (y > 2400) {
-                              y -= 543;
-                              setSelectedInspectionDate(`${y}-${parts[1]}-${parts[2]}`);
-                              return;
-                            }
-                          }
-                          setSelectedInspectionDate(val);
-                        }}
-                        className="w-full px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
-                      />
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { id: 'light_traps', label: 'เครื่องดักแมลง', icon: '🪰' },
+                      { id: 'cockroaches', label: 'บ้านแมลงสาบ', icon: '🪳' },
+                      { id: 'rodents', label: 'กับดักหนู', icon: '🐀' },
+                      { id: 'lizards', label: 'กับดักจิ้งจก', icon: '🦎' },
+                    ].map(cat => (
                       <button
-                        onClick={handleSaveInspectionEdits}
-                        disabled={inspectionRows.length === 0 || isLoading}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-950 text-white hover:bg-indigo-650 dark:bg-white dark:text-slate-950 dark:hover:bg-indigo-500 dark:hover:text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setInspectionPestCategory(cat.id)}
+                        className={`px-3.5 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                          inspectionPestCategory === cat.id
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/25 ring-2 ring-indigo-500/20'
+                            : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
                       >
-                        <Save className="w-3.5 h-3.5" />
-                        <span>บันทึกการปรับปรุงข้อมูล</span>
+                        <span>{cat.icon}</span>
+                        <span>{cat.label}</span>
                       </button>
+                    ))}
 
-                      <button
-                        onClick={handleDeleteInspectionEdits}
-                        disabled={inspectionRows.length === 0 || isLoading}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Trash className="w-3.5 h-3.5" />
-                        <span>ลบแผนกนี้ในสัปดาห์นี้</span>
-                      </button>
-
-                      <button
-                        onClick={handleDeleteAllDeptsInspectionEdits}
-                        disabled={!selectedInspectionDate || isLoading}
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Trash className="w-3.5 h-3.5" />
-                        <span>ลบของทุกแผนกในสัปดาห์นี้</span>
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPointInitialCategory(inspectionPestCategory);
+                        setActiveTab('points');
+                      }}
+                      title="ไปที่แท็บจัดการจุดตรวจและเครื่องดักแบบละเอียด"
+                      className="px-3.5 py-2 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-300 border border-dashed border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-1.5 cursor-pointer ml-auto sm:ml-2"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>จัดการจุดทั้งหมด</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Table Side - Right Column (8 cols) */}
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-6">
-                      <Calendar className="w-5 h-5 text-indigo-500" />
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-855 dark:text-white">
-                          ตารางแก้ไขยอดสถิติจำนวนแมลงรายจุด
-                        </h3>
-                        <p className="text-[10px] text-slate-450 mt-0.5">
-                          {selectedInspectionDept && selectedInspectionDate 
-                            ? `แสดงรายการเครื่องดักของแผนก "${selectedInspectionDept}" ณ วันที่ ${selectedInspectionDate.split('-').reverse().join('/')}`
-                            : 'กรุณาเลือกแผนกและระบุวันที่ตรวจนับที่แผงควบคุมซ้ายมือ เพื่อเรียกดูตารางข้อมูล'}
-                        </p>
+                {/* --- 1. LIGHT TRAPS INSPECTION EDITING --- */}
+                {inspectionPestCategory === 'light_traps' && (
+                  <div className="grid lg:grid-cols-12 gap-8">
+                    {/* Control Panel - Left Column (4 cols) */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-base">
+                          🪰
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                            ชุดข้อมูลเครื่องดักแมลง
+                          </h3>
+                          <p className="text-[10px] text-slate-450">เลือกแผนกและสัปดาห์ที่ต้องการแก้ไข</p>
+                        </div>
                       </div>
-                    </div>
 
-                    {inspectionRows.length === 0 ? (
-                      <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20">
-                        <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2.5 animate-pulse" />
-                        <h4 className="text-xs font-extrabold text-slate-600 dark:text-slate-400 mb-1">
-                          ไม่มีข้อมูลแสดงผลในรอบนี้
-                        </h4>
-                        <p className="text-[10px] text-slate-450 max-w-sm mx-auto">
-                          แผนกนี้ยังไม่มีข้อมูลบันทึกในวันที่ระบุ หรือไม่ได้มีการเลือกวันที่/แผนก กรุณาระบุข้อมูลเพื่อทำการแก้ไขหรือเริ่มบันทึกใหม่
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
-                          <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                            <tr>
-                              <th className="py-2.5 px-3 font-bold">ตำแหน่งเครื่องดักแมลง (Trap Area)</th>
-                              <th className="py-2.5 px-2 font-bold text-center">แมลงวัน</th>
-                              <th className="py-2.5 px-2 font-bold text-center">ยุง</th>
-                              <th className="py-2.5 px-2 font-bold text-center">มด</th>
-                              <th className="py-2.5 px-2 font-bold text-center">แมลงอื่นๆ</th>
-                              <th className="py-2.5 px-3 font-bold text-center">รายละเอียดแมลงอื่น</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                            {inspectionRows.map((row, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
-                                <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 max-w-[240px] truncate">
-                                  {row.area}
-                                </td>
-                                <td className="py-3 px-2 text-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={row.flies}
-                                    onChange={(e) => handleCellChange(idx, 'flies', e.target.value)}
-                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
-                                  />
-                                </td>
-                                <td className="py-3 px-2 text-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={row.mosquitoes}
-                                    onChange={(e) => handleCellChange(idx, 'mosquitoes', e.target.value)}
-                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
-                                  />
-                                </td>
-                                <td className="py-3 px-2 text-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={row.ants}
-                                    onChange={(e) => handleCellChange(idx, 'ants', e.target.value)}
-                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
-                                  />
-                                </td>
-                                <td className="py-3 px-2 text-center">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    placeholder="0"
-                                    value={row.others}
-                                    onChange={(e) => handleCellChange(idx, 'others', e.target.value)}
-                                    className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
-                                  />
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenOthersModal(idx)}
-                                    className="mx-auto inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-350 transition-all cursor-pointer"
-                                  >
-                                    <span>💬 ({row.othersDetails?.length || 0} รายการ)</span>
-                                  </button>
-                                </td>
-                              </tr>
+                      <div className="space-y-4">
+                        {/* Department Selector */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกแผนก</label>
+                          <select
+                            value={selectedInspectionDept}
+                            onChange={(e) => setSelectedInspectionDept(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            <option value="">-- เลือกแผนก --</option>
+                            {deriveDepartmentsList().map((d) => (
+                              <option key={d} value={d}>แผนก {d}</option>
                             ))}
-                          </tbody>
-                        </table>
+                          </select>
+                        </div>
+
+                        {/* Date Selector */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เลือกวันที่มีบันทึกแล้วในระบบ</label>
+                          <select
+                            value={selectedInspectionDate}
+                            onChange={(e) => setSelectedInspectionDate(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200 mb-2"
+                          >
+                            <option value="">-- เลือกวันที่ --</option>
+                            {getUniqueDates().map((d) => (
+                              <option key={d} value={d}>
+                                {d.split('-').reverse().join('/')} (ค.ศ. {d.split('-')[0]})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-slate-400 py-1">
+                          <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">หรือระบุวันที่เอง</span>
+                          <div className="border-t border-slate-200 dark:border-slate-800 flex-grow" />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ระบุวันที่ตรวจนับ (ปฏิทิน)</label>
+                          <input
+                            type="date"
+                            value={selectedInspectionDate}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              const parts = val.split('-');
+                              if (parts.length === 3) {
+                                let y = parseInt(parts[0], 10);
+                                if (y > 2400) {
+                                  y -= 543;
+                                  setSelectedInspectionDate(`${y}-${parts[1]}-${parts[2]}`);
+                                  return;
+                                }
+                              }
+                              setSelectedInspectionDate(val);
+                            }}
+                            className="w-full px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                          <button
+                            type="button"
+                            onClick={handleSaveInspectionEdits}
+                            disabled={inspectionRows.length === 0 || isLoading}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md shadow-indigo-600/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>บันทึกการปรับปรุงข้อมูล</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDeleteInspectionEdits}
+                            disabled={inspectionRows.length === 0 || isLoading}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                            <span>ลบแผนกนี้ในสัปดาห์นี้</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDeleteAllDeptsInspectionEdits}
+                            disabled={!selectedInspectionDate || isLoading}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-red-600 dark:border-red-500 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                            <span>ลบของทุกแผนกในสัปดาห์นี้</span>
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    </div>
+
+                    {/* Table Side - Right Column (8 cols) */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-indigo-500 shrink-0" />
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                                ตารางแก้ไขยอดสถิติจำนวนแมลงรายจุด
+                              </h3>
+                              <p className="text-[10px] text-slate-450 mt-0.5">
+                                {selectedInspectionDept && selectedInspectionDate 
+                                  ? `แสดงรายการเครื่องดักของแผนก "${selectedInspectionDept}" ณ วันที่ ${selectedInspectionDate.split('-').reverse().join('/')}`
+                                  : 'กรุณาเลือกแผนกและระบุวันที่ตรวจนับที่แผงควบคุมซ้ายมือ เพื่อเรียกดูตารางข้อมูล'}
+                              </p>
+                            </div>
+                          </div>
+
+                          {selectedInspectionDept && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddPointFromInspection('light_traps', selectedInspectionDept)}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>+ เพิ่มเครื่องดักในแผนกนี้</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {inspectionRows.length === 0 ? (
+                          <div className="py-16 text-center border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20">
+                            <AlertCircle className="w-8 h-8 text-slate-400 mx-auto mb-2.5 animate-pulse" />
+                            <h4 className="text-xs font-extrabold text-slate-600 dark:text-slate-400 mb-1">
+                              ไม่มีข้อมูลแสดงผลในรอบนี้
+                            </h4>
+                            <p className="text-[10px] text-slate-450 max-w-sm mx-auto mb-3">
+                              แผนกนี้ยังไม่มีข้อมูลบันทึกในวันที่ระบุ หรือไม่ได้มีการเลือกวันที่/แผนก กรุณาระบุข้อมูลเพื่อทำการแก้ไขหรือเริ่มบันทึกใหม่
+                            </p>
+                            {selectedInspectionDept && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAddPointFromInspection('light_traps', selectedInspectionDept)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>+ เพิ่มเครื่องดักแมลงจุดแรกในแผนก {selectedInspectionDept}</span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                              <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                <tr>
+                                  <th className="py-2.5 px-3 font-bold">ตำแหน่งเครื่องดักแมลง (Trap Area)</th>
+                                  <th className="py-2.5 px-2 font-bold text-center">แมลงวัน</th>
+                                  <th className="py-2.5 px-2 font-bold text-center">ยุง</th>
+                                  <th className="py-2.5 px-2 font-bold text-center">มด</th>
+                                  <th className="py-2.5 px-2 font-bold text-center">แมลงอื่นๆ</th>
+                                  <th className="py-2.5 px-3 font-bold text-center">รายละเอียด</th>
+                                  <th className="py-2.5 px-2 font-bold text-center w-20">จัดการจุด</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                                {inspectionRows.map((row, idx) => {
+                                  const storedTraps = getStoredPoints('light_traps');
+                                  const ptObj = storedTraps.find(p => p.name === row.area || row.area?.includes(p.location) || (p.no && row.area?.startsWith(p.no)));
+
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                      <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200 max-w-[240px]">
+                                        <div className="truncate" title={row.area}>{row.area}</div>
+                                      </td>
+                                      <td className="py-3 px-2 text-center">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="0"
+                                          value={row.flies}
+                                          onChange={(e) => handleCellChange(idx, 'flies', e.target.value)}
+                                          className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                        />
+                                      </td>
+                                      <td className="py-3 px-2 text-center">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="0"
+                                          value={row.mosquitoes}
+                                          onChange={(e) => handleCellChange(idx, 'mosquitoes', e.target.value)}
+                                          className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                        />
+                                      </td>
+                                      <td className="py-3 px-2 text-center">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="0"
+                                          value={row.ants}
+                                          onChange={(e) => handleCellChange(idx, 'ants', e.target.value)}
+                                          className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                        />
+                                      </td>
+                                      <td className="py-3 px-2 text-center">
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          placeholder="0"
+                                          value={row.others}
+                                          onChange={(e) => handleCellChange(idx, 'others', e.target.value)}
+                                          className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-955 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                                        />
+                                      </td>
+                                      <td className="py-3 px-3 text-center">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenOthersModal(idx)}
+                                          className="mx-auto inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-350 transition-all cursor-pointer"
+                                        >
+                                          <span>💬 ({row.othersDetails?.length || 0})</span>
+                                        </button>
+                                      </td>
+                                      <td className="py-3 px-2 text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenEditPointFromInspection('light_traps', ptObj || { no: row.area.match(/\((.*?)\)/)?.[0] || '(XX)', location: row.area, department: selectedInspectionDept })}
+                                            title="แก้ไขชื่อหรือตำแหน่งจุดนี้"
+                                            className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:text-indigo-600 text-slate-400 transition-all cursor-pointer"
+                                          >
+                                            <Pencil className="w-3 h-3" />
+                                          </button>
+                                          {ptObj && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeletePointFromInspection('light_traps', ptObj.id, ptObj.name || row.area)}
+                                              title="ลบจุดนี้ออกจากระบบ"
+                                              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 text-slate-400 transition-all cursor-pointer"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {inspectionRows.length > 0 && selectedInspectionDept && (
+                          <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                            <span className="text-[11px] text-slate-450">
+                              ทั้งหมด {inspectionRows.length} เครื่อง ในแผนก {selectedInspectionDept}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddPointFromInspection('light_traps', selectedInspectionDept)}
+                              className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>+ เพิ่มเครื่องดักในแผนกนี้</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* --- 2. COCKROACH TRAPS INSPECTION EDITING --- */}
+                {inspectionPestCategory === 'cockroaches' && (
+                  <div className="grid lg:grid-cols-12 gap-8">
+                    {/* Control Panel - Left Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold text-base">
+                          🪳
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                            ชุดข้อมูลบ้านแมลงสาบ
+                          </h3>
+                          <p className="text-[10px] text-slate-450">เลือกเดือนและปีที่ต้องการแก้ไข</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Year */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ปี พ.ศ.</label>
+                          <select
+                            value={cockroachYear}
+                            onChange={(e) => setCockroachYear(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            <option value="2569">2569 (2026)</option>
+                            <option value="2568">2568 (2025)</option>
+                            <option value="2567">2567 (2024)</option>
+                          </select>
+                        </div>
+
+                        {/* Month */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เดือน</label>
+                          <select
+                            value={cockroachMonth}
+                            onChange={(e) => setCockroachMonth(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Zone Filter */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">กรองตามโซนพื้นที่</label>
+                          <select
+                            value={cockroachZoneFilter}
+                            onChange={(e) => setCockroachZoneFilter(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            <option value="all">ทุกโซนพื้นที่ ({cockroachRows.length} จุด)</option>
+                            {deriveCockroachZones().map(z => (
+                              <option key={z} value={z}>{z}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Edit Reason */}
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-slate-455 mb-1">
+                            เหตุผลที่แก้ไข <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={cockroachEditReason}
+                            onChange={(e) => setCockroachEditReason(e.target.value)}
+                            placeholder="ระบุเหตุผลที่แก้ไขข้อมูล เช่น นับผิดพลาด / ข้อมูลหาย / ปรับปรุงหลังตรวจสอบ"
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-amber-300 dark:border-amber-700 focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-200 resize-none"
+                          />
+                          {cockroachEditReason && (
+                            <p className="mt-1 text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <span>📝</span> บันทึกเหตุผลแล้ว
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                          <button
+                            type="button"
+                            onClick={handleSaveCockroachEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md shadow-amber-600/25 cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>บันทึกข้อมูลบ้านแมลงสาบ</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleClearCockroachEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                            <span>ล้างข้อมูลเดือนนี้</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table Side - Right Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-amber-500 shrink-0" />
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                                ตารางแก้ไขผลตรวจนับบ้านแมลงสาบ ({cockroachMonth} {cockroachYear})
+                              </h3>
+                              <p className="text-[10px] text-slate-450 mt-0.5">
+                                บันทึกยอดตัวเลขแมลงสาบเยอรมัน / แมลงสาบอเมริกัน รายจุด
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('cockroaches', cockroachZoneFilter !== 'all' ? cockroachZoneFilter : '')}
+                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>+ เพิ่มจุดวางบ้านแมลงสาบ</span>
+                          </button>
+                        </div>
+
+                        {cockroachEditReason && (
+                          <div className="mb-4 px-3.5 py-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5">📝</span>
+                            <div><span className="font-bold">เหตุผลที่แก้ไข: </span>{cockroachEditReason}</div>
+                          </div>
+                        )}
+
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                            <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                              <tr>
+                                <th className="py-2.5 px-3 font-bold w-16 text-center">จุดที่</th>
+                                <th className="py-2.5 px-3 font-bold">โซนพื้นที่</th>
+                                <th className="py-2.5 px-2 font-bold text-center">แมลงสาบเยอรมัน</th>
+                                <th className="py-2.5 px-2 font-bold text-center">แมลงสาบอเมริกัน</th>
+                                <th className="py-2.5 px-2 font-bold text-center">รวม (ตัว)</th>
+                                <th className="py-2.5 px-3 font-bold">หมายเหตุ</th>
+                                <th className="py-2.5 px-2 font-bold text-center w-20">จัดการ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                              {cockroachRows
+                                .filter(r => cockroachZoneFilter === 'all' || r.zone === cockroachZoneFilter)
+                                .map((row, idx) => (
+                                  <tr key={row.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                    <td className="py-3 px-3 font-mono font-black text-center text-amber-800 dark:text-amber-300">
+                                      {row.no}
+                                    </td>
+                                    <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                      {row.zone}
+                                    </td>
+                                    <td className="py-3 px-2 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        value={row.german}
+                                        onChange={(e) => handleCellChangeCockroach(idx, 'german', e.target.value)}
+                                        className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-200"
+                                      />
+                                    </td>
+                                    <td className="py-3 px-2 text-center">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        value={row.american}
+                                        onChange={(e) => handleCellChangeCockroach(idx, 'american', e.target.value)}
+                                        className="w-16 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-200"
+                                      />
+                                    </td>
+                                    <td className="py-3 px-2 text-center font-mono font-black text-xs text-amber-700 dark:text-amber-400">
+                                      {row.total}
+                                    </td>
+                                    <td className="py-3 px-3">
+                                      <input
+                                        type="text"
+                                        placeholder="เช่น มีคราบมัน"
+                                        value={row.notes || ''}
+                                        onChange={(e) => {
+                                          const updated = [...cockroachRows];
+                                          updated[idx].notes = e.target.value;
+                                          setCockroachRows(updated);
+                                        }}
+                                        className="w-full px-2 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                                      />
+                                    </td>
+                                    <td className="py-3 px-2 text-center">
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenEditPointFromInspection('cockroaches', row)}
+                                          title="แก้ไขจุดวางบ้านแมลงสาบนี้"
+                                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/50 hover:text-amber-600 text-slate-400 transition-all cursor-pointer"
+                                        >
+                                          <Pencil className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeletePointFromInspection('cockroaches', row.id, `จุด ${row.no} (${row.zone})`)}
+                                          title="ลบจุดนี้ออกจากระบบ"
+                                          className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 text-slate-400 transition-all cursor-pointer"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                          <span className="text-[11px] text-slate-450">
+                            รวมยอดแมลงสาบเดือนนี้: {cockroachRows.reduce((sum, r) => sum + (Number(r.total) || 0), 0)} ตัว
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('cockroaches', cockroachZoneFilter !== 'all' ? cockroachZoneFilter : '')}
+                            className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ เพิ่มจุดวางบ้านแมลงสาบใหม่</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- 3. RODENT STATIONS INSPECTION EDITING --- */}
+                {inspectionPestCategory === 'rodents' && (
+                  <div className="grid lg:grid-cols-12 gap-8">
+                    {/* Control Panel - Left Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-base">
+                          🐀
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                            ชุดข้อมูลกับดักหนู
+                          </h3>
+                          <p className="text-[10px] text-slate-450">เลือกเดือนและปีที่ต้องการแก้ไข</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Year */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ปี พ.ศ.</label>
+                          <select
+                            value={rodentYear}
+                            onChange={(e) => setRodentYear(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            <option value="2569">2569 (2026)</option>
+                            <option value="2568">2568 (2025)</option>
+                          </select>
+                        </div>
+
+                        {/* Month */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เดือน</label>
+                          <select
+                            value={rodentMonth}
+                            onChange={(e) => setRodentMonth(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Edit Reason */}
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-slate-455 mb-1">
+                            เหตุผลที่แก้ไข <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={rodentEditReason}
+                            onChange={(e) => setRodentEditReason(e.target.value)}
+                            placeholder="ระบุเหตุผลที่แก้ไขข้อมูล เช่น นับผิดพลาด / ข้อมูลหาย / ปรับปรุงหลังตรวจสอบ"
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-emerald-300 dark:border-emerald-700 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200 resize-none"
+                          />
+                          {rodentEditReason && (
+                            <p className="mt-1 text-[10px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                              <span>📝</span> บันทึกเหตุผลแล้ว
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                          <button
+                            type="button"
+                            onClick={handleSaveRodentEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md shadow-emerald-600/25 cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>บันทึกข้อมูลกับดักหนู</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleClearRodentEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                            <span>ล้างข้อมูลเดือนนี้</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table Side - Right Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-emerald-500 shrink-0" />
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                                ตารางแก้ไขผลตรวจนับกับดักหนู ({rodentMonth} {rodentYear})
+                              </h3>
+                              <p className="text-[10px] text-slate-450 mt-0.5">
+                                บันทึกยอดตรวจพบตามประเภทกับดัก (เหยื่อ, กรง, ถัง, แร็ท)
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('rodents', 'สโตร์')}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>+ เพิ่มสถานีกับดักหนู</span>
+                          </button>
+                        </div>
+
+                        {rodentEditReason && (
+                          <div className="mb-4 px-3.5 py-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs text-emerald-800 dark:text-emerald-300 flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5">📝</span>
+                            <div><span className="font-bold">เหตุผลที่แก้ไข: </span>{rodentEditReason}</div>
+                          </div>
+                        )}
+
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                            <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                              <tr>
+                                <th className="py-2.5 px-3 font-bold">สถานีตรวจวัด</th>
+                                <th className="py-2.5 px-2 font-bold text-center">เหยื่อหนู</th>
+                                <th className="py-2.5 px-2 font-bold text-center">กรงดักหนู</th>
+                                <th className="py-2.5 px-2 font-bold text-center">ถังดักหนู</th>
+                                <th className="py-2.5 px-2 font-bold text-center">แร็ทดักหนู</th>
+                                <th className="py-2.5 px-2 font-bold text-center">รวมพบ</th>
+                                <th className="py-2.5 px-3 font-bold">หมายเหตุ</th>
+                                <th className="py-2.5 px-2 font-bold text-center w-20">จัดการ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                              {rodentRows.map((row, idx) => (
+                                <tr key={row.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                  <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                    <div>{row.name} ({row.code})</div>
+                                    <div className="text-[10px] text-slate-450">{row.area}</div>
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={row.bait}
+                                      onChange={(e) => handleCellChangeRodent(idx, 'bait', e.target.value)}
+                                      className="w-14 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={row.cage}
+                                      onChange={(e) => handleCellChangeRodent(idx, 'cage', e.target.value)}
+                                      className="w-14 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={row.bucket}
+                                      onChange={(e) => handleCellChangeRodent(idx, 'bucket', e.target.value)}
+                                      className="w-14 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={row.rat}
+                                      onChange={(e) => handleCellChangeRodent(idx, 'rat', e.target.value)}
+                                      className="w-14 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center font-mono font-black text-xs text-emerald-700 dark:text-emerald-400">
+                                    {row.total}
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <input
+                                      type="text"
+                                      placeholder="เช่น สภาพปกติ"
+                                      value={row.notes || ''}
+                                      onChange={(e) => {
+                                        const updated = [...rodentRows];
+                                        updated[idx].notes = e.target.value;
+                                        setRodentRows(updated);
+                                      }}
+                                      className="w-full px-2 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditPointFromInspection('rodents', row)}
+                                        title="แก้ไขสถานีกับดักหนูนี้"
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 hover:text-emerald-600 text-slate-400 transition-all cursor-pointer"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePointFromInspection('rodents', row.id, row.name)}
+                                        title="ลบสถานีนี้ออกจากระบบ"
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 text-slate-400 transition-all cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                          <span className="text-[11px] text-slate-450">
+                            รวมพบหนูทุกสถานี: {rodentRows.reduce((sum, r) => sum + (Number(r.total) || 0), 0)} ตัว
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('rodents', 'สโตร์')}
+                            className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ เพิ่มสถานีกับดักหนูใหม่</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- 4. LIZARD TRAPS INSPECTION EDITING --- */}
+                {inspectionPestCategory === 'lizards' && (
+                  <div className="grid lg:grid-cols-12 gap-8">
+                    {/* Control Panel - Left Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-4 h-fit">
+                      <div className="flex items-center gap-2 mb-5">
+                        <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center font-bold text-base">
+                          🦎
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                            ชุดข้อมูลกับดักจิ้งจก
+                          </h3>
+                          <p className="text-[10px] text-slate-450">เลือกเดือนและปีที่ต้องการแก้ไข</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Year */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">ปี พ.ศ.</label>
+                          <select
+                            value={lizardYear}
+                            onChange={(e) => setLizardYear(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            <option value="2569">2569 (2026)</option>
+                            <option value="2568">2568 (2025)</option>
+                          </select>
+                        </div>
+
+                        {/* Month */}
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-455 uppercase mb-1">เดือน</label>
+                          <select
+                            value={lizardMonth}
+                            onChange={(e) => setLizardMonth(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-855 dark:text-slate-200"
+                          >
+                            {['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map(m => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Edit Reason */}
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-slate-455 mb-1">
+                            เหตุผลที่แก้ไข <span className="text-red-500">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={lizardEditReason}
+                            onChange={(e) => setLizardEditReason(e.target.value)}
+                            placeholder="ระบุเหตุผลที่แก้ไขข้อมูล เช่น นับผิดพลาด / ข้อมูลหาย / ปรับปรุงหลังตรวจสอบ"
+                            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-950 border border-cyan-300 dark:border-cyan-700 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-800 dark:text-slate-200 resize-none"
+                          />
+                          {lizardEditReason && (
+                            <p className="mt-1 text-[10px] text-cyan-600 dark:text-cyan-400 flex items-center gap-1">
+                              <span>📝</span> บันทึกเหตุผลแล้ว
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col gap-2 pt-4 border-t border-slate-100 dark:border-slate-855">
+                          <button
+                            type="button"
+                            onClick={handleSaveLizardEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-cyan-600 hover:bg-cyan-700 active:scale-95 text-white text-xs font-extrabold rounded-2xl transition-all shadow-md shadow-cyan-600/25 cursor-pointer"
+                          >
+                            <Save className="w-3.5 h-3.5" />
+                            <span>บันทึกข้อมูลกับดักจิ้งจก</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleClearLizardEdits}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-2xl transition-all shadow-sm cursor-pointer"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                            <span>ล้างข้อมูลเดือนนี้</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table Side - Right Column */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-6 shadow-sm lg:col-span-8 flex flex-col justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-5 h-5 text-cyan-500 shrink-0" />
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-855 dark:text-white">
+                                ตารางแก้ไขผลตรวจนับกับดักจิ้งจก ({lizardMonth} {lizardYear})
+                              </h3>
+                              <p className="text-[10px] text-slate-450 mt-0.5">
+                                บันทึกยอดจำนวนจิ้งจกที่พบ/ดักจับได้ประจำเดือน
+                              </p>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('lizards', 'โรงงาน')}
+                            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 active:scale-95 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1 shadow-sm cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                            <span>+ เพิ่มสถานีกับดักจิ้งจก</span>
+                          </button>
+                        </div>
+
+                        {lizardEditReason && (
+                          <div className="mb-4 px-3.5 py-2.5 bg-cyan-50 dark:bg-cyan-950/30 border border-cyan-200 dark:border-cyan-800 rounded-xl text-xs text-cyan-800 dark:text-cyan-300 flex items-start gap-2">
+                            <span className="shrink-0 mt-0.5">📝</span>
+                            <div><span className="font-bold">เหตุผลที่แก้ไข: </span>{lizardEditReason}</div>
+                          </div>
+                        )}
+
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-xs text-left text-slate-600 dark:text-slate-400">
+                            <thead className="text-[10px] uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                              <tr>
+                                <th className="py-2.5 px-3 font-bold w-28 text-center">สถานี</th>
+                                <th className="py-2.5 px-3 font-bold">ตำแหน่งติดตั้ง / พื้นที่</th>
+                                <th className="py-2.5 px-2 font-bold text-center w-36">จิ้งจกที่พบ (ตัว)</th>
+                                <th className="py-2.5 px-3 font-bold">หมายเหตุ / สภาพ</th>
+                                <th className="py-2.5 px-2 font-bold text-center w-20">จัดการ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                              {lizardRows.map((row, idx) => (
+                                <tr key={row.id || idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/50 transition-colors">
+                                  <td className="py-3 px-3 font-mono font-black text-center text-cyan-800 dark:text-cyan-300">
+                                    {row.name}
+                                  </td>
+                                  <td className="py-3 px-3 font-bold text-slate-800 dark:text-slate-200">
+                                    {row.area}
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      placeholder="0"
+                                      value={row.count}
+                                      onChange={(e) => handleCellChangeLizard(idx, 'count', e.target.value)}
+                                      className="w-20 px-2 py-1 text-center font-extrabold text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3">
+                                    <input
+                                      type="text"
+                                      placeholder="เช่น แผ่นกาวสะอาด ปกติ"
+                                      value={row.notes || ''}
+                                      onChange={(e) => handleCellChangeLizard(idx, 'notes', e.target.value)}
+                                      className="w-full px-2 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none text-slate-800 dark:text-slate-200"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditPointFromInspection('lizards', row)}
+                                        title="แก้ไขสถานีกับดักจิ้งจกนี้"
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-cyan-50 dark:hover:bg-cyan-950/50 hover:text-cyan-600 text-slate-400 transition-all cursor-pointer"
+                                      >
+                                        <Pencil className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePointFromInspection('lizards', row.id, row.name)}
+                                        title="ลบสถานีนี้ออกจากระบบ"
+                                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-red-50 dark:hover:bg-red-950/50 hover:text-red-600 text-slate-400 transition-all cursor-pointer"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                          <span className="text-[11px] text-slate-450">
+                            รวมพบจิ้งจกทุกสถานี: {lizardRows.reduce((sum, r) => sum + (Number(r.count) || 0), 0)} ตัว
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAddPointFromInspection('lizards', 'โรงงาน')}
+                            className="text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ เพิ่มสถานีกับดักจิ้งจกใหม่</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Inspection Point Quick Edit / Add Modal */}
+                {inspectionPointModal && (
+                  <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                    <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-150">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                          <span>{inspectionPointModal.mode === 'add' ? '➕ เพิ่มจุด/สถานีใหม่' : '✏️ แก้ไขข้อมูลจุดติดตั้ง'}</span>
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionPointModal(null)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </div>
+
+                      <div className="space-y-3.5 mt-4 text-xs">
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                            หมายเลขจุด / รหัสสถานี <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={inspectionPointModal.no}
+                            onChange={(e) => setInspectionPointModal(prev => ({ ...prev, no: e.target.value }))}
+                            placeholder="เช่น (34) หรือ 24 หรือ สถานีที่ 7"
+                            className="w-full px-3 py-2 font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+
+                        {inspectionPointModal.category !== 'lizards' && (
+                          <div>
+                            <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                              {inspectionPointModal.category === 'cockroaches' ? 'โซนพื้นที่' : 'แผนกที่รับผิดชอบ'}
+                            </label>
+                            <input
+                              type="text"
+                              value={inspectionPointModal.departmentOrZone}
+                              onChange={(e) => setInspectionPointModal(prev => ({ ...prev, departmentOrZone: e.target.value }))}
+                              placeholder="เช่น โรงฆ่า หรือ โซนตัดแต่ง"
+                              className="w-full px-3 py-2 font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-[10px] font-black uppercase text-slate-400 mb-1">
+                            ตำแหน่งติดตั้งโดยละเอียด <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={inspectionPointModal.location}
+                            onChange={(e) => setInspectionPointModal(prev => ({ ...prev, location: e.target.value }))}
+                            placeholder="เช่น ห้องตัดแต่ง บริเวณทางหนีไฟ"
+                            className="w-full px-3 py-2 font-medium rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-200"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setInspectionPointModal(null)}
+                            className="px-3.5 py-2 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                          >
+                            ยกเลิก
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveInspectionPointModal}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all shadow-md cursor-pointer"
+                          >
+                            บันทึกข้อมูลจุด
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2497,10 +3922,11 @@ export default function AdminPage() {
                         <span>📥 ส่งออกรายงาน Excel (ตามฟอร์ม QC)</span>
                       </button>
                       <button
-                        onClick={handleDownloadJsonBackup}
-                        className="w-full py-2 px-3.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold shadow-xs cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                        onClick={() => setIsBackupModalOpen(true)}
+                        className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-650 via-teal-650 to-indigo-650 hover:from-emerald-700 hover:to-indigo-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center justify-center gap-1.5 transition-all"
                       >
-                        <span>💾 สำรองข้อมูลระบบ (.json Backup)</span>
+                        <HardDrive className="w-3.5 h-3.5 text-emerald-200" />
+                        <span>💾 ศูนย์สำรองและกู้คืนข้อมูล (Save to Drive / Backup)</span>
                       </button>
                     </div>
                   </div>
@@ -2975,6 +4401,14 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'points' && (
+              /* --- TAB 5: POINTS & TRAPS MANAGEMENT --- */
+              <PointsManagementTab
+                initialCategory={pointInitialCategory}
+                onNotify={(msg) => setAdminMessage(msg)}
+              />
+            )}
           </>
         )}
       </div>
@@ -3071,6 +4505,12 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Global Backup & Restore Modal */}
+      <BackupModal 
+        isOpen={isBackupModalOpen} 
+        onClose={() => setIsBackupModalOpen(false)} 
+      />
     </div>
   );
 }

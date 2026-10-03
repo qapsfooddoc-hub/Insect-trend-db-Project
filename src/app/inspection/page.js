@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Plus, Trash2, Save, RotateCcw, AlertTriangle, Sparkles, 
-  CheckCircle, Database, ShieldAlert, ListPlus, X
+  CheckCircle, Database, ShieldAlert, ListPlus, X, ArrowLeft, BarChart3, FileText
 } from 'lucide-react';
+import FormNav from '@/components/FormNav';
+import { getStoredPoints } from '@/lib/data/pointsManager';
 
 // 33 Pre-defined default rows based on FM-QC - 08/03 Rev.07 grouped by Departments
 const INITIAL_AREAS = [
@@ -129,7 +131,7 @@ const DEPT_CONFIGS = {
 
 const DEPTS_LIST = Object.keys(DEPT_CONFIGS);
 
-const DEFAULT_INSECT_TYPES = ['ผีเสื้อ', 'แมลงหวี่', 'แมลงสาบ'];
+const DEFAULT_INSECT_TYPES = ['ผีเสื้อ', 'แมลงหวี่', 'แมลงสาบ', 'จิ้งจก'];
 
 export default function InspectionPage() {
   const [weekDate, setWeekDate] = useState('');
@@ -253,17 +255,43 @@ export default function InspectionPage() {
     }
   };
 
-  // Set default initial rows on load
+  // Set default initial rows on load (supports custom light traps from Admin)
   useEffect(() => {
     setMounted(true);
-    setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
+    const loadCurrentTraps = () => {
+      const storedTraps = getStoredPoints('light_traps');
+      if (storedTraps && storedTraps.length > 0) {
+        return storedTraps.filter(t => t.status !== 'inactive').map(t => ({
+          dept: t.department || 'ไม่ระบุแผนก',
+          area: t.name || `${t.no} ${t.location}`,
+          flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
+        }));
+      }
+      return INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] }));
+    };
+
+    setRows(loadCurrentTraps());
     fetchCustomInsectTypes();
     fetchInspections();
 
     syncCurrentUser();
     window.addEventListener('currentSimulatedUserChanged', syncCurrentUser);
+
+    const handlePointsSync = (e) => {
+      if (e.detail?.category === 'light_traps') {
+        const updatedTraps = e.detail.points.filter(t => t.status !== 'inactive');
+        setRows(updatedTraps.map(t => ({
+          dept: t.department || 'ไม่ระบุแผนก',
+          area: t.name || `${t.no} ${t.location}`,
+          flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
+        })));
+      }
+    };
+    window.addEventListener('points-updated', handlePointsSync);
+
     return () => {
       window.removeEventListener('currentSimulatedUserChanged', syncCurrentUser);
+      window.removeEventListener('points-updated', handlePointsSync);
     };
   }, []);
 
@@ -525,7 +553,16 @@ export default function InspectionPage() {
       'ยืนยันการรีเซ็ตตาราง',
       'คุณต้องการรีเซ็ตตารางและจัดกลุ่มแผนกตามมาตรฐานเอกสาร FM-QC - 08/03 ใช่หรือไม่?',
       () => {
-        setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
+        const storedTraps = getStoredPoints('light_traps');
+        if (storedTraps && storedTraps.length > 0) {
+          setRows(storedTraps.filter(t => t.status !== 'inactive').map(t => ({
+            dept: t.department || 'ไม่ระบุแผนก',
+            area: t.name || `${t.no} ${t.location}`,
+            flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
+          })));
+        } else {
+          setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
+        }
         setNotification(null);
       }
     );
@@ -714,7 +751,7 @@ export default function InspectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-10 transition-colors duration-300 font-sans">
+    <div className="min-h-screen bg-[#F4F7FC] text-slate-900 py-6 transition-colors duration-300 font-sans">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         {!isAllowed ? (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-10 text-center shadow-sm max-w-2xl mx-auto mt-10">
@@ -744,6 +781,48 @@ export default function InspectionPage() {
           </div>
         ) : (
           <>
+            {/* Form Switcher for 5 pest monitoring forms */}
+            <FormNav activeFormId="insects" />
+
+            {/* Top Navigation Banner: Clearly distinguishing Data Entry from Dashboard & Threshold Reports */}
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <div className="flex items-center gap-3">
+                <span className="p-2.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-2xl">
+                  <FileText className="w-5 h-5" />
+                </span>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-black text-slate-800 dark:text-slate-100">
+                      หน้าบันทึกผลตรวจนับรายสัปดาห์ 33 จุด (Data Entry)
+                    </h2>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                      FM-QC-08/03
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    สำหรับเจ้าหน้าที่ผู้ตรวจนับลงบันทึกจำนวนตัวเลขแมลงรายสัปดาห์
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href="/"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-600/20 active:scale-95 cursor-pointer"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>📊 ไปหน้ากราฟแนวโน้ม</span>
+                </Link>
+                <Link
+                  href="/?tab=threshold-summary"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-amber-500/20 active:scale-95 cursor-pointer"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>⚠️ ดูสรุปแมลงที่เกินเกณฑ์</span>
+                </Link>
+              </div>
+            </div>
+
             {/* Navigation & Header */}
             <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
               <div>

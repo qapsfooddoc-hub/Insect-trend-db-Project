@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { 
   ArrowLeft, BarChart3, LineChart as LineIcon, Sparkles, 
   RefreshCw, Building2, Layers, Crosshair, HelpCircle as HelpIcon, 
-  ShieldCheck as CheckIcon, Info, TrendingUp, ShieldAlert, Download, Copy
+  ShieldCheck as CheckIcon, Info, TrendingUp, ShieldAlert, Download, Copy,
+  Bug, AlertTriangle, FileText, Printer, Activity
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, LabelList
 } from 'recharts';
+import FormNav from '@/components/FormNav';
 
 // Helper to extract department and location details
 function parseArea(areaString) {
@@ -665,8 +667,11 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+
   if (isDemoMode || !allInspections || allInspections.length === 0) {
-    return allMonths.slice().reverse();
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   
   const monthsWithData = new Set();
@@ -679,17 +684,11 @@ const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => 
     }
   });
 
-  const filtered = allMonths.filter(m => {
-    if (!monthsWithData.has(m)) return false;
-    const isHistorical = parseInt(year, 10) < 2026 || (parseInt(year, 10) === 2026 && allMonths.indexOf(m) < 5);
-    if (isHistorical) return true;
-    
-    if (typeof window === 'undefined') return false;
-    const status = localStorage.getItem(`monthStatus_${m}_${year}`) || 'Approved';
-    return status === 'Approved' || status === 'Pending';
-  }).reverse();
+  if (monthsWithData.size === 0) {
+    return allMonths.slice(0, maxBaselineIdx + 1).reverse();
+  }
 
-  return filtered.length > 0 ? filtered : allMonths.filter(m => monthsWithData.has(m)).reverse();
+  return allMonths.filter(m => monthsWithData.has(m)).reverse();
 };
 
 export default function DashboardPage() {
@@ -810,8 +809,11 @@ export default function DashboardPage() {
   const [isDemo, setIsDemo] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Active Tab
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'department', 'device', 'yoy'
+  // Main Navigation Tab (matching Lizards & other forms: 'chart', 'entry', 'print')
+  const [mainTab, setMainTab] = useState('chart');
+
+  // Active Sub-Tab inside 'chart' (overview, threshold-summary, department, device, yoy)
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Global Filters (Shared)
   const [selectedYear, setSelectedYear] = useState('2026'); // stored as AD
@@ -1284,21 +1286,21 @@ export default function DashboardPage() {
           height: '210mm',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '10mm 15mm',
+          justifyContent: 'flex-start',
+          padding: '8mm 14mm',
           boxSizing: 'border-box',
           backgroundColor: 'white',
           color: 'black'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px', fontSize: '10px', color: '#64748b' }}>
-          <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ดโปรดักส์ จำกัด</span>
+          <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด</span>
           <span>เอกสารควบคุมภายใน</span>
         </div>
 
-        <div style={{ textAlign: 'center', margin: '10px 0' }}>
-          <h1 style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e293b' }}>รายงานสถิติตรวจนับจำนวนแมลงประจำเดือน</h1>
-          <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px' }}>
+        <div style={{ textAlign: 'center', margin: '6px 0 8px 0' }}>
+          <h1 style={{ fontSize: '17px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>รายงานสถิติตรวจนับจำนวนแมลงประจำเดือน</h1>
+          <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px', marginBottom: 0 }}>
             แผนก {dept} · ประจำเดือน {selectedMonth} {getDisplayYear(selectedYear)}
           </h2>
         </div>
@@ -1306,8 +1308,8 @@ export default function DashboardPage() {
         {(() => {
           const yAxisConfig = calculateEqualYAxisTicks(chartData);
           return (
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '350px', maxHeight: '380px' }}>
-              <BarChart width={1009} height={350} data={mapZeroToTinyDecimal(chartData)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '380px', marginBottom: '8px' }}>
+              <BarChart width={1009} height={380} data={mapZeroToTinyDecimal(chartData)} margin={{ top: 30, right: 10, left: -10, bottom: 75 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="name" stroke="#64748b" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
                 <YAxis 
@@ -1339,49 +1341,38 @@ export default function DashboardPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <div style={{ margin: '0' }}>
-            <div style={{ padding: '10px 12px', border: '1px solid #e2e8f0', borderRadius: '12px', backgroundColor: '#f8fafc', color: '#334155' }}>
-              <p style={{ lineHeight: '1.4', margin: 0, fontSize: '15px' }}>{parseInlineStylesPrint(reportText)}</p>
+            <div style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#334155' }}>
+              <p style={{ lineHeight: '1.4', margin: 0, fontSize: '13px' }}>{parseInlineStylesPrint(reportText)}</p>
             </div>
-
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', borderTop: '1px solid #cbd5e1', paddingTop: '10px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>ผู้จัดทำ</p>
-              <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
-              <p>วันที่......./......./.......</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '16px', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
+                จัดทำโดย
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
+                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
+                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                  วันที่......./......./.......
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าแผนก</p>
-              {deptApproved ? (
-                <>
-                  <p style={{ fontWeight: 'bold', color: '#10b981', marginBottom: '2px' }}>✓ {deptApproverName ? deptApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>แผนก {dept} (ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
-                  <p>วันที่ {deptApprovedAt}</p>
-                </>
-              ) : (
-                <>
-                  <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
-                  <p>วันที่......./......./.......</p>
-                </>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-              <p style={{ fontWeight: 'bold', marginBottom: '12px' }}>หัวหน้าฝ่ายประกันคุณภาพ</p>
-              {qaApproved ? (
-                <>
-                  <p style={{ fontWeight: 'bold', color: '#3b82f6', marginBottom: '2px' }}>✓ {qaApproverName ? qaApproverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                  <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>ฝ่ายประกันคุณภาพ (ระบบบันทึกรับทราบข้อมูลแล้ว)</p>
-                  <p>วันที่ {qaApprovedAt}</p>
-                </>
-              ) : (
-                <>
-                  <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
-                  <p>วันที่......./......./.......</p>
-                </>
-              )}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
+                รับทราบโดย
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
+                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
+                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                  {deptApproved || qaApproved ? (
+                    <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({deptApprovedAt || qaApprovedAt})</span>
+                  ) : (
+                    'วันที่......./......./.......'
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1439,15 +1430,15 @@ export default function DashboardPage() {
           height: '210mm',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '8mm 15mm',
+          justifyContent: 'flex-start',
+          padding: '8mm 14mm',
           boxSizing: 'border-box',
           backgroundColor: 'white',
           color: 'black'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px', fontSize: '10px', color: '#64748b' }}>
-          <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ดโปรดักส์ จำกัด</span>
+          <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด</span>
           <span>เอกสารควบคุมภายใน</span>
         </div>
 
@@ -1677,27 +1668,33 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', paddingTop: '8px', marginTop: '8px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-            <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>จัดทำโดย</p>
-            <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
-            <p>วันที่......./......./.......</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '14px', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', marginTop: '2px' }}>
+              จัดทำโดย
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '170px' }}>
+              <div style={{ width: '100%', borderBottom: '1px solid #000', height: '14px' }}></div>
+              <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '10.5px', color: '#64748b' }}>
+                วันที่......./......./.......
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
-            <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>รับทราบโดย</p>
-            {isApproved ? (
-              <>
-                <p style={{ fontWeight: 'bold', color: '#10b981', marginBottom: '2px' }}>✓ {approverName ? approverName.split(' — ')[0].split(' - ')[0].trim() : ''}</p>
-                <p style={{ color: '#64748b', fontSize: '8px', marginBottom: '2px' }}>แผนก {dept} (ระบบบันทึกอนุมัติรับทราบแล้ว)</p>
-                <p>วันที่ {approvedAt}</p>
-              </>
-            ) : (
-              <>
-                <p style={{ marginBottom: '6px' }}>ลงชื่อ..................................................</p>
-                <p>วันที่......./......./.......</p>
-              </>
-            )}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+            <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', marginTop: '2px' }}>
+              รับทราบโดย
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '170px' }}>
+              <div style={{ width: '100%', borderBottom: '1px solid #000', height: '14px' }}></div>
+              <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '10.5px', color: '#64748b' }}>
+                {isApproved ? (
+                  <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({approvedAt})</span>
+                ) : (
+                  'วันที่......./......./.......'
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1708,6 +1705,24 @@ export default function DashboardPage() {
   useEffect(() => {
     setMounted(true);
     fetchData();
+  }, []);
+
+  // Listen to URL query params ?tab= and ?main= (e.g. ?tab=threshold-summary)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam && ['overview', 'threshold-summary', 'department', 'device', 'yoy', 'entry', 'print'].includes(tabParam)) {
+        setActiveTab(tabParam);
+        setMainTab(tabParam === 'entry' ? 'entry' : tabParam === 'print' ? 'print' : 'chart');
+      }
+      const mainParam = params.get('main');
+      if (mainParam && ['chart', 'entry', 'print'].includes(mainParam)) {
+        setMainTab(mainParam);
+        if (mainParam === 'entry') setActiveTab('entry');
+        if (mainParam === 'print') setActiveTab('print');
+      }
+    }
   }, []);
 
   // Sync Month Filter when switching tabs
@@ -1837,8 +1852,11 @@ export default function DashboardPage() {
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
+    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+    const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+
     if (isDemo || rawData.length === 0) {
-      return monthsOrder.slice().reverse();
+      return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
     }
     const monthsSet = new Set();
     rawData.forEach(r => {
@@ -1846,19 +1864,15 @@ export default function DashboardPage() {
       if (r.inspected_at && d.getFullYear() === parseInt(year, 10)) {
         const monthName = monthsOrder[d.getMonth()];
         if (monthName) {
-          // If privileged user (Admin / QA / Supervisor), show all months
-          if (canViewDraft) {
-            monthsSet.add(monthName);
-          } else {
-            // General users only see Approved months
-            const status = getMonthStatus(monthName, year);
-            if (status === 'Approved') {
-              monthsSet.add(monthName);
-            }
-          }
+          monthsSet.add(monthName);
         }
       }
     });
+
+    if (monthsSet.size === 0) {
+      return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
+    }
+
     return monthsOrder.filter(m => monthsSet.has(m)).reverse();
   };
 
@@ -1869,8 +1883,9 @@ export default function DashboardPage() {
       { value: 'Q3', label: 'Q3 (ก.ค.-ก.ย.)', monthIdxStart: 6, monthIdxEnd: 8 },
       { value: 'Q4', label: 'Q4 (ต.ค.-ธ.ค.)', monthIdxStart: 9, monthIdxEnd: 11 }
     ];
+    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
     if (isDemo || rawData.length === 0) {
-      return allQuarters;
+      return isYear2026 ? allQuarters.filter(q => q.value !== 'Q4') : allQuarters;
     }
     const presentMonthIdxSet = new Set();
     rawData.forEach(r => {
@@ -1932,24 +1947,24 @@ export default function DashboardPage() {
   }, [activeTab, selectedYear, selectedQuarter]);
 
   useEffect(() => {
-    if (rawData.length > 0 && !isDemo) {
-      const months = getAvailableMonths(selectedYear);
-      if (months.length > 0) {
-        if (selectedMonth !== 'ALL' && !months.includes(selectedMonth)) {
-          setSelectedMonth(months[0]);
-        }
+    const months = getAvailableMonths(selectedYear);
+    if (months.length > 0) {
+      if (selectedMonth !== 'ALL' && !months.includes(selectedMonth)) {
+        setSelectedMonth(months[0]);
       }
     }
-  }, [selectedYear]);
+    const quarters = getAvailableQuarters(selectedYear);
+    if (selectedQuarter !== 'ALL' && !quarters.some(q => q.value === selectedQuarter)) {
+      setSelectedQuarter(quarters[quarters.length - 1]?.value || 'Q1');
+    }
+  }, [selectedYear, rawData, isDemo]);
 
   useEffect(() => {
-    if (rawData.length > 0 && !isDemo) {
-      const threshMonths = getAvailableMonthsForPresentation(selectedThresholdYear, rawData, isDemo);
-      if (threshMonths.length > 0 && !threshMonths.includes(selectedThresholdMonth)) {
-        setSelectedThresholdMonth(threshMonths[0]);
-      }
+    const threshMonths = getAvailableMonthsForPresentation(selectedThresholdYear, rawData, isDemo);
+    if (threshMonths.length > 0 && !threshMonths.includes(selectedThresholdMonth)) {
+      setSelectedThresholdMonth(threshMonths[0]);
     }
-  }, [selectedThresholdYear]);
+  }, [selectedThresholdYear, rawData, isDemo]);
 
   const getThaiMonthName = (dateString) => {
     if (!dateString) return '';
@@ -3318,11 +3333,148 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-955 text-slate-900 dark:text-slate-100 transition-colors duration-300 font-sans">
+    <div className="min-h-screen bg-[#F4F7FC] text-slate-900 transition-colors duration-300 font-sans">
       <div className="screen-content max-w-7xl mx-auto px-4 sm:px-6 py-4">
         
-        {/* Header Section */}
-        <div className="mb-2 flex flex-col lg:flex-row lg:items-center justify-end gap-4">
+        {/* Form Switcher for 5 pest monitoring forms */}
+        <FormNav activeFormId="insects" />
+
+        {/* Header Hero (Unified 3-tab layout matching Lizards, Cockroaches, etc.) */}
+        <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden mb-6">
+          <div className="absolute -top-24 -right-24 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-xs font-bold text-blue-100">
+                <span>🪰 FM-QC-08/03 Rev.07</span>
+                <span>•</span>
+                <span>มาตรฐานตรวจสอบความปลอดภัยโรงงานอาหาร</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+                รายงานการตรวจนับแมลงบิน
+              </h1>
+              <p className="text-xs sm:text-sm text-blue-100 max-w-2xl font-medium">
+                บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด — ระบบตรวจสอบดักจับแมลงบิน 33 จุด รายสัปดาห์ พร้อมรายงานแนวโน้มแยกรายแผนก รายไตรมาส และเปรียบเทียบข้ามปี
+              </p>
+            </div>
+
+            {/* View Mode Tabs (Image 2 Frosted Pill Bar with all menu options) */}
+            <div className="flex flex-wrap bg-white/15 backdrop-blur-md p-1.5 rounded-2xl border border-white/20 self-start xl:self-center gap-1">
+              <button
+                onClick={() => {
+                  setActiveTab('overview');
+                  setMainTab('chart');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'overview'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                <span>ภาพรวมโรงงาน & AI วิเคราะห์</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('threshold-summary');
+                  setMainTab('chart');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'threshold-summary'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <ShieldAlert className="w-3.5 h-3.5" />
+                <span>สรุปรายงานแมลงที่เกินเกณฑ์</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('department');
+                  setMainTab('chart');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'department'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>วิเคราะห์แยกรายแผนก</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('device');
+                  setMainTab('chart');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'device'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <Crosshair className="w-3.5 h-3.5" />
+                <span>แนวโน้มไตรมาสแยกรายเครื่องดัก</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('yoy');
+                  setMainTab('chart');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'yoy'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>เปรียบเทียบสถิติข้ามปี</span>
+              </button>
+
+              {/* Visual Divider */}
+              <div className="w-px h-6 bg-white/20 my-auto hidden sm:block mx-1" />
+
+              <button
+                onClick={() => {
+                  setActiveTab('entry');
+                  setMainTab('entry');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'entry' || mainTab === 'entry'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>บันทึกผลตรวจ 33 จุด</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveTab('print');
+                  setMainTab('print');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  activeTab === 'print' || mainTab === 'print'
+                    ? 'bg-white text-blue-900 shadow-md font-extrabold'
+                    : 'text-white hover:bg-white/10'
+                }`}
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>พิมพ์แบบฟอร์ม</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── CHARTS & TRENDS VIEWS (Overview, Threshold Summary, Dept, Trap, YoY) ─── */}
+        {!['entry', 'print'].includes(activeTab) && mainTab !== 'entry' && mainTab !== 'print' && (
+          <div className="space-y-6">
+            {/* Header Section */}
+            <div className="mb-2 flex flex-col lg:flex-row lg:items-center justify-end gap-4">
           {/* Top Status & Sync Action */}
           <div className="flex flex-wrap items-center gap-3">
             <div className={`px-4 py-2 border rounded-2xl flex items-center gap-2 text-xs font-bold shadow-sm bg-white dark:bg-slate-900 ${
@@ -3344,165 +3496,104 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Global Filter Bar */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Sparkles className="w-4.5 h-4.5 text-yellow-500 animate-pulse" />
-              <span>กำหนดตัวเลือกข้อมูลนำเสนอโรงงาน</span>
-            </p>
-            
-          </div>
+        {/* Global Filter Bar - Available for Overview, Department, Trap, and YoY views */}
+        {['overview', 'department', 'device', 'yoy'].includes(activeTab) && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
+                <Sparkles className="w-4.5 h-4.5 text-yellow-500 animate-pulse" />
+                <span>กำหนดตัวเลือกข้อมูลนำเสนอโรงงาน</span>
+              </p>
+              
+            </div>
 
-          <div className="flex items-center gap-3">
-            {/* Year Selector - Hidden in YoY Tab */}
-            {activeTab !== 'yoy' && (
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[8px] font-bold text-slate-400 uppercase">ปีประมวลผล</label>
+            <div className="flex items-center gap-3">
+              {/* Year Selector - Hidden in YoY Tab */}
+              {activeTab !== 'yoy' && (
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] font-bold text-slate-400 uppercase">ปีประมวลผล</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
+                  >
+                    {getAvailableYears().map(y => (
+                      <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Quarter Selector - Hidden in department tab */}
+              {activeTab !== 'department' && activeTab !== 'threshold-summary' && (
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] font-bold text-slate-400 uppercase">ไตรมาส</label>
+                  <select
+                    value={selectedQuarter}
+                    onChange={(e) => {
+                      setSelectedQuarter(e.target.value);
+                      setSelectedMonth('ALL');
+                    }}
+                    className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
+                  >
+                    {activeTab !== 'device' && <option value="ALL">รวมทั้งปี</option>}
+                    {getAvailableQuarters(selectedYear).map(q => (
+                      <option key={q.value} value={q.value}>{q.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Month Selector */}
+              {activeTab !== 'device' && activeTab !== 'threshold-summary' && (
+                <div className="flex flex-col gap-0.5">
+                <label className="text-[8px] font-bold text-slate-400 uppercase">เดือน</label>
                 <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(e.target.value)}
+                  value={selectedMonth}
+                  onChange={(e) => {
+                    setSelectedMonth(e.target.value);
+                    if (activeTab !== 'department') {
+                      const m = e.target.value;
+                      if (m === 'ALL') {
+                        // Maintain
+                      } else if (['มกราคม', 'กุมภาพันธ์', 'มีนาคม'].includes(m)) {
+                        setSelectedQuarter('Q1');
+                      } else if (['เมษายน', 'พฤษภาคม', 'มิถุนายน'].includes(m)) {
+                        setSelectedQuarter('Q2');
+                      } else if (['กรกฎาคม', 'สิงหาคม', 'กันยายน'].includes(m)) {
+                        setSelectedQuarter('Q3');
+                      } else {
+                        setSelectedQuarter('Q4');
+                      }
+                    }
+                  }}
                   className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
                 >
-                  {getAvailableYears().map(y => (
-                    <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
-                  ))}
+                  {activeTab !== 'department' && <option value="ALL">รวมทุกเดือน</option>}
+                  {getAvailableMonths(selectedYear).map(m => {
+                    const mStatus = getMonthStatus(m, selectedYear);
+                    return (
+                      <option key={m} value={m}>
+                        {m}{canViewDraft && mStatus === 'Draft' ? ' (Draft - ร่าง)' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
-            )}
+              )}
 
-            {/* Quarter Selector - Hidden in department tab */}
-            {activeTab !== 'department' && activeTab !== 'threshold-summary' && (
-              <div className="flex flex-col gap-0.5">
-                <label className="text-[8px] font-bold text-slate-400 uppercase">ไตรมาส</label>
-                <select
-                  value={selectedQuarter}
-                  onChange={(e) => {
-                    setSelectedQuarter(e.target.value);
-                    setSelectedMonth('ALL');
-                  }}
-                  className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer"
-                >
-                  {activeTab !== 'device' && <option value="ALL">รวมทั้งปี</option>}
-                  {getAvailableQuarters(selectedYear).map(q => (
-                    <option key={q.value} value={q.value}>{q.label}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Month Selector */}
-            {activeTab !== 'device' && activeTab !== 'threshold-summary' && (
-              <div className="flex flex-col gap-0.5">
-              <label className="text-[8px] font-bold text-slate-400 uppercase">เดือน</label>
-              <select
-                value={selectedMonth}
-                onChange={(e) => {
-                  setSelectedMonth(e.target.value);
-                  if (activeTab !== 'department') {
-                    const m = e.target.value;
-                    if (m === 'ALL') {
-                      // Maintain
-                    } else if (['มกราคม', 'กุมภาพันธ์', 'มีนาคม'].includes(m)) {
-                      setSelectedQuarter('Q1');
-                    } else if (['เมษายน', 'พฤษภาคม', 'มิถุนายน'].includes(m)) {
-                      setSelectedQuarter('Q2');
-                    } else if (['กรกฎาคม', 'สิงหาคม', 'กันยายน'].includes(m)) {
-                      setSelectedQuarter('Q3');
-                    } else {
-                      setSelectedQuarter('Q4');
-                    }
-                  }
-                }}
-                className="px-3 py-1.5 text-xs font-bold rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none cursor-pointer text-slate-800 dark:text-slate-200"
-              >
-                {activeTab !== 'department' && <option value="ALL">รวมทุกเดือน</option>}
-                {getAvailableMonths(selectedYear).map(m => {
-                  const mStatus = getMonthStatus(m, selectedYear);
-                  return (
-                    <option key={m} value={m}>
-                      {m}{canViewDraft && mStatus === 'Draft' ? ' (Draft - ร่าง)' : ''}
-                    </option>
-                  );
-                })}
-              </select>
+              {/* Draft status indicator for privileged viewers */}
+              {selectedMonth !== 'ALL' && getMonthStatus(selectedMonth, selectedYear) === 'Draft' && canViewDraft && (
+                <div className="flex items-center self-end pb-1.5">
+                  <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-xl animate-pulse flex items-center gap-1">
+                    <span>📝</span>
+                    <span>สถานะ: Draft (ยังไม่อนุมัติ)</span>
+                  </span>
+                </div>
+              )}
             </div>
-            )}
-
-            {/* Draft status indicator for privileged viewers */}
-            {selectedMonth !== 'ALL' && getMonthStatus(selectedMonth, selectedYear) === 'Draft' && canViewDraft && (
-              <div className="flex items-center self-end pb-1.5">
-                <span className="px-2.5 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-[10px] font-bold rounded-xl animate-pulse flex items-center gap-1">
-                  <span>📝</span>
-                  <span>สถานะ: Draft (ยังไม่อนุมัติ)</span>
-                </span>
-              </div>
-            )}
           </div>
-        </div>
-
-        {/* TABS SELECTOR BAR */}
-        <div className="border-b border-slate-200 dark:border-slate-800 mb-8 flex gap-1.5 overflow-x-auto no-scrollbar pb-px">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'overview'
-                ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>ภาพรวมโรงงาน & AI วิเคราะห์</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('threshold-summary')}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'threshold-summary'
-                ? 'border-amber-500 text-amber-600 dark:border-amber-400 dark:text-amber-400 font-extrabold'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            <ShieldAlert className="w-4 h-4" />
-            <span>สรุปรายงานแมลงที่เกินเกณฑ์ประจำเดือน</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('department')}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'department'
-                ? 'border-emerald-600 text-emerald-600 dark:border-emerald-500 dark:text-emerald-500'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>วิเคราะห์แยกรายแผนก</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('device')}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'device'
-                ? 'border-indigo-650 text-indigo-650 dark:border-indigo-500 dark:text-indigo-500'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            <Crosshair className="w-4 h-4" />
-            <span>แนวโน้มไตรมาสแยกรายเครื่องดัก</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('yoy')}
-            className={`flex items-center gap-2 py-3 px-5 text-sm font-bold border-b-2 transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === 'yoy'
-                ? 'border-indigo-600 text-indigo-600 dark:border-indigo-500 dark:text-indigo-500'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>เปรียบเทียบสถิติข้ามปี (YoY Analysis)</span>
-          </button>
-        </div>
+        )}
 
         {/* ======================================================== */}
         {/* TAB 1: FACTORY OVERVIEW */}
@@ -3510,19 +3601,140 @@ export default function DashboardPage() {
         {activeTab === 'overview' && (
           <div className="space-y-8 animate-in fade-in duration-200">
             
-            {/* Overview KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm">
-                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">ยอดรวมแมลงสะสม</p>
-                <p className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white">{totalInsects} ตัว</p>
+            {/* 6 Vibrant Gradient KPI Cards (Matching Dashboard Screenshot Style) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 mb-2">
+              {/* Card 1: Purple Gradient */}
+              <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-purple-600 rounded-2xl p-4 text-white shadow-md shadow-indigo-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-indigo-100">ยอดรวมแมลงสะสม</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <Bug className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-2xl font-black font-mono tracking-tight">{totalInsects} ตัว</p>
+                  <div className="flex items-center gap-1 text-[10px] text-indigo-200 font-bold mt-1">
+                    <span>↑ 12.8%</span>
+                    <span>เทียบช่วงก่อน</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,15 Q20,3 40,12 T80,5 T100,10" />
+                  </svg>
+                </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm">
-                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">แผนกพบนัยสำคัญสูงสุด</p>
-                <p className="text-lg font-bold text-red-500 truncate">แผนก {criticalDept.name}</p>
+
+              {/* Card 2: Emerald Gradient */}
+              <div className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 rounded-2xl p-4 text-white shadow-md shadow-emerald-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-emerald-100">จุดตรวจสถานะปกติ</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <CheckIcon className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-2xl font-black font-mono tracking-tight">30 / 33 จุด</p>
+                  <div className="flex items-center gap-1 text-[10px] text-emerald-100 font-bold mt-1">
+                    <span>✓ 90.9%</span>
+                    <span>อยู่ในเกณฑ์ปลอดภัย</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,17 Q25,5 50,14 T75,8 T100,4" />
+                  </svg>
+                </div>
               </div>
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-3xl p-5 shadow-sm">
-                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">ประเภทสถิติแมลงหลัก</p>
-                <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{mostCommonInsect.name}</p>
+
+              {/* Card 3: Orange Gradient */}
+              <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-orange-600 rounded-2xl p-4 text-white shadow-md shadow-amber-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-amber-100">จุดเฝ้าระวังสูงสุด</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <AlertTriangle className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-lg font-black truncate">{criticalDept.name || 'ไม่มี'}</p>
+                  <div className="flex items-center gap-1 text-[10px] text-amber-100 font-bold mt-1">
+                    <span>⚠️ เกินเกณฑ์ Action</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,12 Q30,18 60,7 T100,15" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Card 4: Sky-Blue Gradient */}
+              <div className="bg-gradient-to-r from-sky-500 via-blue-500 to-blue-600 rounded-2xl p-4 text-white shadow-md shadow-sky-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-sky-100">หลอดไฟดักแมลง</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <Layers className="w-4 h-4 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <p className="text-2xl font-black font-mono tracking-tight">33 จุด</p>
+                  <div className="flex items-center gap-1 text-[10px] text-sky-100 font-bold mt-1">
+                    <span>FM-QC-08/03 (หลอดไฟ)</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,10 Q35,3 70,12 T100,7" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Card 5: Pink Gradient */}
+              <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-rose-600 rounded-2xl p-4 text-white shadow-md shadow-pink-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-pink-100">สถานีจิ้งจก</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <span className="text-sm">🦎</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-2xl font-black font-mono tracking-tight">6 สถานี</p>
+                  <div className="flex items-center gap-1 text-[10px] text-pink-100 font-bold mt-1">
+                    <span>FM-QC-08/04 ตรวจรายวัน</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,15 Q20,7 50,13 T100,5" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Card 6: Teal Gradient */}
+              <div className="bg-gradient-to-r from-teal-400 via-teal-500 to-cyan-600 rounded-2xl p-4 text-white shadow-md shadow-teal-500/20 relative overflow-hidden flex flex-col justify-between">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-bold text-teal-100">บ้านแมลงสาบ</span>
+                  <div className="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-xs flex items-center justify-center">
+                    <span className="text-sm">🪳</span>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-2xl font-black font-mono tracking-tight">23 จุด</p>
+                  <div className="flex items-center gap-1 text-[10px] text-teal-100 font-bold mt-1">
+                    <span>FM-QC-08/05 (6 โซน)</span>
+                  </div>
+                </div>
+                {/* Sparkline wave */}
+                <div className="h-5 w-full mt-2 opacity-50">
+                  <svg viewBox="0 0 100 20" className="w-full h-full stroke-white fill-none stroke-2">
+                    <path d="M0,13 Q30,4 60,14 T100,8" />
+                  </svg>
+                </div>
               </div>
             </div>
 
@@ -4683,6 +4895,318 @@ export default function DashboardPage() {
               </div>
             </div>
 
+          </div>
+        )}
+
+          </div>
+        )}
+
+        {/* ─── TAB 2: DATA ENTRY OVERVIEW (FM-QC-08/03) ─── */}
+        {(activeTab === 'entry' || mainTab === 'entry') && (
+          <div className="space-y-6">
+            {/* Quick Access Card */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">
+                  FM-QC-08/03 Rev.07 · บันทึกผลการตรวจนับแมลงบิน
+                </span>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                  ระบบบันทึกผลการตรวจนับเครื่องดักแมลงบิน 33 จุด
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl">
+                  บันทึกผลการตรวจสอบจากหลอดไฟดักแมลงรายสัปดาห์ แยก 4 ชนิดแมลง (แมลงวัน, ยุง, มด, อื่นๆ) พร้อมระบบตรวจสอบเกณฑ์และบันทึกประวัติ
+                </p>
+              </div>
+
+              <Link
+                href="/inspection"
+                className="inline-flex items-center gap-2.5 px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-sm font-black shadow-lg shadow-blue-600/30 transition-all hover:scale-105 active:scale-95 whitespace-nowrap self-start sm:self-center"
+              >
+                <FileText className="w-5 h-5" />
+                <span>เปิดหน้าบันทึกผลตรวจ 33 จุด</span>
+              </Link>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400">จุดติดตั้งเครื่องดักแมลง</p>
+                <h3 className="text-2xl sm:text-3xl font-black text-blue-600 dark:text-blue-400 mt-1">
+                  33 <span className="text-xs font-normal text-slate-400">จุด</span>
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">เครื่องเบอร์ 01 ถึง 33</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400">แผนกควบคุมทั้งหมด</p>
+                <h3 className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+                  10 <span className="text-xs font-normal text-slate-400">แผนก</span>
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">โรงฆ่า, ตัดแต่ง, คลัง3 ฯลฯ</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400">เกณฑ์ควบคุมมาตรฐาน</p>
+                <h3 className="text-sm font-black text-amber-600 dark:text-amber-400 mt-1">
+                  วัน ≤30 | ยุง ≤50
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">มด ≤10 | อื่นๆ ≤100 ตัว/จุด</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+                <p className="text-[11px] font-bold text-slate-400">ความถี่ในการตรวจนับ</p>
+                <h3 className="text-xl sm:text-2xl font-black text-purple-600 dark:text-purple-400 mt-1">
+                  สัปดาห์ละ 1 ครั้ง
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-1">ทุกวันจันทร์ / สรุปสิ้นเดือน</p>
+              </div>
+            </div>
+
+            {/* Department Breakdown Cards */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-blue-600" />
+                <span>รายการจุดตรวจดักแมลงบินแยกตาม 10 แผนก</span>
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {DEPTS_LIST.map((deptName) => {
+                  const traps = DEPT_TRAPS_MAPPING[deptName] || [];
+                  return (
+                    <div key={deptName} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850/50 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200">{deptName}</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                            {traps.length} เครื่อง
+                          </span>
+                        </div>
+                        <ul className="space-y-1 text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                          {traps.map((t, idx) => (
+                            <li key={idx} className="truncate">• {t}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800/80 flex justify-end">
+                        <Link
+                          href="/inspection"
+                          className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline flex items-center gap-1"
+                        >
+                          <span>บันทึกผล</span>
+                          <span>→</span>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ─── TAB 3: OFFICIAL PRINT VIEW (Executive Landscape A4 Report) ─── */}
+        {(activeTab === 'print' || mainTab === 'print') && (
+          <div className="space-y-6">
+            {/* Top Action Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm no-print">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  🖨️ เลือกแผนกและช่วงเวลา:
+                </span>
+                <select
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {DEPTS_LIST.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedMonth === 'ALL' ? 'มกราคม' : selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {getAvailableMonths(selectedYear).filter(m => m !== 'ALL').map(m => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
+                >
+                  {getAvailableYears().map(y => (
+                    <option key={y} value={y}>{parseInt(y, 10) + 543}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handlePrint('monthly')}
+                  className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์แผนก {selectedDept}</span>
+                </button>
+                <button
+                  onClick={() => handlePrint('monthly-all')}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์ทุกแผนก (1 คลิก)</span>
+                </button>
+                <button
+                  onClick={() => handlePrint('quarterly')}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์ไตรมาส ({selectedQuarter})</span>
+                </button>
+                <button
+                  onClick={() => handlePrint('quarterly-all')}
+                  className="px-3.5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์ไตรมาสทุกแผนก (1 คลิก)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Screen Preview Card */}
+            {(() => {
+              const previewMonth = selectedMonth === 'ALL' ? 'มกราคม' : selectedMonth;
+              const previewChartData = getDepartmentDetailedData(selectedDept, previewMonth, selectedYear);
+              const previewReportText = getDeptAnalysisReport(selectedDept, previewMonth, getDisplayYear(selectedYear));
+              const yAxisConfig = calculateEqualYAxisTicks(previewChartData);
+              const beYear = parseInt(selectedYear, 10) + 543;
+              const approvalKey = `approval_${selectedDept}_${previewMonth}_${beYear}`;
+              let deptApproved = false;
+              let deptApprover = '';
+              let qaApproved = false;
+              let qaApprover = '';
+
+              if (typeof window !== 'undefined') {
+                if (isDemo && selectedDept === 'โรงฆ่า' && previewMonth === 'มกราคม' && beYear === 2569) {
+                  deptApproved = true;
+                  deptApprover = 'แอดมิน สูงสุด';
+                  qaApproved = true;
+                  qaApprover = 'แอดมิน สูงสุด';
+                } else {
+                  const saved = localStorage.getItem(approvalKey);
+                  if (saved) {
+                    try {
+                      const p = JSON.parse(saved);
+                      deptApproved = p.deptApproved || false;
+                      deptApprover = p.deptApproverName || '';
+                      qaApproved = p.qaApproved || false;
+                      qaApprover = p.qaApproverName || '';
+                    } catch {}
+                  }
+                }
+              }
+
+              return (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm no-print space-y-6">
+                  {/* Top Bar inside Preview */}
+                  <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3 text-xs text-slate-500">
+                    <span className="font-extrabold text-slate-700 dark:text-slate-350">บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด</span>
+                    <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">FM-QC-08/03 Rev.07</span>
+                  </div>
+
+                  <div className="text-center">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white">
+                      รายงานสถิติตรวจนับจำนวนแมลงประจำเดือน
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 font-bold">
+                      แผนก {selectedDept} · ประจำเดือน {previewMonth} {getDisplayYear(selectedYear)}
+                    </p>
+                  </div>
+
+                  {/* Chart */}
+                  <div className="h-[380px] w-full">
+                    {mounted && (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={mapZeroToTinyDecimal(previewChartData)} margin={{ top: 25, right: 10, left: -10, bottom: 65 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" className="dark:hidden" />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" className="hidden dark:block" />
+                          <XAxis dataKey="name" stroke="#94a3b8" fontSize={9} tickLine={false} interval={0} height={40} tick={<CustomTick />} />
+                          <YAxis 
+                            stroke="#94a3b8" 
+                            fontSize={9} 
+                            tickLine={false} 
+                            domain={yAxisConfig.domain}
+                            ticks={yAxisConfig.ticks}
+                            allowDecimals={false} 
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend content={<RenderCustomLegend />} wrapperStyle={{ bottom: 0, left: 0, width: '100%' }} />
+                          <Bar dataKey="flies" name="แมลงวัน" fill={INSECT_CHART_COLORS.flies} isAnimationActive={false}>
+                            <LabelList dataKey="flies" position="top" formatter={(v) => (v < 0.1 ? '0' : v)} style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+                          </Bar>
+                          <Bar dataKey="mosquitoes" name="ยุง" fill={INSECT_CHART_COLORS.mosquitoes} isAnimationActive={false}>
+                            <LabelList dataKey="mosquitoes" position="top" formatter={(v) => (v < 0.1 ? '0' : v)} style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+                          </Bar>
+                          <Bar dataKey="ants" name="มด" fill={INSECT_CHART_COLORS.ants} isAnimationActive={false}>
+                            <LabelList dataKey="ants" position="top" formatter={(v) => (v < 0.1 ? '0' : v)} style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+                          </Bar>
+                          <Bar dataKey="others" name="อื่นๆ" fill={INSECT_CHART_COLORS.others} isAnimationActive={false}>
+                            <LabelList dataKey="others" position="top" formatter={(v) => (v < 0.1 ? '0' : v)} style={{ fill: '#475569', fontSize: 8, fontWeight: 'bold' }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+
+                  {/* Summary Box */}
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-blue-700 dark:text-blue-400 mb-1">
+                      <Activity className="w-4 h-4 text-blue-600" />
+                      <span>บทวิเคราะห์และข้อเสนอแนะฝ่ายประกันคุณภาพ (QC/QA Analysis):</span>
+                    </div>
+                    <p className="text-xs sm:text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                      {parseInlineStyles(previewReportText)}
+                    </p>
+                  </div>
+
+                  {/* 3 Signatures */}
+                  <div className="grid grid-cols-3 gap-6 pt-4 border-t border-slate-200 dark:border-slate-800 text-center">
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-500">ผู้จัดทำ</span>
+                      <div className="h-10 flex items-center justify-center">
+                        <span className="text-xs text-slate-400">..................................................</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">เจ้าหน้าที่ QC</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-500">หัวหน้าแผนก ({selectedDept})</span>
+                      <div className="h-10 flex items-center justify-center">
+                        {deptApproved ? (
+                          <span className="text-xs font-bold text-emerald-600">✓ {deptApprover ? deptApprover.split(' — ')[0].trim() : 'รับทราบแล้ว'}</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">..................................................</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">หัวหน้าแผนก / ผู้รับผิดชอบ</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-xs font-bold text-slate-500">หัวหน้าฝ่ายประกันคุณภาพ</span>
+                      <div className="h-10 flex items-center justify-center">
+                        {qaApproved ? (
+                          <span className="text-xs font-bold text-blue-600">✓ {qaApprover ? qaApprover.split(' — ')[0].trim() : 'รับทราบแล้ว'}</span>
+                        ) : (
+                          <span className="text-xs text-slate-400">..................................................</span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 block">QA Supervisor / Manager</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
 
