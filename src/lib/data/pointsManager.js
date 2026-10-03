@@ -1,40 +1,87 @@
 // Unified Points & Traps Management Manager for Admin & Entry Forms
 // Supports: Light Traps (เครื่องดักแมลง), Cockroach Traps (บ้านแมลงสาบ), Rodent Stations (กับดักหนู)
 
+export const OFFICIAL_LIGHT_TRAP_ORDER = [
+  '07', '08', '09', '10', '11', '12', '30', 
+  '03', '04', '05', '31', 
+  '01', '02', '06', 
+  '13', '14', '15', 
+  '16', 
+  '17', '18', '19', '20', '21', 
+  '22', '23', '26', '27', '28', '29', 
+  '24', '25', '33', 
+  '32'
+];
+
+export const getLightTrapSortIndex = (item) => {
+  const str = `${item?.no || ''} ${item?.area || ''} ${item?.name || ''}`;
+  const match = str.match(/\((\d{1,2})\)/) || str.match(/\b(\d{1,2})\b/);
+  if (match) {
+    const numStr = match[1].padStart(2, '0');
+    const idx = OFFICIAL_LIGHT_TRAP_ORDER.indexOf(numStr);
+    if (idx !== -1) return idx;
+  }
+  return 999;
+};
+
+export const sortLightTrapsByOfficialOrder = (items) => {
+  if (!Array.isArray(items)) return [];
+  return [...items].sort((a, b) => getLightTrapSortIndex(a) - getLightTrapSortIndex(b));
+};
+
 export const DEFAULT_LIGHT_TRAPS = [
-  { id: 'lt-01', category: 'light_traps', no: '(01)', department: 'โหลด เฟส 5', location: 'ลานโหลดของตัดแต่งและ Makro', name: '(01) ลานโหลดของตัดแต่งและ Makro', status: 'active', notes: '' },
-  { id: 'lt-02', category: 'light_traps', no: '(02)', department: 'โหลด เฟส 5', location: 'ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', name: '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', status: 'active', notes: '' },
-  { id: 'lt-03', category: 'light_traps', no: '(03)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณทางหนีไฟ', name: '(03) ห้องตัดแต่ง บริเวณทางหนีไฟ', status: 'active', notes: '' },
-  { id: 'lt-04', category: 'light_traps', no: '(04)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณห้องควบคุมระบบแช่เย็น', name: '(04) ห้องตัดแต่ง บริเวณห้องควบคุมระบบแช่เย็น', status: 'active', notes: '' },
-  { id: 'lt-05', category: 'light_traps', no: '(05)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณเลนมันและหนัง', name: '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง', status: 'active', notes: '' },
-  { id: 'lt-06', category: 'light_traps', no: '(06)', department: 'โหลด เฟส 5', location: 'ลานโหลดของตัดแต่งและ Makro', name: '(06) ลานโหลดของตัดแต่งและ Makro', status: 'active', notes: '' },
+  // หน้าร้านใหม่ (สีเหลือง)
   { id: 'lt-07', category: 'light_traps', no: '(07)', department: 'หน้าร้านใหม่', location: 'ลานโหลดสินค้าหน้าร้าน', name: '(07) ลานโหลดสินค้าหน้าร้าน', status: 'active', notes: '' },
+  
+  // โรงฆ่า (สีส้มอ่อน)
   { id: 'lt-08', category: 'light_traps', no: '(08)', department: 'โรงฆ่า', location: 'ทางลำเลียงสินค้า โรงฆ่า-หน้าร้าน', name: '(08) ทางลำเลียงสินค้า โรงฆ่า-หน้าร้าน', status: 'active', notes: '' },
   { id: 'lt-09', category: 'light_traps', no: '(09)', department: 'โรงฆ่า', location: 'ทางเข้าผ่าซาก/เครื่องในแดง/เครื่องในขาว', name: '(09) ทางเข้าผ่าซาก/เครื่องในแดง/เครื่องในขาว', status: 'active', notes: '' },
   { id: 'lt-10', category: 'light_traps', no: '(10)', department: 'โรงฆ่า', location: 'ลานโหลดสินค้าห้องเลือด', name: '(10) ลานโหลดสินค้าห้องเลือด', status: 'active', notes: '' },
   { id: 'lt-11', category: 'light_traps', no: '(11)', department: 'โรงฆ่า', location: 'ห้องเลือด', name: '(11) ห้องเลือด', status: 'active', notes: '' },
   { id: 'lt-12', category: 'light_traps', no: '(12)', department: 'โรงฆ่า', location: 'ห้องช็อต/แทงคอ/ลวกซาก', name: '(12) ห้องช็อต/แทงคอ/ลวกซาก', status: 'active', notes: '' },
+  { id: 'lt-30', category: 'light_traps', no: '(30)', department: 'โรงฆ่า', location: 'ห้องแพ็คเครื่องใน/ล้างเครื่องใน', name: '(30) ห้องแพ็คเครื่องใน/ล้างเครื่องใน', status: 'active', notes: '' },
+  
+  // ตัดแต่ง (สีเขียวตองอ่อน)
+  { id: 'lt-03', category: 'light_traps', no: '(03)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณทางหนีไฟ', name: '(03) ห้องตัดแต่ง บริเวณทางหนีไฟ', status: 'active', notes: '' },
+  { id: 'lt-04', category: 'light_traps', no: '(04)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณห้องควบคุมระบบแช่เย็น', name: '(04) ห้องตัดแต่ง บริเวณห้องควบคุมระบบแช่เย็น', status: 'active', notes: '' },
+  { id: 'lt-05', category: 'light_traps', no: '(05)', department: 'ตัดแต่ง', location: 'ห้องตัดแต่ง บริเวณเลนมันและหนัง', name: '(05) ห้องตัดแต่ง บริเวณเลนมันและหนัง', status: 'active', notes: '' },
+  { id: 'lt-31', category: 'light_traps', no: '(31)', department: 'ตัดแต่ง', location: 'ห้องล้างมัน/คัดแยกเศษ', name: '(31) ห้องล้างมัน/คัดแยกเศษ', status: 'active', notes: '' },
+  
+  // โหลด เฟส 5 (สีเหลืองทองสว่าง)
+  { id: 'lt-01', category: 'light_traps', no: '(01)', department: 'โหลด เฟส 5', location: 'ลานโหลดของตัดแต่งและ Makro', name: '(01) ลานโหลดของตัดแต่งและ Makro', status: 'active', notes: '' },
+  { id: 'lt-02', category: 'light_traps', no: '(02)', department: 'โหลด เฟส 5', location: 'ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', name: '(02) ทางขนย้ายสินค้าเข้า - ออกตัดแต่ง', status: 'active', notes: '' },
+  { id: 'lt-06', category: 'light_traps', no: '(06)', department: 'โหลด เฟส 5', location: 'ลานโหลดของตัดแต่งและ Makro', name: '(06) ลานโหลดของตัดแต่งและ Makro', status: 'active', notes: '' },
+  
+  // เฟส 6 (สีส้มสว่าง)
   { id: 'lt-13', category: 'light_traps', no: '(13)', department: 'เฟส 6', location: 'ห้อง Pack A บริเวณหน้าประตูทางเชื่อมอาคาร', name: '(13) ห้อง Pack A บริเวณหน้าประตูทางเชื่อมอาคาร', status: 'active', notes: '' },
   { id: 'lt-14', category: 'light_traps', no: '(14)', department: 'เฟส 6', location: 'ห้อง Pack A บริเวณหน้าห้องเก็บบรรจุภัณฑ์', name: '(14) ห้อง Pack A บริเวณหน้าห้องเก็บบรรจุภัณฑ์', status: 'active', notes: '' },
   { id: 'lt-15', category: 'light_traps', no: '(15)', department: 'เฟส 6', location: 'ห้อง Pack C', name: '(15) ห้อง Pack C', status: 'active', notes: '' },
+  
+  // คลัง3 (สีฟ้าพาสเทล)
   { id: 'lt-16', category: 'light_traps', no: '(16)', department: 'คลัง3', location: 'ห้อง Pack สินค้า Frozen คลัง3', name: '(16) ห้อง Pack สินค้า Frozen คลัง3', status: 'active', notes: '' },
+  
+  // หมูบด (สีเขียวกลาง)
   { id: 'lt-17', category: 'light_traps', no: '(17)', department: 'หมูบด', location: 'ห้องหมูบด บริเวณทางเข้า-ออก ติดตู้ F5', name: '(17) ห้องหมูบด บริเวณทางเข้า-ออก ติดตู้ F5', status: 'active', notes: '' },
   { id: 'lt-18', category: 'light_traps', no: '(18)', department: 'หมูบด', location: 'ห้องหมูบด บริเวณเครื่องบดหมู ติดตู้ F1', name: '(18) ห้องหมูบด บริเวณเครื่องบดหมู ติดตู้ F1', status: 'active', notes: '' },
   { id: 'lt-19', category: 'light_traps', no: '(19)', department: 'หมูบด', location: 'ห้องหมูบด บริเวณผนังติดห้องเครื่อง', name: '(19) ห้องหมูบด บริเวณผนังติดห้องเครื่อง', status: 'active', notes: '' },
   { id: 'lt-20', category: 'light_traps', no: '(20)', department: 'หมูบด', location: 'ห้องหมูบด ทางเข้า-ออกไลน์ผลิตติดออฟฟิศ', name: '(20) ห้องหมูบด ทางเข้า-ออกไลน์ผลิตติดออฟฟิศ', status: 'active', notes: '' },
   { id: 'lt-21', category: 'light_traps', no: '(21)', department: 'หมูบด', location: 'ห้องหมูบด ทางเข้า-ออกไลน์ผลิต ฝั่งตู้ S,T', name: '(21) ห้องหมูบด ทางเข้า-ออกไลน์ผลิต ฝั่งตู้ S,T', status: 'active', notes: '' },
+  
+  // Slice ผลิต (สีม่วงพาสเทล)
   { id: 'lt-22', category: 'light_traps', no: '(22)', department: 'Slice ผลิต', location: 'ห้อง Slice เครื่องใน ทางเข้า-ออก ฝั่ง Chill 3', name: '(22) ห้อง Slice เครื่องใน ทางเข้า-ออก ฝั่ง Chill 3', status: 'active', notes: '' },
   { id: 'lt-23', category: 'light_traps', no: '(23)', department: 'Slice ผลิต', location: 'ห้อง Slice เครื่องใน ทางเข้า-ออกไลน์ผลิต', name: '(23) ห้อง Slice เครื่องใน ทางเข้า-ออกไลน์ผลิต', status: 'active', notes: '' },
-  { id: 'lt-24', category: 'light_traps', no: '(24)', department: 'อนามัย', location: 'ห้องซักผ้า คลัง 4', name: '(24) ห้องซักผ้า คลัง 4', status: 'active', notes: '' },
-  { id: 'lt-25', category: 'light_traps', no: '(25)', department: 'อนามัย', location: 'ทางเข้า Slice ถาด', name: '(25) ทางเข้า Slice ถาด', status: 'active', notes: '' },
   { id: 'lt-26', category: 'light_traps', no: '(26)', department: 'Slice ผลิต', location: 'Slice ชั้น 3 ทางเข้า-ออกไลน์ผลิต', name: '(26) Slice ชั้น 3 ทางเข้า-ออกไลน์ผลิต', status: 'active', notes: '' },
   { id: 'lt-27', category: 'light_traps', no: '(27)', department: 'Slice ผลิต', location: 'Slice ชั้น 3 พื้นที่การผลิต', name: '(27) Slice ชั้น 3 พื้นที่การผลิต', status: 'active', notes: '' },
   { id: 'lt-28', category: 'light_traps', no: '(28)', department: 'Slice ผลิต', location: 'ทางเดินไปห้องยุง Slice ชั้น 3', name: '(28) ทางเดินไปห้องยุง Slice ชั้น 3', status: 'active', notes: '' },
   { id: 'lt-29', category: 'light_traps', no: '(29)', department: 'Slice ผลิต', location: 'ห้อง Slice เฟส 4.1', name: '(29) ห้อง Slice เฟส 4.1', status: 'active', notes: '' },
-  { id: 'lt-30', category: 'light_traps', no: '(30)', department: 'โรงฆ่า', location: 'ห้องแพ็คเครื่องใน/ล้างเครื่องใน', name: '(30) ห้องแพ็คเครื่องใน/ล้างเครื่องใน', status: 'active', notes: '' },
-  { id: 'lt-31', category: 'light_traps', no: '(31)', department: 'ตัดแต่ง', location: 'ห้องล้างมัน/คัดแยกเศษ', name: '(31) ห้องล้างมัน/คัดแยกเศษ', status: 'active', notes: '' },
-  { id: 'lt-32', category: 'light_traps', no: '(32)', department: 'ล้างตะกร้า', location: 'ทางลำเลียงตะกร้าเข้าไลน์ผลิต', name: '(32) ทางลำเลียงตะกร้าเข้าไลน์ผลิต', status: 'active', notes: '' },
-  { id: 'lt-33', category: 'light_traps', no: '(33)', department: 'อนามัย', location: 'บันไดทางขึ้นชั้น 2', name: '(33) บันไดทางขึ้นชั้น 2', status: 'active', notes: '' }
+  
+  // อนามัย (สีเหลืองอ่อนนวล)
+  { id: 'lt-24', category: 'light_traps', no: '(24)', department: 'อนามัย', location: 'ห้องซักผ้า คลัง 4', name: '(24) ห้องซักผ้า คลัง 4', status: 'active', notes: '' },
+  { id: 'lt-25', category: 'light_traps', no: '(25)', department: 'อนามัย', location: 'ทางเข้า Slice ถาด', name: '(25) ทางเข้า Slice ถาด', status: 'active', notes: '' },
+  { id: 'lt-33', category: 'light_traps', no: '(33)', department: 'อนามัย', location: 'บันไดทางขึ้นชั้น 2', name: '(33) บันไดทางขึ้นชั้น 2', status: 'active', notes: '' },
+  
+  // ล้างตะกร้า (สีเทาอ่อน)
+  { id: 'lt-32', category: 'light_traps', no: '(32)', department: 'ล้างตะกร้า', location: 'ทางลำเลียงตะกร้าเข้าไลน์ผลิต', name: '(32) ทางลำเลียงตะกร้าเข้าไลน์ผลิต', status: 'active', notes: '' }
 ];
 
 export const DEFAULT_COCKROACH_POINTS = [
@@ -109,6 +156,9 @@ export const getStoredPoints = (category = 'light_traps') => {
     try {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        if (category === 'light_traps') {
+          return sortLightTrapsByOfficialOrder(parsed);
+        }
         return parsed;
       }
     } catch (e) {
@@ -116,7 +166,7 @@ export const getStoredPoints = (category = 'light_traps') => {
     }
   }
 
-  if (category === 'light_traps') return DEFAULT_LIGHT_TRAPS;
+  if (category === 'light_traps') return sortLightTrapsByOfficialOrder(DEFAULT_LIGHT_TRAPS);
   if (category === 'cockroaches') return DEFAULT_COCKROACH_POINTS;
   if (category === 'rodents') return DEFAULT_RODENT_STATIONS;
   if (category === 'lizards') return DEFAULT_LIZARD_STATIONS;

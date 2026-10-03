@@ -7,7 +7,7 @@ import {
   CheckCircle, Database, ShieldAlert, ListPlus, X, ArrowLeft, BarChart3, FileText
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
-import { getStoredPoints } from '@/lib/data/pointsManager';
+import { getStoredPoints, sortLightTrapsByOfficialOrder } from '@/lib/data/pointsManager';
 
 // 33 Pre-defined default rows based on FM-QC - 08/03 Rev.07 grouped by Departments
 const INITIAL_AREAS = [
@@ -261,16 +261,17 @@ export default function InspectionPage() {
     const loadCurrentTraps = () => {
       const storedTraps = getStoredPoints('light_traps');
       if (storedTraps && storedTraps.length > 0) {
-        return storedTraps.filter(t => t.status !== 'inactive').map(t => ({
+        const sorted = sortLightTrapsByOfficialOrder(storedTraps.filter(t => t.status !== 'inactive'));
+        return sorted.map(t => ({
           dept: t.department || 'ไม่ระบุแผนก',
           area: t.name || `${t.no} ${t.location}`,
           flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
         }));
       }
-      return INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] }));
+      return sortLightTrapsByOfficialOrder(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
     };
 
-    setRows(loadCurrentTraps());
+    setRows(sortLightTrapsByOfficialOrder(loadCurrentTraps()));
     fetchCustomInsectTypes();
     fetchInspections();
 
@@ -280,7 +281,8 @@ export default function InspectionPage() {
     const handlePointsSync = (e) => {
       if (e.detail?.category === 'light_traps') {
         const updatedTraps = e.detail.points.filter(t => t.status !== 'inactive');
-        setRows(updatedTraps.map(t => ({
+        const sorted = sortLightTrapsByOfficialOrder(updatedTraps);
+        setRows(sorted.map(t => ({
           dept: t.department || 'ไม่ระบุแผนก',
           area: t.name || `${t.no} ${t.location}`,
           flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
@@ -555,17 +557,23 @@ export default function InspectionPage() {
       () => {
         const storedTraps = getStoredPoints('light_traps');
         if (storedTraps && storedTraps.length > 0) {
-          setRows(storedTraps.filter(t => t.status !== 'inactive').map(t => ({
+          const sorted = sortLightTrapsByOfficialOrder(storedTraps.filter(t => t.status !== 'inactive'));
+          setRows(sorted.map(t => ({
             dept: t.department || 'ไม่ระบุแผนก',
             area: t.name || `${t.no} ${t.location}`,
             flies: '', mosquitoes: '', ants: '', others: '', othersDetails: []
           })));
         } else {
-          setRows(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] })));
+          setRows(sortLightTrapsByOfficialOrder(INITIAL_AREAS.map(item => ({ ...item, othersDetails: [] }))));
         }
         setNotification(null);
       }
     );
+  };
+
+  const handleSortRows = () => {
+    setRows(prevRows => sortLightTrapsByOfficialOrder(prevRows));
+    showNotification('success', 'จัดเรียงลำดับเครื่องตามแบบเดิม (07..32) เรียบร้อยแล้ว');
   };
 
   // Reset/Clear only insect count states across all 33 rows
@@ -863,6 +871,17 @@ export default function InspectionPage() {
                 </span>
               )}
             </div>
+
+            {/* Quick Sort Button */}
+            <button
+              type="button"
+              onClick={handleSortRows}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 text-slate-750 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-emerald-300 rounded-2xl p-2.5 px-3.5 shadow-sm flex items-center gap-1.5 text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+              title="จัดเรียงลำดับเครื่องตามแบบเดิม (07 08 09 10 11 12 30 03 04 05 31 01 02 06 13 14 15 16 17 18 19 20 21 22 23 26 27 28 29 24 25 33 32)"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>เรียงลำดับเครื่องตามเดิม (07..32)</span>
+            </button>
           </div>
         </div>
 
@@ -1230,9 +1249,9 @@ export default function InspectionPage() {
           )}
         </div>
 
-        {/* Bottom Utility control buttons (Add and Reset) */}
+        {/* Bottom Utility control buttons (Add, Sort, and Reset) */}
         <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-850 rounded-3xl mb-6 flex flex-wrap justify-between items-center gap-4">
-          <div>
+          <div className="flex flex-wrap items-center gap-2">
             {role === 'admin' ? (
               <button
                 onClick={addRow}
@@ -1247,11 +1266,20 @@ export default function InspectionPage() {
                 <span>การลบหรือจัดโครงสร้างตารางถูกจำกัดไว้สำหรับสิทธิ์ผู้ควบคุม (Admin) เท่านั้น</span>
               </p>
             )}
+
+            <button
+              onClick={handleSortRows}
+              className="inline-flex items-center gap-1.5 py-2.5 px-4 border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm font-extrabold rounded-xl hover:bg-emerald-100/70 transition-all shadow-sm cursor-pointer"
+              title="จัดเรียงลำดับเครื่องตามแบบเดิม (07 08 09 10 11 12 30 03 04 05 31 01 02 06 13 14 15 16 17 18 19 20 21 22 23 26 27 28 29 24 25 33 32)"
+            >
+              <RotateCcw className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>เรียงลำดับเครื่องตามเดิม (07..32)</span>
+            </button>
           </div>
 
           <button
             onClick={resetTable}
-            className="inline-flex items-center gap-1.5 py-2 px-4 text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white text-xs font-bold transition-colors"
+            className="inline-flex items-center gap-1.5 py-2 px-4 text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white text-xs font-bold transition-colors cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>รีเซ็ตจัดกลุ่มตามเอกสาร (33 แถวดั้งเดิม)</span>
