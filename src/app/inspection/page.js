@@ -642,25 +642,6 @@ export default function InspectionPage() {
           
           if (isAutoApprovedDate(weekDate)) {
             localStorage.setItem(statusKey, 'Approved');
-            // Auto approve supervisor stamps for all depts
-            const deptsList = [
-              'หน้าร้านใหม่', 'โรงฆ่า', 'ตัดแต่ง', 'โหลด เฟส 5', 'เฟส 6', 
-              'คลัง3', 'หมูบด', 'Slice ผลิต', 'อนามัย', 'ล้างตะกร้า'
-            ];
-            const timestampStr = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
-            deptsList.forEach(dept => {
-              const approvalKey = `approval_${dept}_${monthName}_${year}`;
-              localStorage.setItem(approvalKey, JSON.stringify({
-                deptApproved: true,
-                deptApproverName: 'Auto-Approved (ข้อมูลย้อนหลัง)',
-                deptApprovedAt: timestampStr,
-                deptComment: 'อนุมัติอัตโนมัติข้อมูลย้อนหลัง',
-                qaApproved: true,
-                qaApproverName: 'Auto-Approved (ข้อมูลย้อนหลัง)',
-                qaApprovedAt: timestampStr,
-                qaComment: 'อนุมัติอัตโนมัติข้อมูลย้อนหลัง'
-              }));
-            });
           } else {
             // When operator enters new data, set status to Draft
             localStorage.setItem(statusKey, 'Draft');

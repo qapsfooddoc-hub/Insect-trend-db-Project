@@ -570,6 +570,41 @@ export default function AdminPage() {
   useEffect(() => {
     setMounted(true);
     if (typeof window !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('approval_') || k.startsWith('quarterly_approval_'))) {
+            const val = localStorage.getItem(k);
+            if (val) {
+              const p = JSON.parse(val);
+              let changed = false;
+              if (p.deptApproverName && (p.deptApproverName.includes('Admin Approval') || p.deptApproverName.includes('Auto-Approved') || p.deptApproverName.includes('แอดมิน สูงสุด'))) {
+                p.deptApproved = false;
+                p.deptApproverName = '';
+                p.deptApprovedAt = '';
+                p.deptComment = '';
+                changed = true;
+              }
+              if (p.qaApproverName && (p.qaApproverName.includes('Admin Approval') || p.qaApproverName.includes('Auto-Approved'))) {
+                p.qaApproved = false;
+                p.qaApproverName = '';
+                p.qaApprovedAt = '';
+                p.qaComment = '';
+                changed = true;
+              }
+              if (p.approverName && (p.approverName.includes('Admin Approval') || p.approverName.includes('Auto-Approved') || p.approverName.includes('แอดมิน สูงสุด'))) {
+                p.approved = false;
+                p.approverName = '';
+                p.approvedAt = '';
+                changed = true;
+              }
+              if (changed) {
+                localStorage.setItem(k, JSON.stringify(p));
+              }
+            }
+          }
+        }
+      } catch {}
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       if (tabParam && ['users', 'inspections', 'approvals', 'presentation', 'points'].includes(tabParam)) {
@@ -1340,7 +1375,7 @@ export default function AdminPage() {
         const mStr = String(monthIdx + 1).padStart(2, '0');
         const targetPrefix = `${yStr}-${mStr}`;
         const rep = (adminMonthlyReports || []).find(r => r.report_month && r.report_month.startsWith(targetPrefix));
-        if (rep && rep.dept_head_signed && rep.qa_manager_signed) {
+        if (rep && ((rep.dept_head_signed && rep.qa_manager_signed) || (rep.department === 'ALL' && rep.qa_manager_signed) || rep.ai_analysis_text?.includes('Admin'))) {
           currentStatus = 'Approved';
           localStorage.setItem(statusKey, 'Approved');
         } else if (rep && (rep.dept_head_signed || rep.qa_manager_signed)) {
@@ -1394,25 +1429,23 @@ export default function AdminPage() {
       localStorage.setItem(statusKey, 'Approved');
       setApprovalStatus('Approved');
 
-      // 2. Auto-stamp approval for all 10 departments for this month
+      // 2. Clean up any lingering auto-stamps for this month
       const beYear = year + 543;
-      const now = new Date().toLocaleString('th-TH', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
       DEPTS_LIST.forEach(dept => {
         const key = `approval_${dept}_${selectedApprovalMonth}_${beYear}`;
         const existing = localStorage.getItem(key);
-        let data = {};
         if (existing) {
-          try { data = JSON.parse(existing); } catch {}
+          try {
+            const data = JSON.parse(existing);
+            if (data.deptApproverName && (data.deptApproverName.includes('Admin Approval') || data.deptApproverName.includes('Auto-Approved') || data.deptApproverName.includes('แอดมิน สูงสุด'))) {
+              data.deptApproved = false;
+              data.deptApprovedAt = '';
+              data.deptApproverName = '';
+              data.deptComment = '';
+              localStorage.setItem(key, JSON.stringify(data));
+            }
+          } catch {}
         }
-        data.deptApproved = true;
-        data.deptApprovedAt = data.deptApprovedAt || now;
-        data.deptApproverName = data.deptApproverName || 'แอดมิน สูงสุด (Admin Approval)';
-        data.deptComment = data.deptComment || 'อนุมัติรายงานตรวจนับแมลงทั้งระบบโดยผู้ดูแลระบบ (Admin)';
-        data.qaApproved = true;
-        data.qaApprovedAt = data.qaApprovedAt || now;
-        data.qaApproverName = data.qaApproverName || 'แอดมิน สูงสุด (Admin Approval)';
-        data.qaComment = data.qaComment || 'อนุมัติการประมวลผลสถิติภาพรวมทั้งระบบเรียบร้อย';
-        localStorage.setItem(key, JSON.stringify(data));
       });
 
       // 3. Sync to Supabase monthly_reports (shared across all browsers)
@@ -1428,8 +1461,7 @@ export default function AdminPage() {
             body: JSON.stringify({
               report_month: reportMonth,
               department: 'ALL',
-              dept_head_signed: true,
-              dept_head_date: new Date().toISOString(),
+              dept_head_signed: false,
               qa_manager_signed: true,
               qa_manager_date: new Date().toISOString(),
               ai_analysis_text: 'อนุมัติทั้งระบบโดย Admin'
@@ -1438,7 +1470,7 @@ export default function AdminPage() {
           // Update local state
           setAdminMonthlyReports(prev => [
             ...prev.filter(r => !(r.report_month && r.report_month.startsWith(`${year}-${monthStr}`))),
-            { report_month: reportMonth, department: 'ALL', dept_head_signed: true, qa_manager_signed: true }
+            { report_month: reportMonth, department: 'ALL', dept_head_signed: false, qa_manager_signed: true, ai_analysis_text: 'อนุมัติทั้งระบบโดย Admin' }
           ]);
         } catch (err) {
           console.error('Failed to sync to Supabase monthly_reports:', err);

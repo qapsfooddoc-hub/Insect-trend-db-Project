@@ -927,29 +927,33 @@ export default function DashboardPage() {
     if (typeof window !== 'undefined') {
       const beYear = parseInt(selectedYear, 10) + 543;
       const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
-      
-      // Initialize demo pre-approval for 'โรงฆ่า' and 'มกราคม' BE 2569
-      if (isDemo && selectedDept === 'โรงฆ่า' && selectedMonth === 'มกราคม' && beYear === 2569) {
-        const existing = localStorage.getItem(key);
-        if (!existing) {
-          const defaultApproval = {
-            deptApproved: true,
-            deptApproverName: 'แอดมิน สูงสุด — Admin',
-            deptApprovedAt: '21 มกราคม 2569 10:30',
-            deptComment: 'รับทราบรายงานผลการตรวจแมลงรอบเดือนมกราคมแล้ว ทุกจุดควบคุมเป็นปกติ',
-            qaApproved: true,
-            qaApproverName: 'แอดมิน สูงสุด — Admin',
-            qaApprovedAt: '22 มกราคม 2569 14:15',
-            qaComment: 'รับทราบรายงานผลการวิเคราะห์สถิติและการทวนสอบข้อมูลความปลอดภัยทางชีวภาพของฝ่าย QA แล้ว'
-          };
-          localStorage.setItem(key, JSON.stringify(defaultApproval));
-        }
-      }
 
       const saved = localStorage.getItem(key);
       if (saved) {
         try {
-          setApprovalData(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          const isFakeDept = parsed.deptApproverName && (
+            parsed.deptApproverName.includes('Admin Approval') ||
+            parsed.deptApproverName.includes('Auto-Approved') ||
+            parsed.deptApproverName.includes('แอดมิน สูงสุด')
+          );
+          if (isFakeDept) {
+            parsed.deptApproved = false;
+            parsed.deptApproverName = '';
+            parsed.deptApprovedAt = '';
+            parsed.deptComment = '';
+          }
+          const isFakeQa = parsed.qaApproverName && (
+            parsed.qaApproverName.includes('Admin Approval') ||
+            parsed.qaApproverName.includes('Auto-Approved')
+          );
+          if (isFakeQa) {
+            parsed.qaApproved = false;
+            parsed.qaApproverName = '';
+            parsed.qaApprovedAt = '';
+            parsed.qaComment = '';
+          }
+          setApprovalData(parsed);
         } catch {
           setApprovalData({
             deptApproved: false, deptApproverName: '', deptApprovedAt: '', deptComment: '',
@@ -1027,7 +1031,7 @@ export default function DashboardPage() {
     const targetPrefix = `${yStr}-${mStr}`;
     const report = monthlyReports.find(r => r.report_month && r.report_month.startsWith(targetPrefix));
     if (report) {
-      if (report.dept_head_signed && report.qa_manager_signed) {
+      if ((report.dept_head_signed && report.qa_manager_signed) || (report.department === 'ALL' && report.qa_manager_signed) || report.ai_analysis_text?.includes('Admin')) {
         return 'Approved';
       }
       if (report.dept_head_signed || report.qa_manager_signed) {
@@ -1244,31 +1248,32 @@ export default function DashboardPage() {
     let qaComment = '';
 
     if (typeof window !== 'undefined') {
-      // Demo pre-approval for 'โรงฆ่า' and 'มกราคม' BE 2569
-      if (isDemo && dept === 'โรงฆ่า' && selectedMonth === 'มกราคม' && beYear === 2569) {
-        deptApproved = true;
-        deptApproverName = 'แอดมิน สูงสุด — Admin';
-        deptApprovedAt = '21 มกราคม 2569 10:30';
-        deptComment = 'รับทราบรายงานผลการตรวจแมลงรอบเดือนมกราคมแล้ว ทุกจุดควบคุมเป็นปกติ';
-        qaApproved = true;
-        qaApproverName = 'แอดมิน สูงสุด — Admin';
-        qaApprovedAt = '22 มกราคม 2569 14:15';
-        qaComment = 'รับทราบรายงานผลการวิเคราะห์สถิติและการทวนสอบข้อมูลความปลอดภัยทางชีวภาพของฝ่าย QA แล้ว';
-      } else {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const isFakeDept = parsed.deptApproverName && (
+            parsed.deptApproverName.includes('Admin Approval') ||
+            parsed.deptApproverName.includes('Auto-Approved') ||
+            parsed.deptApproverName.includes('แอดมิน สูงสุด')
+          );
+          if (!isFakeDept) {
             deptApproved = parsed.deptApproved || false;
             deptApproverName = parsed.deptApproverName || '';
             deptApprovedAt = parsed.deptApprovedAt || '';
             deptComment = parsed.deptComment || '';
+          }
+          const isFakeQa = parsed.qaApproverName && (
+            parsed.qaApproverName.includes('Admin Approval') ||
+            parsed.qaApproverName.includes('Auto-Approved')
+          );
+          if (!isFakeQa) {
             qaApproved = parsed.qaApproved || false;
             qaApproverName = parsed.qaApproverName || '';
             qaApprovedAt = parsed.qaApprovedAt || '';
             qaComment = parsed.qaComment || '';
-          } catch {}
-        }
+          }
+        } catch {}
       }
     }
 
@@ -1366,8 +1371,8 @@ export default function DashboardPage() {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
                 <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
                 <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
-                  {deptApproved || qaApproved ? (
-                    <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({deptApprovedAt || qaApprovedAt})</span>
+                  {deptApproved && deptApprovedAt ? (
+                    <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({deptApprovedAt})</span>
                   ) : (
                     'วันที่......./......./.......'
                   )}
@@ -1388,20 +1393,21 @@ export default function DashboardPage() {
     let approvedAt = '';
 
     if (typeof window !== 'undefined') {
-      if (isDemo && dept === 'โรงฆ่า' && selectedQuarter === 'Q1' && beYear === 2569) {
-        isApproved = true;
-        approverName = 'แอดมิน สูงสุด — Admin';
-        approvedAt = '22 มีนาคม 2569 14:30';
-      } else {
-        const saved = localStorage.getItem(key);
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const isFake = parsed.approverName && (
+            parsed.approverName.includes('Admin Approval') ||
+            parsed.approverName.includes('Auto-Approved') ||
+            parsed.approverName.includes('แอดมิน สูงสุด')
+          );
+          if (!isFake) {
             isApproved = parsed.approved || false;
             approverName = parsed.approverName || '';
             approvedAt = parsed.approvedAt || '';
-          } catch {}
-        }
+          }
+        } catch {}
       }
     }
 
@@ -1688,7 +1694,7 @@ export default function DashboardPage() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '170px' }}>
               <div style={{ width: '100%', borderBottom: '1px solid #000', height: '14px' }}></div>
               <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '10.5px', color: '#64748b' }}>
-                {isApproved ? (
+                {isApproved && approvedAt ? (
                   <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({approvedAt})</span>
                 ) : (
                   'วันที่......./......./.......'
@@ -1704,6 +1710,43 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('approval_') || k.startsWith('quarterly_approval_'))) {
+            const val = localStorage.getItem(k);
+            if (val) {
+              const p = JSON.parse(val);
+              let changed = false;
+              if (p.deptApproverName && (p.deptApproverName.includes('Admin Approval') || p.deptApproverName.includes('Auto-Approved') || p.deptApproverName.includes('แอดมิน สูงสุด'))) {
+                p.deptApproved = false;
+                p.deptApproverName = '';
+                p.deptApprovedAt = '';
+                p.deptComment = '';
+                changed = true;
+              }
+              if (p.qaApproverName && (p.qaApproverName.includes('Admin Approval') || p.qaApproverName.includes('Auto-Approved'))) {
+                p.qaApproved = false;
+                p.qaApproverName = '';
+                p.qaApprovedAt = '';
+                p.qaComment = '';
+                changed = true;
+              }
+              if (p.approverName && (p.approverName.includes('Admin Approval') || p.approverName.includes('Auto-Approved') || p.approverName.includes('แอดมิน สูงสุด'))) {
+                p.approved = false;
+                p.approverName = '';
+                p.approvedAt = '';
+                changed = true;
+              }
+              if (changed) {
+                localStorage.setItem(k, JSON.stringify(p));
+              }
+            }
+          }
+        }
+      } catch {}
+    }
     fetchData();
   }, []);
 
@@ -5088,22 +5131,28 @@ export default function DashboardPage() {
               let qaApprover = '';
 
               if (typeof window !== 'undefined') {
-                if (isDemo && selectedDept === 'โรงฆ่า' && previewMonth === 'มกราคม' && beYear === 2569) {
-                  deptApproved = true;
-                  deptApprover = 'แอดมิน สูงสุด';
-                  qaApproved = true;
-                  qaApprover = 'แอดมิน สูงสุด';
-                } else {
-                  const saved = localStorage.getItem(approvalKey);
-                  if (saved) {
-                    try {
-                      const p = JSON.parse(saved);
+                const saved = localStorage.getItem(approvalKey);
+                if (saved) {
+                  try {
+                    const p = JSON.parse(saved);
+                    const isFakeDept = p.deptApproverName && (
+                      p.deptApproverName.includes('Admin Approval') ||
+                      p.deptApproverName.includes('Auto-Approved') ||
+                      p.deptApproverName.includes('แอดมิน สูงสุด')
+                    );
+                    if (!isFakeDept) {
                       deptApproved = p.deptApproved || false;
                       deptApprover = p.deptApproverName || '';
+                    }
+                    const isFakeQa = p.qaApproverName && (
+                      p.qaApproverName.includes('Admin Approval') ||
+                      p.qaApproverName.includes('Auto-Approved')
+                    );
+                    if (!isFakeQa) {
                       qaApproved = p.qaApproved || false;
                       qaApprover = p.qaApproverName || '';
-                    } catch {}
-                  }
+                    }
+                  } catch {}
                 }
               }
 
