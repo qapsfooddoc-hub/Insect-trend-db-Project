@@ -578,21 +578,21 @@ export default function AdminPage() {
             if (val) {
               const p = JSON.parse(val);
               let changed = false;
-              if (p.deptApproverName && (p.deptApproverName.includes('Admin Approval') || p.deptApproverName.includes('Auto-Approved') || p.deptApproverName.includes('แอดมิน สูงสุด'))) {
+              if (p.deptApproverName && (p.deptApproverName.includes('(Admin Approval)') || p.deptApproverName.includes('Auto-Approved'))) {
                 p.deptApproved = false;
                 p.deptApproverName = '';
                 p.deptApprovedAt = '';
                 p.deptComment = '';
                 changed = true;
               }
-              if (p.qaApproverName && (p.qaApproverName.includes('Admin Approval') || p.qaApproverName.includes('Auto-Approved'))) {
+              if (p.qaApproverName && (p.qaApproverName.includes('(Admin Approval)') || p.qaApproverName.includes('Auto-Approved'))) {
                 p.qaApproved = false;
                 p.qaApproverName = '';
                 p.qaApprovedAt = '';
                 p.qaComment = '';
                 changed = true;
               }
-              if (p.approverName && (p.approverName.includes('Admin Approval') || p.approverName.includes('Auto-Approved') || p.approverName.includes('แอดมิน สูงสุด'))) {
+              if (p.approverName && (p.approverName.includes('(Admin Approval)') || p.approverName.includes('Auto-Approved'))) {
                 p.approved = false;
                 p.approverName = '';
                 p.approvedAt = '';
@@ -1437,7 +1437,7 @@ export default function AdminPage() {
         if (existing) {
           try {
             const data = JSON.parse(existing);
-            if (data.deptApproverName && (data.deptApproverName.includes('Admin Approval') || data.deptApproverName.includes('Auto-Approved') || data.deptApproverName.includes('แอดมิน สูงสุด'))) {
+            if (data.deptApproverName && (data.deptApproverName.includes('(Admin Approval)') || data.deptApproverName.includes('Auto-Approved'))) {
               data.deptApproved = false;
               data.deptApprovedAt = '';
               data.deptApproverName = '';

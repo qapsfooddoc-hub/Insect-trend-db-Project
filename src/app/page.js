@@ -933,9 +933,8 @@ export default function DashboardPage() {
         try {
           const parsed = JSON.parse(saved);
           const isFakeDept = parsed.deptApproverName && (
-            parsed.deptApproverName.includes('Admin Approval') ||
-            parsed.deptApproverName.includes('Auto-Approved') ||
-            parsed.deptApproverName.includes('แอดมิน สูงสุด')
+            parsed.deptApproverName.includes('(Admin Approval)') ||
+            parsed.deptApproverName.includes('Auto-Approved')
           );
           if (isFakeDept) {
             parsed.deptApproved = false;
@@ -944,7 +943,7 @@ export default function DashboardPage() {
             parsed.deptComment = '';
           }
           const isFakeQa = parsed.qaApproverName && (
-            parsed.qaApproverName.includes('Admin Approval') ||
+            parsed.qaApproverName.includes('(Admin Approval)') ||
             parsed.qaApproverName.includes('Auto-Approved')
           );
           if (isFakeQa) {
@@ -1109,12 +1108,24 @@ export default function DashboardPage() {
       return;
     }
     setPrintJob(jobType);
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.add('no-scrollbar');
+      document.body.classList.add('no-scrollbar');
+      document.documentElement.style.overflow = 'hidden';
+      document.body.style.overflow = 'hidden';
+    }
     setTimeout(() => {
       window.print();
       setTimeout(() => {
         setPrintJob('none');
+        if (typeof document !== 'undefined') {
+          document.documentElement.classList.remove('no-scrollbar');
+          document.body.classList.remove('no-scrollbar');
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+        }
       }, 500);
-    }, 150);
+    }, 200);
   };
 
   const getTrapTrendData = (trapName, quarter, year) => {
@@ -1253,9 +1264,8 @@ export default function DashboardPage() {
         try {
           const parsed = JSON.parse(saved);
           const isFakeDept = parsed.deptApproverName && (
-            parsed.deptApproverName.includes('Admin Approval') ||
-            parsed.deptApproverName.includes('Auto-Approved') ||
-            parsed.deptApproverName.includes('แอดมิน สูงสุด')
+            parsed.deptApproverName.includes('(Admin Approval)') ||
+            parsed.deptApproverName.includes('Auto-Approved')
           );
           if (!isFakeDept) {
             deptApproved = parsed.deptApproved || false;
@@ -1264,7 +1274,7 @@ export default function DashboardPage() {
             deptComment = parsed.deptComment || '';
           }
           const isFakeQa = parsed.qaApproverName && (
-            parsed.qaApproverName.includes('Admin Approval') ||
+            parsed.qaApproverName.includes('(Admin Approval)') ||
             parsed.qaApproverName.includes('Auto-Approved')
           );
           if (!isFakeQa) {
@@ -1369,8 +1379,22 @@ export default function DashboardPage() {
                 รับทราบโดย
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
-                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
-                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                <div style={{ 
+                  width: '100%', 
+                  borderBottom: '1px solid #000', 
+                  height: '18px',
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'center',
+                  paddingBottom: '2px'
+                }}>
+                  {deptApproved && deptApproverName ? (
+                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a' }}>
+                      {deptApproverName.split(' — ')[0].split(' - ')[0].trim()}
+                    </span>
+                  ) : null}
+                </div>
+                <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '11px', color: '#475569' }}>
                   {deptApproved && deptApprovedAt ? (
                     <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({deptApprovedAt})</span>
                   ) : (
@@ -1398,9 +1422,8 @@ export default function DashboardPage() {
         try {
           const parsed = JSON.parse(saved);
           const isFake = parsed.approverName && (
-            parsed.approverName.includes('Admin Approval') ||
-            parsed.approverName.includes('Auto-Approved') ||
-            parsed.approverName.includes('แอดมิน สูงสุด')
+            parsed.approverName.includes('(Admin Approval)') ||
+            parsed.approverName.includes('Auto-Approved')
           );
           if (!isFake) {
             isApproved = parsed.approved || false;
@@ -1692,7 +1715,21 @@ export default function DashboardPage() {
               รับทราบโดย
             </span>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '170px' }}>
-              <div style={{ width: '100%', borderBottom: '1px solid #000', height: '14px' }}></div>
+              <div style={{ 
+                width: '100%', 
+                borderBottom: '1px solid #000', 
+                height: '16px',
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+                paddingBottom: '2px'
+              }}>
+                {isApproved && approverName ? (
+                  <span style={{ fontSize: '10.5px', fontWeight: 'bold', color: '#0f172a' }}>
+                    {approverName.split(' — ')[0].split(' - ')[0].trim()}
+                  </span>
+                ) : null}
+              </div>
               <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '10.5px', color: '#64748b' }}>
                 {isApproved && approvedAt ? (
                   <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({approvedAt})</span>
@@ -1719,21 +1756,21 @@ export default function DashboardPage() {
             if (val) {
               const p = JSON.parse(val);
               let changed = false;
-              if (p.deptApproverName && (p.deptApproverName.includes('Admin Approval') || p.deptApproverName.includes('Auto-Approved') || p.deptApproverName.includes('แอดมิน สูงสุด'))) {
+              if (p.deptApproverName && (p.deptApproverName.includes('(Admin Approval)') || p.deptApproverName.includes('Auto-Approved'))) {
                 p.deptApproved = false;
                 p.deptApproverName = '';
                 p.deptApprovedAt = '';
                 p.deptComment = '';
                 changed = true;
               }
-              if (p.qaApproverName && (p.qaApproverName.includes('Admin Approval') || p.qaApproverName.includes('Auto-Approved'))) {
+              if (p.qaApproverName && (p.qaApproverName.includes('(Admin Approval)') || p.qaApproverName.includes('Auto-Approved'))) {
                 p.qaApproved = false;
                 p.qaApproverName = '';
                 p.qaApprovedAt = '';
                 p.qaComment = '';
                 changed = true;
               }
-              if (p.approverName && (p.approverName.includes('Admin Approval') || p.approverName.includes('Auto-Approved') || p.approverName.includes('แอดมิน สูงสุด'))) {
+              if (p.approverName && (p.approverName.includes('(Admin Approval)') || p.approverName.includes('Auto-Approved'))) {
                 p.approved = false;
                 p.approverName = '';
                 p.approvedAt = '';
@@ -5136,16 +5173,15 @@ export default function DashboardPage() {
                   try {
                     const p = JSON.parse(saved);
                     const isFakeDept = p.deptApproverName && (
-                      p.deptApproverName.includes('Admin Approval') ||
-                      p.deptApproverName.includes('Auto-Approved') ||
-                      p.deptApproverName.includes('แอดมิน สูงสุด')
+                      p.deptApproverName.includes('(Admin Approval)') ||
+                      p.deptApproverName.includes('Auto-Approved')
                     );
                     if (!isFakeDept) {
                       deptApproved = p.deptApproved || false;
                       deptApprover = p.deptApproverName || '';
                     }
                     const isFakeQa = p.qaApproverName && (
-                      p.qaApproverName.includes('Admin Approval') ||
+                      p.qaApproverName.includes('(Admin Approval)') ||
                       p.qaApproverName.includes('Auto-Approved')
                     );
                     if (!isFakeQa) {
@@ -5283,6 +5319,12 @@ export default function DashboardPage() {
             size: A4 landscape;
             margin: 0;
           }
+          
+          /* Hide app chrome, sidebar, and screen elements */
+          aside, header, nav, footer, .screen-content, .no-print, #navbar-global, [role="navigation"] {
+            display: none !important;
+          }
+
           body, html {
             background-color: white !important;
             color: black !important;
@@ -5291,34 +5333,58 @@ export default function DashboardPage() {
             print-color-adjust: exact;
             margin: 0 !important;
             padding: 0 !important;
+            width: 100% !important;
             height: auto !important;
             min-height: 0 !important;
+            overflow: hidden !important;
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
           }
-          .min-h-screen {
-            padding: 0 !important;
-            margin: 0 !important;
-            min-height: 0 !important;
-            height: auto !important;
+
+          *, *::before, *::after {
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
           }
-          .screen-content, header, nav, footer, .no-print, #navbar-global {
+
+          ::-webkit-scrollbar,
+          *::-webkit-scrollbar {
             display: none !important;
+            width: 0 !important;
+            height: 0 !important;
           }
-          .print-layout {
+
+          .min-h-screen, .flex-1, main {
             display: block !important;
             width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
             margin: 0 !important;
             padding: 0 !important;
+            overflow: visible !important;
+            background: transparent !important;
           }
+
+          .print-layout {
+            display: block !important;
+            width: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+          }
+
           .print-page {
             page-break-after: always;
             break-after: page;
             position: relative;
-            width: 297mm;
-            height: 210mm;
-            box-sizing: border-box;
-            overflow: hidden;
+            width: 297mm !important;
+            height: 210mm !important;
+            max-width: 297mm !important;
+            max-height: 210mm !important;
+            box-sizing: border-box !important;
+            overflow: hidden !important;
             background: white !important;
             color: black !important;
+            margin: 0 auto !important;
           }
           .print-page:last-child {
             page-break-after: avoid !important;

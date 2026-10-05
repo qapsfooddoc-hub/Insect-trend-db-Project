@@ -34,3 +34,25 @@ body {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+  aside, header, nav, footer, .screen-content, .no-print, #navbar-global, [role="navigation"] {
+    display: none !important;
+  }
+  html, body {
+    overflow: hidden !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+  }
+  ::-webkit-scrollbar,
+  *::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+}
+
