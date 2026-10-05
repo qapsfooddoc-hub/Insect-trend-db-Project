@@ -1407,7 +1407,8 @@ export default function DashboardPage() {
 
   const renderQuarterlyPrintPages = (dept) => {
     const beYear = parseInt(selectedYear, 10) + 543;
-    const key = `quarterly_approval_${dept}_${selectedQuarter}_${beYear}`;
+    const effectiveQuarter = (selectedQuarter && selectedQuarter !== 'ALL') ? selectedQuarter : 'Q1';
+    const key = `quarterly_approval_${dept}_${effectiveQuarter}_${beYear}`;
     let isApproved = false;
     let approverName = '';
     let approvedAt = '';
@@ -1440,9 +1441,8 @@ export default function DashboardPage() {
       'Q1': 'มกราคม - มีนาคม',
       'Q2': 'เมษายน - มิถุนายน',
       'Q3': 'กรกฎาคม - กันยายน',
-      'Q4': 'ตุลาคม - ธันวาคม',
-      'ALL': 'มกราคม - ธันวาคม'
-    }[selectedQuarter] || '';
+      'Q4': 'ตุลาคม - ธันวาคม'
+    }[effectiveQuarter] || 'มกราคม - มีนาคม';
 
     return chunkedTraps.map((chunk, pageIdx) => (
       <div 
@@ -1470,14 +1470,14 @@ export default function DashboardPage() {
         <div style={{ textAlign: 'center', margin: '0 0 6px 0' }}>
           <h1 style={{ fontSize: '16px', fontWeight: 'bold', color: '#1e293b' }}>รายงานสถิติวิเคราะห์แนวโน้มแมลง จากเครื่องดักแมลงประจำไตรมาส</h1>
           <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px' }}>
-            แผนก {dept} · ประจำไตรมาสที่ {selectedQuarter === 'ALL' ? '1' : selectedQuarter.replace('Q','')} ({quarterMonthsText}) ปี {getDisplayYear(selectedYear)} · หน้าที่ {pageIdx + 1}/{chunkedTraps.length}
+            แผนก {dept} · ประจำไตรมาสที่ {effectiveQuarter.replace('Q','')} ({quarterMonthsText}) ปี {getDisplayYear(selectedYear)} · หน้าที่ {pageIdx + 1}/{chunkedTraps.length}
           </h2>
         </div>
 
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '480px', maxHeight: '520px' }}>
           {chunk.map((trap) => {
-            const trapData = getTrapTrendData(trap, selectedQuarter, selectedYear);
-            const trapAnalysis = getTrapAnalysis(trap, selectedQuarter, selectedYear);
+            const trapData = getTrapTrendData(trap, effectiveQuarter, selectedYear);
+            const trapAnalysis = getTrapAnalysis(trap, effectiveQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
             let printFontSize = '13.5px';
@@ -1953,29 +1953,12 @@ export default function DashboardPage() {
   };
 
   const getAvailableQuarters = (year) => {
-    const allQuarters = [
+    return [
       { value: 'Q1', label: 'Q1 (ม.ค.-มี.ค.)', monthIdxStart: 0, monthIdxEnd: 2 },
       { value: 'Q2', label: 'Q2 (เม.ย.-มิ.ย.)', monthIdxStart: 3, monthIdxEnd: 5 },
       { value: 'Q3', label: 'Q3 (ก.ค.-ก.ย.)', monthIdxStart: 6, monthIdxEnd: 8 },
       { value: 'Q4', label: 'Q4 (ต.ค.-ธ.ค.)', monthIdxStart: 9, monthIdxEnd: 11 }
     ];
-    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-    if (isDemo || rawData.length === 0) {
-      return isYear2026 ? allQuarters.filter(q => q.value !== 'Q4') : allQuarters;
-    }
-    const presentMonthIdxSet = new Set();
-    rawData.forEach(r => {
-      const d = new Date(r.inspected_at);
-      if (r.inspected_at && d.getFullYear() === parseInt(year, 10)) {
-        presentMonthIdxSet.add(d.getMonth());
-      }
-    });
-    return allQuarters.filter(q => {
-      for (let m = q.monthIdxStart; m <= q.monthIdxEnd; m++) {
-        if (presentMonthIdxSet.has(m)) return true;
-      }
-      return false;
-    });
   };
 
   useEffect(() => {
@@ -2008,7 +1991,7 @@ export default function DashboardPage() {
     }
   }, [rawData, isDemo]);
 
-  // Auto select latest quarter and reset month when switching to device tab, or clear quarter when switching to department tab
+  // Auto select latest quarter and reset month when switching to device tab
   useEffect(() => {
     if (activeTab === 'device') {
       if (selectedQuarter === 'ALL') {
@@ -2017,8 +2000,6 @@ export default function DashboardPage() {
         setSelectedQuarter(latestQ);
       }
       setSelectedMonth('ALL');
-    } else if (activeTab === 'department') {
-      setSelectedQuarter('ALL');
     }
   }, [activeTab, selectedYear, selectedQuarter]);
 
@@ -5100,12 +5081,29 @@ export default function DashboardPage() {
                 </select>
                 <select
                   value={selectedMonth === 'ALL' ? 'มกราคม' : selectedMonth}
-                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  onChange={(e) => {
+                    const m = e.target.value;
+                    setSelectedMonth(m);
+                    if (['มกราคม', 'กุมภาพันธ์', 'มีนาคม'].includes(m)) setSelectedQuarter('Q1');
+                    else if (['เมษายน', 'พฤษภาคม', 'มิถุนายน'].includes(m)) setSelectedQuarter('Q2');
+                    else if (['กรกฎาคม', 'สิงหาคม', 'กันยายน'].includes(m)) setSelectedQuarter('Q3');
+                    else if (['ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].includes(m)) setSelectedQuarter('Q4');
+                  }}
                   className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 text-slate-800 dark:text-slate-200 cursor-pointer"
                 >
                   {getAvailableMonths(selectedYear).filter(m => m !== 'ALL').map(m => (
                     <option key={m} value={m}>{m}</option>
                   ))}
+                </select>
+                <select
+                  value={selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter}
+                  onChange={(e) => setSelectedQuarter(e.target.value)}
+                  className="px-3 py-1.5 text-xs font-bold bg-indigo-50/80 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/80 rounded-xl focus:outline-none focus:border-indigo-500 text-indigo-900 dark:text-indigo-200 cursor-pointer"
+                >
+                  <option value="Q1">ไตรมาส 1 (ม.ค. - มี.ค.)</option>
+                  <option value="Q2">ไตรมาส 2 (เม.ย. - มิ.ย.)</option>
+                  <option value="Q3">ไตรมาส 3 (ก.ค. - ก.ย.)</option>
+                  <option value="Q4">ไตรมาส 4 (ต.ค. - ธ.ค.)</option>
                 </select>
                 <select
                   value={selectedYear}
@@ -5138,7 +5136,7 @@ export default function DashboardPage() {
                   className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-2xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>พิมพ์ไตรมาส ({selectedQuarter})</span>
+                  <span>พิมพ์ไตรมาส ({selectedQuarter === 'ALL' ? 'Q1' : selectedQuarter})</span>
                 </button>
                 <button
                   onClick={() => handlePrint('quarterly-all')}
