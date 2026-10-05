@@ -1474,19 +1474,23 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', minHeight: '480px', maxHeight: '520px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr', gap: '12px', minHeight: '450px', maxHeight: '480px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, effectiveQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, effectiveQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
-            let printFontSize = '13.5px';
-            if (textLen > 600) {
-              printFontSize = '12.5px';
-            } else if (textLen > 500) {
-              printFontSize = '12.8px';
+            let printFontSize = '13px';
+            let printLineHeight = '1.38';
+            if (textLen > 650) {
+              printFontSize = '11px';
+              printLineHeight = '1.3';
+            } else if (textLen > 520) {
+              printFontSize = '11.8px';
+              printLineHeight = '1.33';
             } else if (textLen > 400) {
-              printFontSize = '13px';
+              printFontSize = '12.4px';
+              printLineHeight = '1.35';
             }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
@@ -1632,11 +1636,13 @@ export default function DashboardPage() {
                 style={{ 
                   border: '1px solid #cbd5e1', 
                   borderRadius: '16px', 
-                  padding: '10px', 
+                  padding: '8px 10px', 
                   display: 'flex', 
                   flexDirection: 'column', 
                   justifyContent: 'space-between',
-                  boxSizing: 'border-box'
+                  boxSizing: 'border-box',
+                  maxHeight: '480px',
+                  overflow: 'hidden'
                 }}
               >
                 <div>
@@ -1645,8 +1651,8 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '300px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={478} height={280} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '240px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={478} height={220} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" tickLine={false} interval={0} tick={{ fill: '#000000', fontSize: 11, fontWeight: 'bold' }} dy={10} />
                     <YAxis stroke="#64748b" tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} width={35} tick={{ fill: '#000000', fontSize: 10, fontWeight: 'bold' }}
@@ -1679,8 +1685,9 @@ export default function DashboardPage() {
                   border: '1px solid #e2e8f0', 
                   fontSize: printFontSize, 
                   color: '#475569', 
-                  lineHeight: '1.4', 
-                  overflow: 'hidden' 
+                  lineHeight: printLineHeight, 
+                  overflow: 'hidden',
+                  minHeight: 0
                 }}>
                   {cleanAnalysis}
                 </div>
@@ -1693,7 +1700,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '14px', width: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '10px', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', marginTop: '2px' }}>
               จัดทำโดย
@@ -2842,7 +2849,7 @@ export default function DashboardPage() {
     } else if (trapNo === '20') {
       recommendation = ' ดังนั้นเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ให้บริษัทกำจัดแมลงเข้ามาให้บริการตามแผนการที่ดำเนินไว้ เพื่อป้องกันและลดจำนวนแมลงบินต่างๆ ไม่ให้เข้าสู่พื้นที่การผลิตได้';
     } else if (trapNo === '21') {
-      recommendation = ' ดังนั้นควรปิดประตูทุกครั้งภายหลังจากการใช้งาน และปิดประตูบานที่ไม่สำคัญเพื่อป้องกันไม่ให้แมลงบินเข้าสู่พื้นที่การผลิต เน้นทำความสะอาดพื้นที่การผลิตให้สะอาดเพื่อลดการสะสมของแหล่งน้ำที่อาจเป็นแหล่งกำเนิดของยุงและที่อยู่อาศัยของแมลงอื่น ๆ ได้ และให้บริษัทกำจัดแมลงเข้ามาบริการเพื่อลดจำนวนแมลงบินต่างๆ';
+      recommendation = ' ดังนั้นควรปิดประตูทุกครั้งหลังใช้งานเพื่อป้องกันไม่ให้แมลงบินเข้าสู่พื้นที่การผลิต ทำความสะอาดไม่ให้มีน้ำขังซึ่งเป็นแหล่งกำเนิดยุง และให้บริษัทกำจัดแมลงเข้ามาบริการตามแผน';
     } else if (trapNo === '22') {
       recommendation = ' ดังนั้นเน้นทำความสะอาดพื้นที่การผลิตให้สะอาดอยู่เสมอ ให้บริษัทกำจัดแมลงเข้ามาให้บริการตามแผนการที่ดำเนินไว้ เพื่อป้องกันและลดจำนวนแมลงบินต่างๆ ไม่ให้เข้าสู่พื้นที่การผลิตได้';
     } else if (trapNo === '23') {
