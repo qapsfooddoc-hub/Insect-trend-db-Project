@@ -1455,8 +1455,8 @@ export default function DashboardPage() {
           height: '210mm',
           display: 'flex',
           flexDirection: 'column',
-          justifyContent: 'flex-start',
-          padding: '15mm 14mm 8mm 14mm',
+          justifyContent: 'space-between',
+          padding: '15mm 14mm 10mm 14mm',
           boxSizing: 'border-box',
           backgroundColor: 'white',
           color: 'black'
@@ -1474,23 +1474,20 @@ export default function DashboardPage() {
           </h2>
         </div>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr', gap: '12px', minHeight: '450px', maxHeight: '480px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr', gap: '14px', minHeight: '480px', maxHeight: '535px', marginBottom: '4px' }}>
           {chunk.map((trap) => {
             const trapData = getTrapTrendData(trap, effectiveQuarter, selectedYear);
             const trapAnalysis = getTrapAnalysis(trap, effectiveQuarter, selectedYear);
             const cleanAnalysis = trapAnalysis.replace(/###.*\n/g, '').replace(/\*/g, '').trim();
             const textLen = cleanAnalysis.length;
-            let printFontSize = '13px';
-            let printLineHeight = '1.38';
+            let printFontSize = '13.5px';
+            let printLineHeight = '1.42';
             if (textLen > 650) {
-              printFontSize = '11px';
-              printLineHeight = '1.3';
-            } else if (textLen > 520) {
-              printFontSize = '11.8px';
-              printLineHeight = '1.33';
-            } else if (textLen > 400) {
-              printFontSize = '12.4px';
-              printLineHeight = '1.35';
+              printFontSize = '12.6px';
+              printLineHeight = '1.36';
+            } else if (textLen > 480) {
+              printFontSize = '13px';
+              printLineHeight = '1.38';
             }
 
             // Define custom renderer for this specific trap's data to completely avoid label overlap
@@ -1636,12 +1633,12 @@ export default function DashboardPage() {
                 style={{ 
                   border: '1px solid #cbd5e1', 
                   borderRadius: '16px', 
-                  padding: '8px 10px', 
+                  padding: '10px 12px', 
                   display: 'flex', 
                   flexDirection: 'column', 
                   justifyContent: 'space-between',
                   boxSizing: 'border-box',
-                  maxHeight: '480px',
+                  maxHeight: '535px',
                   overflow: 'hidden'
                 }}
               >
@@ -1651,8 +1648,8 @@ export default function DashboardPage() {
                   </h3>
                 </div>
                 
-                <div style={{ height: '240px', width: '100%', fontSize: '8px' }}>
-                  <LineChart width={478} height={220} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
+                <div style={{ height: '245px', width: '100%', fontSize: '8px' }}>
+                  <LineChart width={478} height={225} data={trapData} margin={{ top: 22, right: 25, left: 10, bottom: 8 }} style={{ overflow: 'visible' }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                     <XAxis dataKey="name" stroke="#64748b" tickLine={false} interval={0} tick={{ fill: '#000000', fontSize: 11, fontWeight: 'bold' }} dy={10} />
                     <YAxis stroke="#64748b" tickLine={false} tickCount={5} allowDecimals={false} domain={[0, 'auto']} width={35} tick={{ fill: '#000000', fontSize: 10, fontWeight: 'bold' }}
@@ -1679,7 +1676,7 @@ export default function DashboardPage() {
                   display: 'flex', 
                   flexDirection: 'column', 
                   justifyContent: 'flex-start', 
-                  padding: '6px 8px', 
+                  padding: '8px 10px', 
                   backgroundColor: '#f8fafc', 
                   borderRadius: '8px', 
                   border: '1px solid #e2e8f0', 
@@ -1700,7 +1697,7 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '8px', marginTop: '10px', width: '100%' }}>
+        <div style={{ marginTop: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', paddingBottom: '4px', width: '100%' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
             <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', marginTop: '2px' }}>
               จัดทำโดย
