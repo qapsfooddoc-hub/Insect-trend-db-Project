@@ -568,6 +568,74 @@ export default function CockroachesPage() {
     }));
   };
 
+  // Excel-like keyboard navigation for the 31-day table
+  const handleTableKeyDown = (e, rIdx, day) => {
+    const focusCell = (targetRow, targetDay) => {
+      if (targetRow < 0 || targetRow >= displayPoints.length) return false;
+      if (targetDay < 1 || targetDay > daysInMonth) return false;
+      const el = document.getElementById(`cell-roach-${targetRow}-${targetDay}`);
+      if (el && !el.disabled) {
+        el.focus();
+        el.select();
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+      return false;
+    };
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift + Enter: Move UP
+        focusCell(rIdx - 1, day);
+      } else {
+        // Enter: Move DOWN
+        focusCell(rIdx + 1, day);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusCell(rIdx + 1, day);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusCell(rIdx - 1, day);
+    } else if (e.key === 'ArrowRight') {
+      let atEnd = true;
+      try {
+        atEnd = (e.target.selectionStart === e.target.value.length) || 
+                (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atEnd) {
+        e.preventDefault();
+        focusCell(rIdx, day + 1);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      let atStart = true;
+      try {
+        atStart = (e.target.selectionStart === 0) || 
+                  (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atStart) {
+        e.preventDefault();
+        focusCell(rIdx, day - 1);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (day > 1) {
+          focusCell(rIdx, day - 1);
+        } else if (rIdx > 0) {
+          focusCell(rIdx - 1, daysInMonth);
+        }
+      } else {
+        if (day < daysInMonth) {
+          focusCell(rIdx, day + 1);
+        } else if (rIdx < displayPoints.length - 1) {
+          focusCell(rIdx + 1, 1);
+        }
+      }
+    }
+  };
+
   // Calculate sum for a single point
   const getPointTotal = (pointId) => {
     const row = dailyRecords[pointId] || {};
@@ -2139,13 +2207,18 @@ export default function CockroachesPage() {
 
               {/* Way 2: Interactive Day Pills (1 - 31) */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
                   <span className="font-bold">
                     วิธีที่ 2 หรือคลิกเลือกวันที่ (คลิกเพื่อเปิด/ปิด "วาง" ทั้ง {customPoints.length} จุด):
                   </span>
-                  <span className="text-[10px] text-amber-700 dark:text-amber-400">
-                    💡 สามารถคลิกหัวคอลัมน์วันที่ 1-31 ในตารางด้านล่างได้เช่นกัน
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800 flex items-center gap-1 shadow-2xs">
+                      ⌨️ ใช้ปุ่มลูกศร (↑ ↓ ← →) และ Enter เลื่อนตารางได้เหมือน Excel
+                    </span>
+                    <span className="text-[10px] text-amber-700 dark:text-amber-400">
+                      💡 คลิกหัวคอลัมน์ 1-31 ได้เช่นกัน
+                    </span>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(d => {
@@ -2212,7 +2285,7 @@ export default function CockroachesPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                  {displayPoints.map(pt => {
+                  {displayPoints.map((pt, rIdx) => {
                     const rowSum = getPointTotal(pt.id);
                     return (
                       <tr 
@@ -2235,13 +2308,16 @@ export default function CockroachesPage() {
                           const isCount = !isNaN(num) && num > 0;
                           const isExceed = d > daysInMonth;
                           return (
-                            <td key={d} className={`p-0 border-r border-slate-200 dark:border-slate-800 ${isExceed ? 'bg-slate-100/50 dark:bg-slate-800/20' : ''}`}>
+                            <td key={d} className={`p-0 border-r border-slate-200 dark:border-slate-800 relative ${isExceed ? 'bg-slate-100/50 dark:bg-slate-800/20' : ''}`}>
                               <input
+                                id={`cell-roach-${rIdx}-${d}`}
                                 type="text"
                                 disabled={isExceed}
                                 value={isExceed ? '-' : val}
                                 onChange={(e) => handleCellChange(pt.id, d, e.target.value)}
-                                className={`w-full py-1 text-center font-mono text-[11px] bg-transparent focus:bg-amber-50 dark:focus:bg-amber-950/50 focus:outline-none focus:ring-1 focus:ring-amber-500 ${
+                                onFocus={(e) => e.target.select()}
+                                onKeyDown={(e) => handleTableKeyDown(e, rIdx, d)}
+                                className={`w-full py-1 text-center font-mono text-[11px] bg-transparent focus:bg-amber-100/80 dark:focus:bg-amber-900/50 focus:outline-none focus:ring-2 focus:ring-amber-500 relative focus:z-10 transition-all ${
                                   isExceed
                                     ? 'text-slate-300 cursor-not-allowed'
                                     : isPlaced 

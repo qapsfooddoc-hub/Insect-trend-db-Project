@@ -157,7 +157,8 @@ export default function LineWalkPage() {
 
   // Handle cell edit
   const handleCellChange = (area, pestKey, val) => {
-    const num = val === '' ? '' : Math.max(0, parseInt(val, 10) || 0);
+    const clean = String(val).replace(/[^0-9]/g, '');
+    const num = clean === '' ? '' : Math.max(0, parseInt(clean, 10) || 0);
     setTableData(prev => ({
       ...prev,
       [area]: {
@@ -165,6 +166,74 @@ export default function LineWalkPage() {
         [pestKey]: num
       }
     }));
+  };
+
+  // Excel-like keyboard navigation for the areas x pests table
+  const handleTableKeyDown = (e, aIdx, pIdx) => {
+    const focusCell = (targetAreaIdx, targetPestIdx) => {
+      if (targetAreaIdx < 0 || targetAreaIdx >= displayedAreas.length) return false;
+      if (targetPestIdx < 0 || targetPestIdx >= PEST_COLS.length) return false;
+      const el = document.getElementById(`cell-linewalk-${targetAreaIdx}-${targetPestIdx}`);
+      if (el && !el.disabled) {
+        el.focus();
+        el.select();
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+      return false;
+    };
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift + Enter: Move UP (previous area)
+        focusCell(aIdx - 1, pIdx);
+      } else {
+        // Enter: Move DOWN (next area)
+        focusCell(aIdx + 1, pIdx);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusCell(aIdx + 1, pIdx);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusCell(aIdx - 1, pIdx);
+    } else if (e.key === 'ArrowRight') {
+      let atEnd = true;
+      try {
+        atEnd = (e.target.selectionStart === e.target.value.length) || 
+                (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atEnd) {
+        e.preventDefault();
+        focusCell(aIdx, pIdx + 1);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      let atStart = true;
+      try {
+        atStart = (e.target.selectionStart === 0) || 
+                  (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atStart) {
+        e.preventDefault();
+        focusCell(aIdx, pIdx - 1);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (pIdx > 0) {
+          focusCell(aIdx, pIdx - 1);
+        } else if (aIdx > 0) {
+          focusCell(aIdx - 1, PEST_COLS.length - 1);
+        }
+      } else {
+        if (pIdx < PEST_COLS.length - 1) {
+          focusCell(aIdx, pIdx + 1);
+        } else if (aIdx < displayedAreas.length - 1) {
+          focusCell(aIdx + 1, 0);
+        }
+      }
+    }
   };
 
   // Calculate sum for single area
@@ -804,6 +873,14 @@ export default function LineWalkPage() {
             </div>
 
             {/* Table */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 px-1">
+              <span className="text-[10px] text-purple-700 dark:text-purple-400 font-bold bg-purple-50 dark:bg-purple-950/50 px-2.5 py-1 rounded-lg border border-purple-200 dark:border-purple-800 flex items-center gap-1.5 shadow-2xs">
+                ⌨️ ใช้ปุ่มลูกศร (↑ ↓ ← →) และ Enter เลื่อนตารางได้เหมือน Excel
+              </span>
+              <span className="text-[10px] text-slate-400">
+                สำรวจแมลง 6 ชนิดตามแผนก
+              </span>
+            </div>
             <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl max-h-[600px]">
               <table className="w-full text-xs text-center border-collapse">
                 <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold shadow-sm">
@@ -834,16 +911,19 @@ export default function LineWalkPage() {
                         <td className="py-2 px-3 border-r border-slate-200 dark:border-slate-800 text-left font-bold text-[11px] text-slate-800 dark:text-slate-200">
                           {area}
                         </td>
-                        {PEST_COLS.map(p => {
+                        {PEST_COLS.map((p, pIdx) => {
                           const val = tableData[area]?.[p.key] ?? '';
                           return (
-                            <td key={p.key} className="p-0 border-r border-slate-200 dark:border-slate-800">
+                            <td key={p.key} className="p-0 border-r border-slate-200 dark:border-slate-800 relative">
                               <input
-                                type="number"
-                                min="0"
+                                id={`cell-linewalk-${idx}-${pIdx}`}
+                                type="text"
+                                inputMode="numeric"
                                 value={val}
                                 onChange={(e) => handleCellChange(area, p.key, e.target.value)}
-                                className={`w-full py-1.5 text-center font-mono text-xs bg-transparent focus:bg-purple-50 dark:focus:bg-purple-950/50 focus:outline-none focus:ring-1 focus:ring-purple-500 ${
+                                onFocus={(e) => e.target.select()}
+                                onKeyDown={(e) => handleTableKeyDown(e, idx, pIdx)}
+                                className={`w-full py-1.5 text-center font-mono text-xs bg-transparent focus:bg-purple-100/80 dark:focus:bg-purple-900/50 focus:outline-none focus:ring-2 focus:ring-purple-500 relative focus:z-10 transition-all ${
                                   Number(val) > 0 ? 'text-purple-700 dark:text-purple-300 font-black' : 'text-slate-400'
                                 }`}
                                 placeholder="0"

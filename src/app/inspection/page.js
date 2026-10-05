@@ -416,38 +416,56 @@ export default function InspectionPage() {
     // Find layout prefix (desktop/mobile)
     const prefix = e.target.id.split('-')[1]; // e.g. "desktop" or "mobile"
     
-    if (e.key === 'Enter' || e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextInput = document.getElementById(`input-${prefix}-${rowIndex + 1}-${colName}`);
-      if (nextInput) {
-        nextInput.focus();
-        nextInput.select();
+    const focusInput = (targetRow, targetCol) => {
+      const el = document.getElementById(`input-${prefix}-${targetRow}-${targetCol}`);
+      if (el && !el.disabled) {
+        el.focus();
+        el.select();
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
       }
+      return false;
+    };
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        focusInput(rowIndex - 1, colName);
+      } else {
+        focusInput(rowIndex + 1, colName);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusInput(rowIndex + 1, colName);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const prevInput = document.getElementById(`input-${prefix}-${rowIndex - 1}-${colName}`);
-      if (prevInput) {
-        prevInput.focus();
-        prevInput.select();
-      }
-    } else if (e.key === 'ArrowRight' && e.target.selectionStart === e.target.value.length) {
-      const colIndex = colOrder.indexOf(colName);
-      const nextCol = colOrder[colIndex + 1];
-      if (nextCol) {
-        const nextInput = document.getElementById(`input-${prefix}-${rowIndex}-${nextCol}`);
-        if (nextInput) {
-          nextInput.focus();
-          nextInput.select();
+      focusInput(rowIndex - 1, colName);
+    } else if (e.key === 'ArrowRight') {
+      let atEnd = true;
+      try {
+        atEnd = (e.target.selectionStart === e.target.value.length) || 
+                (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atEnd) {
+        const colIndex = colOrder.indexOf(colName);
+        const nextCol = colOrder[colIndex + 1];
+        if (nextCol) {
+          e.preventDefault();
+          focusInput(rowIndex, nextCol);
         }
       }
-    } else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
-      const colIndex = colOrder.indexOf(colName);
-      const prevCol = colOrder[colIndex - 1];
-      if (prevCol) {
-        const prevInput = document.getElementById(`input-${prefix}-${rowIndex}-${prevCol}`);
-        if (prevInput) {
-          prevInput.focus();
-          prevInput.select();
+    } else if (e.key === 'ArrowLeft') {
+      let atStart = true;
+      try {
+        atStart = (e.target.selectionStart === 0) || 
+                  (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atStart) {
+        const colIndex = colOrder.indexOf(colName);
+        const prevCol = colOrder[colIndex - 1];
+        if (prevCol) {
+          e.preventDefault();
+          focusInput(rowIndex, prevCol);
         }
       }
     }

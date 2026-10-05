@@ -108,6 +108,36 @@ export default function RodentsPage() {
     }));
   };
 
+  // Excel-like keyboard navigation for stations table
+  const handleTableKeyDown = (e, idx) => {
+    const focusCell = (targetIdx) => {
+      if (targetIdx < 0 || targetIdx >= RODENT_STATIONS.length) return false;
+      const el = document.getElementById(`cell-rodent-${targetIdx}`);
+      if (el && !el.disabled) {
+        el.focus();
+        el.select();
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+      return false;
+    };
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        focusCell(idx - 1);
+      } else {
+        focusCell(idx + 1);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusCell(idx + 1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusCell(idx - 1);
+    }
+  };
+
   // Grand total for current month
   const monthlyTotal = useMemo(() => {
     let sum = 0;
@@ -627,6 +657,14 @@ export default function RodentsPage() {
             )}
 
             {/* Table */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 px-1">
+              <span className="text-[10px] text-rose-700 dark:text-rose-400 font-bold bg-rose-50 dark:bg-rose-950/50 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-800 flex items-center gap-1.5 shadow-2xs">
+                ⌨️ ใช้ปุ่มลูกศร (↑ ↓) และ Enter เลื่อนระหว่างสถานีได้เหมือน Excel
+              </span>
+              <span className="text-[10px] text-slate-400">
+                สถานีที่ 1 - 10
+              </span>
+            </div>
             <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
               <table className="w-full text-xs text-center border-collapse">
                 <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold">
@@ -682,14 +720,20 @@ export default function RodentsPage() {
                             <option value="ถูกเคลื่อนย้าย">ถูกเคลื่อนย้าย</option>
                           </select>
                         </td>
-                        <td className="p-1 border-l border-slate-200 dark:border-slate-800">
+                        <td className="p-1 border-l border-slate-200 dark:border-slate-800 relative">
                           <input
-                            type="number"
-                            min="0"
+                            id={`cell-rodent-${idx}`}
+                            type="text"
+                            inputMode="numeric"
                             value={row.count ?? 0}
-                            onChange={(e) => handleFieldChange(st.id, 'count', e.target.value)}
-                            className={`w-full py-1 text-center font-mono font-bold text-xs bg-transparent focus:bg-rose-50 dark:focus:bg-rose-950/50 focus:outline-none rounded ${
-                              Number(row.count) > 0 ? 'text-red-600 font-black bg-red-50' : 'text-slate-500'
+                            onChange={(e) => {
+                              const clean = String(e.target.value).replace(/[^0-9]/g, '');
+                              handleFieldChange(st.id, 'count', clean === '' ? '' : parseInt(clean, 10));
+                            }}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => handleTableKeyDown(e, idx)}
+                            className={`w-full py-1 text-center font-mono font-bold text-xs bg-transparent focus:bg-rose-100/80 dark:focus:bg-rose-900/50 focus:outline-none focus:ring-2 focus:ring-rose-500 rounded relative focus:z-10 transition-all ${
+                              Number(row.count) > 0 ? 'text-red-600 font-black bg-red-50 dark:bg-red-950/30' : 'text-slate-500'
                             }`}
                             placeholder="0"
                           />

@@ -137,7 +137,8 @@ export default function LizardsPage() {
 
   // Handle cell change
   const handleCellChange = (day, stationId, val) => {
-    const parsed = val === '' ? '' : Math.max(0, parseInt(val, 10) || 0);
+    const clean = val.replace(/[^0-9]/g, '');
+    const parsed = clean === '' ? '' : Math.max(0, parseInt(clean, 10) || 0);
     setDailyRecords(prev => ({
       ...prev,
       [day]: {
@@ -145,6 +146,74 @@ export default function LizardsPage() {
         [stationId]: parsed
       }
     }));
+  };
+
+  // Excel-like keyboard navigation for the 31-day x 6-station table
+  const handleTableKeyDown = (e, day, stId) => {
+    const focusCell = (targetDay, targetStation) => {
+      if (targetDay < 1 || targetDay > daysInMonth) return false;
+      if (targetStation < 1 || targetStation > 6) return false;
+      const el = document.getElementById(`cell-lizard-${targetDay}-${targetStation}`);
+      if (el && !el.disabled) {
+        el.focus();
+        el.select();
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        return true;
+      }
+      return false;
+    };
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        // Shift + Enter: Move UP (previous day)
+        focusCell(day - 1, stId);
+      } else {
+        // Enter: Move DOWN (next day)
+        focusCell(day + 1, stId);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      focusCell(day + 1, stId);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusCell(day - 1, stId);
+    } else if (e.key === 'ArrowRight') {
+      let atEnd = true;
+      try {
+        atEnd = (e.target.selectionStart === e.target.value.length) || 
+                (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atEnd) {
+        e.preventDefault();
+        focusCell(day, stId + 1);
+      }
+    } else if (e.key === 'ArrowLeft') {
+      let atStart = true;
+      try {
+        atStart = (e.target.selectionStart === 0) || 
+                  (e.target.selectionStart === 0 && e.target.selectionEnd === e.target.value.length);
+      } catch (_) {}
+      if (atStart) {
+        e.preventDefault();
+        focusCell(day, stId - 1);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (stId > 1) {
+          focusCell(day, stId - 1);
+        } else if (day > 1) {
+          focusCell(day - 1, 6);
+        }
+      } else {
+        if (stId < 6) {
+          focusCell(day, stId + 1);
+        } else if (day < daysInMonth) {
+          focusCell(day + 1, 1);
+        }
+      }
+    }
   };
 
   // Calculate station totals for current month
@@ -1201,10 +1270,18 @@ export default function LizardsPage() {
             )}
 
             {/* Official Table Grid (ถอดแบบจากเอกสารสแกน 20260928092056408_0002.jpg) */}
-            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl">
+            <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1 px-1">
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5 shadow-2xs">
+                ⌨️ ใช้ปุ่มลูกศร (↑ ↓ ← →) และ Enter เลื่อนตารางได้เหมือน Excel
+              </span>
+              <span className="text-[10px] text-slate-400">
+                สถานีที่ 1 - 6 (บันทึกรายวัน)
+              </span>
+            </div>
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-2xl max-h-[600px]">
               <table className="w-full text-xs text-center border-collapse">
-                <thead>
-                  <tr className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold border-b border-slate-200 dark:border-slate-700">
+                <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold shadow-sm">
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
                     <th rowSpan="2" className="py-2.5 px-3 border-r border-slate-200 dark:border-slate-700 w-24">
                       วัน/เดือน/ปี<br/>ที่ตรวจนับ
                     </th>
@@ -1241,13 +1318,16 @@ export default function LizardsPage() {
                         {[1, 2, 3, 4, 5, 6].map(stId => {
                           const val = dailyRecords[day]?.[stId] ?? '';
                           return (
-                            <td key={stId} className="p-0.5 border-r border-slate-200 dark:border-slate-800">
+                            <td key={stId} className="p-0.5 border-r border-slate-200 dark:border-slate-800 relative">
                               <input
-                                type="number"
-                                min="0"
+                                id={`cell-lizard-${day}-${stId}`}
+                                type="text"
+                                inputMode="numeric"
                                 value={val}
                                 onChange={(e) => handleCellChange(day, stId, e.target.value)}
-                                className={`w-full py-1 text-center font-mono font-bold text-xs bg-transparent focus:bg-emerald-50 dark:focus:bg-emerald-950/50 focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded ${
+                                onFocus={(e) => e.target.select()}
+                                onKeyDown={(e) => handleTableKeyDown(e, day, stId)}
+                                className={`w-full py-1 text-center font-mono font-bold text-xs bg-transparent focus:bg-emerald-100/80 dark:focus:bg-emerald-900/50 focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded relative focus:z-10 transition-all ${
                                   Number(val) > 0 ? 'text-emerald-700 dark:text-emerald-300 font-black' : 'text-slate-400'
                                 }`}
                                 placeholder="0"
