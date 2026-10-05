@@ -9,9 +9,10 @@ import {
 import { 
   Save, RotateCcw, Printer, Calendar, CheckCircle2, 
   AlertTriangle, BarChart3, FileText, Layers, ShieldCheck, 
-  Sparkles, Check, Home, Activity, CalendarDays, MousePointerClick, RefreshCw, Eraser
+  Sparkles, Check, Home, Activity, CalendarDays, MousePointerClick, RefreshCw, Eraser, Clock
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
+import MonthYearPicker, { getAvailableYearsRange } from '@/components/MonthYearPicker';
 import { 
   COCKROACH_POINTS, 
   COCKROACH_ZONES, 
@@ -304,42 +305,23 @@ export default function CockroachesPage() {
 
   const [savedMonthsVersion, setSavedMonthsVersion] = useState(0);
 
-  // Months available for data entry: up to current calendar month for current year, all 12 for past years
-  const entryAvailableMonths = useMemo(() => {
-    const selYearNum = parseInt(selectedYear, 10);
-    if (selYearNum === currentCalendar.beYear) {
-      return MONTH_NAMES.slice(0, currentCalendar.monthIndex + 1);
-    } else if (selYearNum < currentCalendar.beYear) {
-      return MONTH_NAMES;
+  // Months with real recorded data in selectedYear
+  const recordedMonths = useMemo(() => {
+    const list = [];
+    if (typeof window !== 'undefined') {
+      MONTH_NAMES.forEach(m => {
+        const key1 = `cockroach_daily_${selectedYear}_${m}`;
+        const key2 = `cockroach_records_${m}_${selectedYear}`;
+        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+          list.push(m);
+        }
+      });
     }
-    return [];
-  }, [selectedYear, currentCalendar]);
-
-  // Months available for reports/charts/print: only months with recorded data (ม.ค. - ส.ค. 2569 baseline + saved)
-  const reportAvailableMonths = useMemo(() => {
-    if (selectedYear === '2569') {
-      const base = MONTH_NAMES.slice(0, 8); // ม.ค. - ส.ค.
-      if (typeof window !== 'undefined') {
-        MONTH_NAMES.slice(8).forEach(m => {
-          const key1 = `cockroach_daily_${selectedYear}_${m}`;
-          const key2 = `cockroach_records_${m}_${selectedYear}`;
-          if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
-            base.push(m);
-          }
-        });
-      }
-      return base;
-    }
-    return MONTH_NAMES;
+    return list;
   }, [selectedYear, savedMonthsVersion]);
 
-  // Active available months: switches to entryAvailableMonths when recording, reportAvailableMonths when viewing reports
-  const availableMonths = useMemo(() => {
-    if (activeTab === 'entry') {
-      return entryAvailableMonths;
-    }
-    return reportAvailableMonths;
-  }, [activeTab, entryAvailableMonths, reportAvailableMonths]);
+  // All 12 months are accessible
+  const availableMonths = MONTH_NAMES;
 
   useEffect(() => {
     if (!availableMonths.includes(selectedMonth)) {
@@ -1417,27 +1399,25 @@ export default function CockroachesPage() {
           </div>
         </div>
 
-        {/* Month Selector Bar */}
+        {/* Month & Year Calendar Selector Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
-            <Calendar className="w-5 h-5 text-amber-600 dark:text-amber-400" />
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
-              {activeTab === 'entry' ? 'เลือกเดือนที่บันทึก:' : activeTab === 'print' ? 'เลือกช่วงเวลาพิมพ์:' : 'เลือกช่วงเวลาดูรายงาน:'}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400">เดือน:</span>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                {availableMonths.map(m => (
-                  <option key={m} value={m}>
-                    {m} {activeTab === 'entry' && m === currentCalendar.monthName && selectedYear === String(currentCalendar.beYear) ? '(เดือนล่าสุด)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MonthYearPicker
+              selectedMonth={selectedMonth}
+              onChangeMonth={setSelectedMonth}
+              selectedYear={selectedYear}
+              onChangeYear={setSelectedYear}
+              recordedMonths={recordedMonths}
+              accentColor="amber"
+              activeTab={activeTab}
+              onSwitchToEntry={(m, y) => {
+                setSelectedMonth(m);
+                setSelectedYear(y);
+                setActiveTab('entry');
+              }}
+              label={activeTab === 'entry' ? 'เลือกเดือนที่บันทึก' : 'เลือกช่วงเวลา'}
+            />
+
             {activeTab === 'print' && (
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-bold text-blue-500">ไตรมาส:</span>
@@ -1452,17 +1432,6 @@ export default function CockroachesPage() {
                 </select>
               </div>
             )}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold text-slate-400">ปี:</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(e.target.value)}
-                className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-slate-800 dark:text-slate-200 cursor-pointer"
-              >
-                <option value="2569">ปี 2569 (2026)</option>
-                <option value="2568">ปี 2568 (2025)</option>
-              </select>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -2018,8 +1987,9 @@ export default function CockroachesPage() {
                     onChange={(e) => setSelectedYear(e.target.value)}
                     className="px-2.5 py-1 text-xs font-black bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
                   >
-                    <option value="2569">2569</option>
-                    <option value="2568">2568</option>
+                    {getAvailableYearsRange().map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
                   </select>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">

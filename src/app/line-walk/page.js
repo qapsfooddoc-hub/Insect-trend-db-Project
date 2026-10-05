@@ -9,9 +9,10 @@ import {
 import { 
   Save, RotateCcw, Printer, Calendar, CheckCircle2, 
   AlertTriangle, BarChart3, FileText, Layers, ShieldCheck, 
-  Activity, ArrowRight 
+  Activity, ArrowRight, Clock
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
+import MonthYearPicker from '@/components/MonthYearPicker';
 import { 
   LINE_WALK_AREAS, 
   LINE_WALK_MONTHLY_DATA_2569 
@@ -83,28 +84,23 @@ export default function LineWalkPage() {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // Available months with real data: for 2569 (2026), baseline real data is up to August (สิงหาคม)
-  const availableMonths = useMemo(() => {
-    if (selectedYear === '2569') {
-      const base = MONTH_NAMES.slice(0, 8); // ม.ค. - ส.ค.
-      if (typeof window !== 'undefined') {
-        MONTH_NAMES.slice(8).forEach(m => {
-          const key = `linewalk_records_${m}_${selectedYear}`;
-          if (localStorage.getItem(key)) {
-            base.push(m);
-          }
-        });
-      }
-      return base;
+  // Track months that have real recorded data for the selected year
+  const recordedMonths = useMemo(() => {
+    const list = [];
+    if (typeof window !== 'undefined') {
+      MONTH_NAMES.forEach(m => {
+        const key1 = `linewalk_${selectedYear}_${m}`;
+        const key2 = `linewalk_records_${m}_${selectedYear}`;
+        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+          list.push(m);
+        }
+      });
     }
-    return MONTH_NAMES;
-  }, [selectedYear]);
+    return list;
+  }, [selectedYear, savedSuccess]);
 
-  useEffect(() => {
-    if (!availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1] || 'สิงหาคม');
-    }
-  }, [availableMonths, selectedMonth]);
+  // All 12 months are accessible
+  const availableMonths = MONTH_NAMES;
 
   // Table rows for the selected month: area -> { ยุง, แมลงวัน, แมลงสาบ, มด, หนู, กรงดักหนู, อื่นๆ }
   const [tableData, setTableData] = useState(() => {
@@ -140,8 +136,8 @@ export default function LineWalkPage() {
         } catch (e) {}
       }
 
-      // Default from Excel sample
-      const monthRows = LINE_WALK_MONTHLY_DATA_2569[selectedMonth] || [];
+      // If selectedYear is 2569 and no recorded data, load sample baseline
+      const monthRows = selectedYear === '2569' ? (LINE_WALK_MONTHLY_DATA_2569[selectedMonth] || []) : [];
       const map = {};
       LINE_WALK_AREAS.forEach(area => {
         const existing = monthRows.find(r => r['แผนก/พื้นที่'] === area);
@@ -218,19 +214,49 @@ export default function LineWalkPage() {
     .sort((a, b) => b.total - a.total);
   }, [tableData]);
 
+  // Helper to calculate total insects for a specific month in selectedYear
+  const getMonthTotal = (m) => {
+    if (m === selectedMonth) {
+      return monthlyTotal;
+    }
+    if (typeof window !== 'undefined') {
+      const key = `linewalk_${selectedYear}_${m}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const recs = parsed.records || {};
+          let sum = 0;
+          Object.values(recs).forEach(row => {
+            PEST_COLS.forEach(p => {
+              const v = Number(row[p.key]);
+              if (!isNaN(v) && v > 0) sum += v;
+            });
+          });
+          return sum;
+        } catch (e) {}
+      }
+    }
+    // Only for 2569 if no recorded months exist across whole year, fallback to sample
+    if (selectedYear === '2569' && recordedMonths.length === 0) {
+      const excelTotals = {
+        'มกราคม': 6, 'กุมภาพันธ์': 0, 'มีนาคม': 14, 'เมษายน': 9,
+        'พฤษภาคม': 0, 'มิถุนายน': 6, 'กรกฎาคม': 1, 'สิงหาคม': 17,
+        'กันยายน': 11, 'ตุลาคม': 7, 'พฤศจิกายน': 7, 'ธันวาคม': 25
+      };
+      return excelTotals[m] || 0;
+    }
+    return 0;
+  };
+
   // Yearly trend for line walk (12 months)
   const yearlyTrendData = useMemo(() => {
-    const excelTotals = {
-      'มกราคม': 6, 'กุมภาพันธ์': 0, 'มีนาคม': 14, 'เมษายน': 9,
-      'พฤษภาคม': 0, 'มิถุนายน': 6, 'กรกฎาคม': 1, 'สิงหาคม': 17,
-      'กันยายน': 11, 'ตุลาคม': 7, 'พฤศจิกายน': 7, 'ธันวาคม': 25
-    };
     return MONTH_NAMES.map(m => ({
       month: m.substring(0, 4),
       fullMonth: m,
-      total: m === selectedMonth ? monthlyTotal : (excelTotals[m] || 0)
+      total: getMonthTotal(m)
     }));
-  }, [selectedMonth, monthlyTotal]);
+  }, [selectedYear, selectedMonth, monthlyTotal, recordedMonths]);
 
   const yearlyGrandTotal = useMemo(() => {
     return yearlyTrendData.reduce((sum, r) => sum + r.total, 0);
@@ -514,35 +540,38 @@ export default function LineWalkPage() {
           </div>
         </div>
 
-        {/* Month Selector Bar */}
+        {/* Month & Year Calendar Selector Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">เลือกช่วงเวลา:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-purple-500 text-slate-800 dark:text-slate-200"
-            >
-              {availableMonths.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-purple-500 text-slate-800 dark:text-slate-200"
-            >
-              <option value="2569">ปี 2569 (2026)</option>
-              <option value="2568">ปี 2568 (2025)</option>
-            </select>
+            <MonthYearPicker
+              selectedMonth={selectedMonth}
+              onChangeMonth={setSelectedMonth}
+              selectedYear={selectedYear}
+              onChangeYear={setSelectedYear}
+              recordedMonths={recordedMonths}
+              accentColor="purple"
+              activeTab={activeTab}
+              onSwitchToEntry={(m, y) => {
+                setSelectedMonth(m);
+                setSelectedYear(y);
+                setActiveTab('entry');
+              }}
+              label={activeTab === 'entry' ? 'เลือกเดือนที่บันทึก' : 'เลือกช่วงเวลา'}
+            />
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 text-xs font-extrabold border border-purple-200 dark:border-purple-900">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              ยอดพบจากการเดินไลน์เดือน {selectedMonth}: {monthlyTotal} ตัว
-            </span>
+            {recordedMonths.includes(selectedMonth) ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-50 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 text-xs font-extrabold border border-purple-200 dark:border-purple-900">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                ยอดพบเดือน {selectedMonth} {selectedYear}: {monthlyTotal} ตัว
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 text-xs font-bold border border-slate-200 dark:border-slate-700">
+                <Clock className="w-3.5 h-3.5" />
+                เดือน {selectedMonth} {selectedYear}: ยังไม่มีการบันทึก
+              </span>
+            )}
           </div>
         </div>
 

@@ -9,9 +9,10 @@ import {
 import { 
   Save, RotateCcw, Printer, Calendar, CheckCircle2, 
   AlertTriangle, BarChart3, FileText, Layers, ShieldCheck, 
-  Rat, Check, Activity 
+  Rat, Check, Activity, Clock
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
+import MonthYearPicker from '@/components/MonthYearPicker';
 import { 
   RODENT_STATIONS, 
   RODENT_YEARLY_TREND_2569 
@@ -47,28 +48,23 @@ export default function RodentsPage() {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // Available months with real data: for 2569 (2026), baseline real data is up to August (สิงหาคม)
-  const availableMonths = useMemo(() => {
-    if (selectedYear === '2569') {
-      const base = MONTH_NAMES.slice(0, 8); // ม.ค. - ส.ค.
-      if (typeof window !== 'undefined') {
-        MONTH_NAMES.slice(8).forEach(m => {
-          const key = `rodent_records_${m}_${selectedYear}`;
-          if (localStorage.getItem(key)) {
-            base.push(m);
-          }
-        });
-      }
-      return base;
+  // Track months that have real recorded data for the selected year
+  const recordedMonths = useMemo(() => {
+    const list = [];
+    if (typeof window !== 'undefined') {
+      MONTH_NAMES.forEach(m => {
+        const key1 = `rodent_${selectedYear}_${m}`;
+        const key2 = `rodent_records_${m}_${selectedYear}`;
+        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+          list.push(m);
+        }
+      });
     }
-    return MONTH_NAMES;
-  }, [selectedYear]);
+    return list;
+  }, [selectedYear, savedSuccess]);
 
-  useEffect(() => {
-    if (!availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1] || 'สิงหาคม');
-    }
-  }, [availableMonths, selectedMonth]);
+  // All 12 months are accessible
+  const availableMonths = MONTH_NAMES;
 
   // 10 stations data: stationId -> { count, status, baitCondition }
   const [stationRecords, setStationRecords] = useState(() => {
@@ -122,19 +118,40 @@ export default function RodentsPage() {
     return sum;
   }, [stationRecords]);
 
+  // Helper to get total rodent count for a month in selectedYear
+  const getMonthRodentTotal = (m) => {
+    if (m === selectedMonth) {
+      return monthlyTotal;
+    }
+    if (typeof window !== 'undefined') {
+      const key = `rodent_${selectedYear}_${m}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const recs = parsed.records || {};
+          let sum = 0;
+          Object.values(recs).forEach(r => {
+            const v = Number(r.count);
+            if (!isNaN(v) && v > 0) sum += v;
+          });
+          return sum;
+        } catch (e) {}
+      }
+    }
+    return 0;
+  };
+
   // Monthly trend data across 12 months
   const yearlyTrendData = useMemo(() => {
-    return RODENT_YEARLY_TREND_2569.map(item => {
-      let sum = 0;
-      for (let s = 1; s <= 10; s++) {
-        sum += Number(item[`สถานี ${s}`]) || 0;
-      }
+    return MONTH_NAMES.map((m, idx) => {
+      const shortName = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][idx];
       return {
-        month: item['เดือน'],
-        total: sum
+        month: shortName,
+        total: getMonthRodentTotal(m)
       };
     });
-  }, []);
+  }, [selectedYear, selectedMonth, monthlyTotal, recordedMonths]);
 
   const yearlyGrandTotal = useMemo(() => {
     return yearlyTrendData.reduce((sum, r) => sum + r.total, 0);
@@ -422,35 +439,38 @@ export default function RodentsPage() {
           </div>
         </div>
 
-        {/* Month Selector Bar */}
+        {/* Month & Year Calendar Selector Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">เลือกช่วงเวลา:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-rose-500 text-slate-800 dark:text-slate-200"
-            >
-              {availableMonths.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-rose-500 text-slate-800 dark:text-slate-200"
-            >
-              <option value="2569">ปี 2569 (2026)</option>
-              <option value="2568">ปี 2568 (2025)</option>
-            </select>
+            <MonthYearPicker
+              selectedMonth={selectedMonth}
+              onChangeMonth={setSelectedMonth}
+              selectedYear={selectedYear}
+              onChangeYear={setSelectedYear}
+              recordedMonths={recordedMonths}
+              accentColor="rose"
+              activeTab={activeTab}
+              onSwitchToEntry={(m, y) => {
+                setSelectedMonth(m);
+                setSelectedYear(y);
+                setActiveTab('entry');
+              }}
+              label={activeTab === 'entry' ? 'เลือกเดือนที่บันทึก' : 'เลือกช่วงเวลา'}
+            />
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-extrabold border border-emerald-200 dark:border-emerald-900">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              ยอดพบหนูเดือน {selectedMonth}: {monthlyTotal} ตัว (ปลอดภัย 100%)
-            </span>
+            {recordedMonths.includes(selectedMonth) ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-extrabold border border-emerald-200 dark:border-emerald-900">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                ยอดพบหนูเดือน {selectedMonth} {selectedYear}: {monthlyTotal} ตัว (ปลอดภัย 100%)
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 text-xs font-bold border border-slate-200 dark:border-slate-700">
+                <Clock className="w-3.5 h-3.5" />
+                เดือน {selectedMonth} {selectedYear}: ยังไม่มีการบันทึก
+              </span>
+            )}
           </div>
         </div>
 

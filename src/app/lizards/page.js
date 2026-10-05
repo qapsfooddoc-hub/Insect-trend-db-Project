@@ -7,11 +7,12 @@ import {
   Tooltip, Legend, ResponsiveContainer, Cell, LabelList 
 } from 'recharts';
 import { 
-  Save, RotateCcw, Printer, ArrowLeft, Calendar, 
+  Save, RotateCcw, Printer, ArrowLeft, Calendar, Clock,
   CheckCircle2, AlertTriangle, TrendingUp, BarChart3, 
   FileText, Download, ShieldCheck, HelpCircle, Layers, Activity 
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
+import MonthYearPicker from '@/components/MonthYearPicker';
 import { 
   GECKO_STATIONS, 
   GECKO_YEARLY_TREND_2569, 
@@ -26,7 +27,7 @@ const MONTH_NAMES = [
 
 export default function LizardsPage() {
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'entry', 'print'
-  const [selectedMonth, setSelectedMonth] = useState('สิงหาคม');
+  const [selectedMonth, setSelectedMonth] = useState('มกราคม');
   const [selectedYear, setSelectedYear] = useState('2569');
   const [reporterName, setReporterName] = useState('');
   const [reviewerName, setReviewerName] = useState('');
@@ -48,28 +49,23 @@ export default function LizardsPage() {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // Available months with real data: for 2569 (2026), baseline real data is up to August (สิงหาคม)
-  const availableMonths = useMemo(() => {
-    if (selectedYear === '2569') {
-      const base = MONTH_NAMES.slice(0, 8); // ม.ค. - ส.ค.
-      if (typeof window !== 'undefined') {
-        MONTH_NAMES.slice(8).forEach(m => {
-          const key = `lizard_records_${m}_${selectedYear}`;
-          if (localStorage.getItem(key)) {
-            base.push(m);
-          }
-        });
-      }
-      return base;
+  // Track months that have real recorded data for the selected year
+  const recordedMonths = useMemo(() => {
+    const list = [];
+    if (typeof window !== 'undefined') {
+      MONTH_NAMES.forEach(m => {
+        const key1 = `lizard_daily_${selectedYear}_${m}`;
+        const key2 = `lizard_records_${m}_${selectedYear}`;
+        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+          list.push(m);
+        }
+      });
     }
-    return MONTH_NAMES;
-  }, [selectedYear]);
+    return list;
+  }, [selectedYear, savedSuccess]);
 
-  useEffect(() => {
-    if (!availableMonths.includes(selectedMonth)) {
-      setSelectedMonth(availableMonths[availableMonths.length - 1] || 'สิงหาคม');
-    }
-  }, [availableMonths, selectedMonth]);
+  // All 12 months are accessible for data entry or report viewing
+  const availableMonths = MONTH_NAMES;
   // Number of days in the currently selected month and year
   const daysInMonth = useMemo(() => {
     const monthIndex = MONTH_NAMES.indexOf(selectedMonth);
@@ -178,41 +174,73 @@ export default function LizardsPage() {
     return Object.values(stationTotals).reduce((sum, v) => sum + v, 0);
   }, [stationTotals]);
 
+  // Helper to get station totals for a specific month in selectedYear
+  const getMonthStationTotals = (m) => {
+    if (m === selectedMonth) {
+      return stationTotals;
+    }
+    if (typeof window !== 'undefined') {
+      const key = `lizard_daily_${selectedYear}_${m}`;
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const recs = parsed.records || {};
+          const totals = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+          Object.values(recs).forEach(row => {
+            for (let s = 1; s <= 6; s++) {
+              totals[s] += Number(row[s]) || 0;
+            }
+          });
+          return totals;
+        } catch (e) {}
+      }
+    }
+    // Only if 2569 and no real records exist across the entire year, use baseline sample
+    if (selectedYear === '2569' && recordedMonths.length === 0) {
+      const idx = MONTH_NAMES.indexOf(m);
+      const item = GECKO_YEARLY_TREND_2569[idx] || {};
+      return {
+        1: Number(item['สถานี 1']) || 0,
+        2: Number(item['สถานี 2']) || 0,
+        3: Number(item['สถานี 3']) || 0,
+        4: Number(item['สถานี 4']) || 0,
+        5: Number(item['สถานี 5']) || 0,
+        6: Number(item['สถานี 6']) || 0
+      };
+    }
+    return { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+  };
+
   // Yearly data for chart
   const yearlyChartData = useMemo(() => {
-    return GECKO_YEARLY_TREND_2569.map(item => {
-      const sum = (Number(item['สถานี 1']) || 0) +
-                  (Number(item['สถานี 2']) || 0) +
-                  (Number(item['สถานี 3']) || 0) +
-                  (Number(item['สถานี 4']) || 0) +
-                  (Number(item['สถานี 5']) || 0) +
-                  (Number(item['สถานี 6']) || 0);
+    return MONTH_NAMES.map((m, idx) => {
+      const shortName = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'][idx];
+      const stTotals = getMonthStationTotals(m);
+      const sum = Object.values(stTotals).reduce((a, b) => a + b, 0);
       return {
-        month: item['เดือน'],
+        month: shortName,
         total: sum,
-        station1: Number(item['สถานี 1']) || 0,
-        station2: Number(item['สถานี 2']) || 0,
-        station3: Number(item['สถานี 3']) || 0,
-        station4: Number(item['สถานี 4']) || 0,
-        station5: Number(item['สถานี 5']) || 0,
-        station6: Number(item['สถานี 6']) || 0
+        station1: stTotals[1] || 0,
+        station2: stTotals[2] || 0,
+        station3: stTotals[3] || 0,
+        station4: stTotals[4] || 0,
+        station5: stTotals[5] || 0,
+        station6: stTotals[6] || 0
       };
     });
-  }, []);
+  }, [selectedYear, selectedMonth, stationTotals, recordedMonths]);
 
   // Current month chart data (by station 1-6)
   const currentMonthStationData = useMemo(() => {
     return GECKO_STATIONS.map(st => {
-      // Use entered data if any, or fallback to sample
-      const count = stationTotals[st.id] !== undefined 
-        ? stationTotals[st.id] 
-        : (GECKO_MONTHLY_DATA_2569[selectedMonth]?.find(s => s.station === st.id)?.count || 0);
+      const count = stationTotals[st.id] !== undefined ? stationTotals[st.id] : 0;
       return {
         name: st.name,
         count: count
       };
     });
-  }, [stationTotals, selectedMonth]);
+  }, [stationTotals]);
 
   // Quarterly comparison data
   const quarterlyData = useMemo(() => {
@@ -261,7 +289,7 @@ export default function LizardsPage() {
   };
 
   // Quarter selection state (1: ม.ค.-มี.ค., 2: เม.ย.-มิ.ย., 3: ก.ค.-ก.ย., 4: ต.ค.-ธ.ค.)
-  const [selectedQuarter, setSelectedQuarter] = useState(3);
+  const [selectedQuarter, setSelectedQuarter] = useState(1);
   const [previewPageIndex, setPreviewPageIndex] = useState(1); // 1, 2, 3
 
   // Sync quarter when selectedMonth changes
@@ -278,7 +306,7 @@ export default function LizardsPage() {
     3: 'กรกฎาคม-กันยายน',
     4: 'ตุลาคม-ธันวาคม'
   };
-  const currentQuarterLabel = quarterLabels[selectedQuarter] || 'กรกฎาคม-กันยายน';
+  const currentQuarterLabel = quarterLabels[selectedQuarter] || 'มกราคม-มีนาคม';
 
   // Quarter months data for the selected quarter
   const quarterMonthsData = useMemo(() => {
@@ -287,34 +315,38 @@ export default function LizardsPage() {
     return qMonths.map(m => {
       const idx = MONTH_NAMES.indexOf(m);
       const shortName = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][idx];
-      const item = GECKO_YEARLY_TREND_2569[idx] || {};
+      const stTotals = getMonthStationTotals(m);
       return {
         month: shortName,
         fullMonth: m,
-        station1: Number(item['สถานี 1']) || 0,
-        station2: Number(item['สถานี 2']) || 0,
-        station3: Number(item['สถานี 3']) || 0,
-        station4: Number(item['สถานี 4']) || 0,
-        station5: Number(item['สถานี 5']) || 0,
-        station6: Number(item['สถานี 6']) || 0,
+        station1: stTotals[1] || 0,
+        station2: stTotals[2] || 0,
+        station3: stTotals[3] || 0,
+        station4: stTotals[4] || 0,
+        station5: stTotals[5] || 0,
+        station6: stTotals[6] || 0,
       };
     });
-  }, [selectedQuarter]);
+  }, [selectedQuarter, selectedYear, selectedMonth, stationTotals, recordedMonths]);
 
   // Months up to and including selected month (for overall trend chart - Image 2)
   const overallTrendData = useMemo(() => {
     const idx = MONTH_NAMES.indexOf(selectedMonth);
-    const count = idx >= 0 ? idx + 1 : 7;
-    return GECKO_YEARLY_TREND_2569.slice(0, count).map(item => ({
-      month: item['เดือน'],
-      station1: Number(item['สถานี 1']) || 0,
-      station2: Number(item['สถานี 2']) || 0,
-      station3: Number(item['สถานี 3']) || 0,
-      station4: Number(item['สถานี 4']) || 0,
-      station5: Number(item['สถานี 5']) || 0,
-      station6: Number(item['สถานี 6']) || 0,
-    }));
-  }, [selectedMonth]);
+    const count = idx >= 0 ? idx + 1 : 12;
+    return MONTH_NAMES.slice(0, count).map((m, i) => {
+      const shortName = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'][i];
+      const stTotals = getMonthStationTotals(m);
+      return {
+        month: shortName,
+        station1: stTotals[1] || 0,
+        station2: stTotals[2] || 0,
+        station3: stTotals[3] || 0,
+        station4: stTotals[4] || 0,
+        station5: stTotals[5] || 0,
+        station6: stTotals[6] || 0,
+      };
+    });
+  }, [selectedMonth, selectedYear, stationTotals, recordedMonths]);
 
   // Monthly summary text (exact pattern from Image 1)
   const monthlyReportSummaryText = useMemo(() => {
@@ -925,35 +957,38 @@ export default function LizardsPage() {
           </div>
         </div>
 
-        {/* Month Selector Bar */}
+        {/* Month & Year Calendar Selector Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-3">
-            <Calendar className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">เลือกช่วงเวลา:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-500 text-slate-800 dark:text-slate-200"
-            >
-              {availableMonths.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(e.target.value)}
-              className="px-3 py-1.5 text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-emerald-500 text-slate-800 dark:text-slate-200"
-            >
-              <option value="2569">ปี 2569 (2026)</option>
-              <option value="2568">ปี 2568 (2025)</option>
-            </select>
+            <MonthYearPicker
+              selectedMonth={selectedMonth}
+              onChangeMonth={setSelectedMonth}
+              selectedYear={selectedYear}
+              onChangeYear={setSelectedYear}
+              recordedMonths={recordedMonths}
+              accentColor="emerald"
+              activeTab={activeTab}
+              onSwitchToEntry={(m, y) => {
+                setSelectedMonth(m);
+                setSelectedYear(y);
+                setActiveTab('entry');
+              }}
+              label={activeTab === 'entry' ? 'เลือกเดือนที่บันทึก' : 'เลือกช่วงเวลา'}
+            />
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-extrabold border border-emerald-200 dark:border-emerald-900">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              ยอดตรวจพบเดือน {selectedMonth}: {monthlyTotal} ตัว
-            </span>
+            {recordedMonths.includes(selectedMonth) ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-xs font-extrabold border border-emerald-200 dark:border-emerald-900">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                ยอดตรวจพบเดือน {selectedMonth} {selectedYear}: {monthlyTotal} ตัว
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 text-xs font-bold border border-slate-200 dark:border-slate-700">
+                <Clock className="w-3.5 h-3.5" />
+                เดือน {selectedMonth} {selectedYear}: ยังไม่มีการบันทึก
+              </span>
+            )}
           </div>
         </div>
 
