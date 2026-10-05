@@ -1302,7 +1302,7 @@ export default function DashboardPage() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-start',
-          padding: '8mm 14mm',
+          padding: '15mm 14mm 8mm 14mm',
           boxSizing: 'border-box',
           backgroundColor: 'white',
           color: 'black'
@@ -1456,7 +1456,7 @@ export default function DashboardPage() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-start',
-          padding: '8mm 14mm',
+          padding: '15mm 14mm 8mm 14mm',
           boxSizing: 'border-box',
           backgroundColor: 'white',
           color: 'black'
