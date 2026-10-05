@@ -1361,47 +1361,51 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '16px', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
-                จัดทำโดย
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
-                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
-                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
-                  วันที่......./......./.......
-                </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '14px', width: '100%', textAlign: 'center' }}>
+            {/* 1. ผู้จัดทำ */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '11px', color: '#1e293b' }}>ผู้จัดทำ</p>
+              <div style={{ height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '10.5px', color: '#64748b' }}>ลงชื่อ..................................................</span>
               </div>
+              <p style={{ fontSize: '9.5px', color: '#64748b', marginTop: '4px' }}>เจ้าหน้าที่ QC</p>
+              <p style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>วันที่......./......./.......</p>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
-                รับทราบโดย
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
-                <div style={{ 
-                  width: '100%', 
-                  borderBottom: '1px solid #000', 
-                  height: '18px',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  paddingBottom: '2px'
-                }}>
-                  {deptApproved && deptApproverName ? (
-                    <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0f172a' }}>
-                      {deptApproverName.split(' — ')[0].split(' - ')[0].trim()}
-                    </span>
-                  ) : null}
-                </div>
-                <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '11px', color: '#475569' }}>
-                  {deptApproved && deptApprovedAt ? (
-                    <span style={{ color: '#10b981', fontWeight: 'bold' }}>✓ รับทราบแล้ว ({deptApprovedAt})</span>
-                  ) : (
-                    'วันที่......./......./.......'
-                  )}
-                </div>
+            {/* 2. หัวหน้าแผนก (ตรงกลาง) */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '11px', color: '#1e293b' }}>หัวหน้าแผนก ({dept})</p>
+              <div style={{ height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {deptApproved ? (
+                  <p style={{ fontWeight: 'bold', color: '#10b981', fontSize: '11px', margin: 0 }}>
+                    ✓ {deptApproverName ? deptApproverName.split(' — ')[0].split(' - ')[0].trim() : 'รับทราบแล้ว'}
+                  </p>
+                ) : (
+                  <span style={{ fontSize: '10.5px', color: '#64748b' }}>ลงชื่อ..................................................</span>
+                )}
               </div>
+              <p style={{ fontSize: '9.5px', color: '#64748b', marginTop: '4px' }}>หัวหน้าแผนก / ผู้รับผิดชอบ</p>
+              <p style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
+                {deptApproved && deptApprovedAt ? (deptApprovedAt.startsWith('วันที่') ? deptApprovedAt : `วันที่ ${deptApprovedAt}`) : 'วันที่......./......./.......'}
+              </p>
+            </div>
+
+            {/* 3. หัวหน้าฝ่ายประกันคุณภาพ */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '10px', color: '#475569' }}>
+              <p style={{ fontWeight: 'bold', marginBottom: '6px', fontSize: '11px', color: '#1e293b' }}>หัวหน้าฝ่ายประกันคุณภาพ</p>
+              <div style={{ height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {qaApproved ? (
+                  <p style={{ fontWeight: 'bold', color: '#3b82f6', fontSize: '11px', margin: 0 }}>
+                    ✓ {qaApproverName ? qaApproverName.split(' — ')[0].split(' - ')[0].trim() : 'รับทราบแล้ว'}
+                  </p>
+                ) : (
+                  <span style={{ fontSize: '10.5px', color: '#64748b' }}>ลงชื่อ..................................................</span>
+                )}
+              </div>
+              <p style={{ fontSize: '9.5px', color: '#64748b', marginTop: '4px' }}>QA Supervisor / Manager</p>
+              <p style={{ fontSize: '9px', color: '#64748b', marginTop: '2px' }}>
+                {qaApproved && qaApprovedAt ? (qaApprovedAt.startsWith('วันที่') ? qaApprovedAt : `วันที่ ${qaApprovedAt}`) : 'วันที่......./......./.......'}
+              </p>
             </div>
           </div>
         </div>
