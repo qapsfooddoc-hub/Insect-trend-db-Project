@@ -113,7 +113,57 @@ SELECT
     s.id AS summary_id,
     s.record_year,
     s.record_month,
+    CASE s.record_month
+        WHEN 'มกราคม' THEN 1
+        WHEN 'กุมภาพันธ์' THEN 2
+        WHEN 'มีนาคม' THEN 3
+        WHEN 'เมษายน' THEN 4
+        WHEN 'พฤษภาคม' THEN 5
+        WHEN 'มิถุนายน' THEN 6
+        WHEN 'กรกฎาคม' THEN 7
+        WHEN 'สิงหาคม' THEN 8
+        WHEN 'กันยายน' THEN 9
+        WHEN 'ตุลาคม' THEN 10
+        WHEN 'พฤศจิกายน' THEN 11
+        WHEN 'ธันวาคม' THEN 12
+        ELSE 99
+    END AS month_no,
     pt.key AS point_no,
+    CASE pt.key
+        WHEN '01' THEN '01 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '02' THEN '02 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '03' THEN '03 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '04' THEN '04 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '05' THEN '05 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '06' THEN '06 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '07' THEN '07 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '08' THEN '08 (โรงอาหารตัดแต่งห้องที่ 1)'
+        WHEN '09' THEN '09 (โรงอาหารตัดแต่งห้องที่ 2)'
+        WHEN '10' THEN '10 (โรงอาหารตัดแต่งห้องที่ 2)'
+        WHEN '11' THEN '11 (โรงอาหารตัดแต่งห้องที่ 2)'
+        WHEN '12' THEN '12 (โรงอาหารตัดแต่งห้องที่ 2)'
+        WHEN '13' THEN '13 (ใต้ตู้ล็อกเกอร์ ตัดแต่ง)'
+        WHEN '14' THEN '14 (ใต้ตู้ล็อกเกอร์ ตัดแต่ง)'
+        WHEN '15' THEN '15 (ใต้ตู้ล็อกเกอร์ ตัดแต่ง)'
+        WHEN '16' THEN '16 (ใต้ตู้ล็อกเกอร์ ตัดแต่ง)'
+        WHEN '17' THEN '17 (ห้องน้ำหญิง ตัดแต่ง)'
+        WHEN '18' THEN '18 (ห้องน้ำหญิง ตัดแต่ง)'
+        WHEN '19' THEN '19 (ห้องน้ำหญิง ตัดแต่ง)'
+        WHEN '20' THEN '20 (ห้องน้ำชาย ตัดแต่ง)'
+        WHEN '21' THEN '21 (ห้องน้ำชาย ตัดแต่ง)'
+        WHEN '22' THEN '22 (ห้องน้ำชาย ตัดแต่ง)'
+        WHEN '23' THEN '23 (ห้องน้ำหัวหน้า ตัดแต่ง)'
+        ELSE 'จุดที่ ' || pt.key
+    END AS point_name,
+    CASE 
+        WHEN pt.key::int BETWEEN 1 AND 8 THEN 'โรงอาหารตัดแต่งห้องที่ 1'
+        WHEN pt.key::int BETWEEN 9 AND 12 THEN 'โรงอาหารตัดแต่งห้องที่ 2'
+        WHEN pt.key::int BETWEEN 13 AND 16 THEN 'ใต้ตู้ล็อกเกอร์ ตัดแต่ง'
+        WHEN pt.key::int BETWEEN 17 AND 19 THEN 'ห้องน้ำหญิง ตัดแต่ง'
+        WHEN pt.key::int BETWEEN 20 AND 22 THEN 'ห้องน้ำชาย ตัดแต่ง'
+        WHEN pt.key::int = 23 THEN 'ห้องน้ำหัวหน้า ตัดแต่ง'
+        ELSE 'โซนตรวจวัด'
+    END AS zone,
     (pt.value)::int AS total_count,
     s.grand_total,
     s.status,
@@ -121,7 +171,8 @@ SELECT
     s.updated_at
 FROM fm_cockroach_monthly_summary s,
 LATERAL jsonb_each_text(s.point_totals) AS pt(key, value)
-WHERE pt.key ~ '^[0-9]+$';
+WHERE pt.key ~ '^[0-9]{2}$'
+ORDER BY s.record_year, month_no, pt.key;
 
 -- ==============================================================================
 -- [ส่วนที่ 4] ตารางใหม่: หนูและสัตว์พาหะ สโตร์คลังสินค้า (Compact Summary)
