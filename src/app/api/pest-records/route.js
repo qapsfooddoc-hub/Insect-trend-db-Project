@@ -27,6 +27,62 @@ export async function GET(request) {
       return NextResponse.json({ data: [], isDemo: true, message: 'Supabase credentials not configured' });
     }
 
+    // Support dedicated breakdown by trap point number and month for cockroaches
+    const view = searchParams.get('view');
+    if (type === 'cockroaches' && view === 'by-point') {
+      try {
+        let ptQuery = supabase
+          .from('fm_cockroach_points_monthly')
+          .select('*')
+          .eq('record_year', year);
+        if (month) {
+          ptQuery = ptQuery.eq('record_month', month);
+        }
+        const { data: ptData, error: ptError } = await ptQuery.order('point_no', { ascending: true });
+        if (!ptError && ptData && ptData.length > 0) {
+          return NextResponse.json({ data: ptData, isDemo: false, count: ptData.length, view: 'by-point' });
+        }
+      } catch (e) {
+        // Fallback to extracting from fm_cockroach_monthly_summary
+      }
+
+      // Fallback: extract point_totals from fm_cockroach_monthly_summary
+      try {
+        let sumQuery = supabase
+          .from('fm_cockroach_monthly_summary')
+          .select('*')
+          .eq('record_year', year);
+        if (month) {
+          sumQuery = sumQuery.eq('record_month', month);
+        }
+        const { data: sumData } = await sumQuery;
+        if (sumData && sumData.length > 0) {
+          const breakdown = [];
+          sumData.forEach(row => {
+            const pts = row.point_totals || {};
+            // Gather 2-digit keys '01' to '23'
+            Object.entries(pts).forEach(([k, v]) => {
+              if (/^\d{2}$/.test(k) || (/^\d+$/.test(k) && Number(k) <= 23)) {
+                const pNo = k.padStart(2, '0');
+                if (!breakdown.some(b => b.record_month === row.record_month && b.point_no === pNo)) {
+                  breakdown.push({
+                    record_year: row.record_year,
+                    record_month: row.record_month,
+                    point_no: pNo,
+                    total_count: Number(v) || 0,
+                    status: row.status
+                  });
+                }
+              }
+            });
+          });
+          if (breakdown.length > 0) {
+            return NextResponse.json({ data: breakdown, isDemo: false, count: breakdown.length, view: 'by-point' });
+          }
+        }
+      } catch (e) {}
+    }
+
     let query = supabase
       .from(tableName)
       .select('*')
@@ -179,6 +235,26 @@ export async function POST(request) {
         tablePending: true,
         message: `Please run the migration SQL in Supabase SQL editor to create ${tableName}.`
       }, { status: 200 }); // Return 200 so UI continues smoothly with fallback
+    }
+
+    // If cockroaches and points_breakdown provided, also upsert to fm_cockroach_points_monthly
+    if (type === 'cockroaches' && Array.isArray(payload.points_breakdown) && payload.points_breakdown.length > 0) {
+      try {
+        const pointRows = payload.points_breakdown.map(pt => ({
+          record_year: String(year),
+          record_month: String(month),
+          point_no: String(pt.point_no || pt.no || '').padStart(2, '0'),
+          point_name: String(pt.name || pt.point_name || ''),
+          zone: String(pt.zone || ''),
+          total_count: Number(pt.total || pt.count || 0),
+          status: payload.status || 'Draft'
+        }));
+        await supabase
+          .from('fm_cockroach_points_monthly')
+          .upsert(pointRows, { onConflict: 'record_year, record_month, point_no' });
+      } catch (err) {
+        console.warn('Upsert into fm_cockroach_points_monthly warning:', err.message);
+      }
     }
 
     return NextResponse.json({

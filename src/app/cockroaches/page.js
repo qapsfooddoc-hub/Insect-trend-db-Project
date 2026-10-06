@@ -9,7 +9,8 @@ import {
 import { 
   Save, RotateCcw, Printer, Calendar, CheckCircle2, 
   AlertTriangle, BarChart3, FileText, Layers, ShieldCheck, 
-  Sparkles, Check, Home, Activity, CalendarDays, MousePointerClick, RefreshCw, Eraser, Clock
+  Sparkles, Check, Home, Activity, CalendarDays, MousePointerClick, RefreshCw, Eraser, Clock,
+  Download, CloudUpload
 } from 'lucide-react';
 import FormNav from '@/components/FormNav';
 import MonthYearPicker, { getAvailableYearsRange } from '@/components/MonthYearPicker';
@@ -266,6 +267,8 @@ export default function CockroachesPage() {
   const [selectedPrintZone, setSelectedPrintZone] = useState('โรงอาหารตัดแต่งห้องที่ 1');
   const [placementDays, setPlacementDays] = useState([5, 11, 19, 26]);
   const [placementInput, setPlacementInput] = useState('5, 11, 19, 26');
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null); // { state: 'loading' | 'success' | 'error', message: string }
 
   // Zone status configuration (key: `${year}_${quarter}_${zoneId}` -> 'auto' | 'active' | 'inactive' | 'renovating')
   const [zoneStatuses, setZoneStatuses] = useState(() => {
@@ -517,6 +520,7 @@ export default function CockroachesPage() {
   };
 
   useEffect(() => {
+    let isCancelled = false;
     if (typeof window !== 'undefined') {
       const key = `cockroach_daily_${selectedYear}_${selectedMonth}`;
       const saved = localStorage.getItem(key);
@@ -544,23 +548,64 @@ export default function CockroachesPage() {
         } catch (e) {}
       }
 
-      // Default August data from sample image
-      if (selectedMonth === 'สิงหาคม') {
-        loadAugustSampleData();
-      } else {
-        const defaultDays = [1, 8, 15, 22, 29];
-        setPlacementDays(defaultDays);
-        setPlacementInput(defaultDays.join(', '));
-        const init = {};
-        for (let p = 1; p <= 23; p++) {
-          init[p] = {};
-          for (let d = 1; d <= 31; d++) {
-            init[p][d] = defaultDays.includes(d) ? 'วาง' : 0;
+      // Check Supabase via /api/pest-records if not found in localStorage
+      fetch(`/api/pest-records?type=cockroaches&year=${selectedYear}&month=${selectedMonth}`)
+        .then(res => res.json())
+        .then(res => {
+          if (!isCancelled && res.data && res.data.length > 0) {
+            const rec = res.data[0];
+            if (rec.daily_records && Object.keys(rec.daily_records).length > 0) {
+              setDailyRecords(rec.daily_records);
+              if (rec.reporter_name) setReporterName(rec.reporter_name);
+              if (rec.reviewer_name) setReviewerName(rec.reviewer_name);
+              try {
+                localStorage.setItem(key, JSON.stringify({
+                  records: rec.daily_records,
+                  reporter: rec.reporter_name || 'อรพิน',
+                  reviewer: rec.reviewer_name || 'พัชรินทร์',
+                  updatedAt: rec.updated_at || new Date().toISOString()
+                }));
+              } catch (e) {}
+              return;
+            }
           }
-        }
-        setDailyRecords(init);
-      }
+
+          // Default August data from sample image
+          if (selectedMonth === 'สิงหาคม') {
+            loadAugustSampleData();
+          } else {
+            const defaultDays = [1, 8, 15, 22, 29];
+            setPlacementDays(defaultDays);
+            setPlacementInput(defaultDays.join(', '));
+            const init = {};
+            for (let p = 1; p <= 23; p++) {
+              init[p] = {};
+              for (let d = 1; d <= 31; d++) {
+                init[p][d] = defaultDays.includes(d) ? 'วาง' : 0;
+              }
+            }
+            setDailyRecords(init);
+          }
+        })
+        .catch(() => {
+          if (selectedMonth === 'สิงหาคม') {
+            loadAugustSampleData();
+          } else {
+            const defaultDays = [1, 8, 15, 22, 29];
+            setPlacementDays(defaultDays);
+            setPlacementInput(defaultDays.join(', '));
+            const init = {};
+            for (let p = 1; p <= 23; p++) {
+              init[p] = {};
+              for (let d = 1; d <= 31; d++) {
+                init[p][d] = defaultDays.includes(d) ? 'วาง' : 0;
+              }
+            }
+            setDailyRecords(init);
+          }
+        });
     }
+    return () => { isCancelled = true; };
   }, [selectedMonth, selectedYear]);
 
   // Apply placement days to all 23 points
@@ -891,11 +936,35 @@ export default function CockroachesPage() {
   const handleSave = async () => {
     if (typeof window !== 'undefined') {
       const key = `cockroach_daily_${selectedYear}_${selectedMonth}`;
+
+      // Build point totals map and points breakdown list
+      const pointTotalsMap = {};
+      const pointsBreakdown = customPoints.map(pt => {
+        const cnt = getPointTotal(pt.id);
+        pointTotalsMap[pt.no] = cnt;
+        pointTotalsMap[String(parseInt(pt.no, 10))] = cnt;
+        return {
+          point_no: pt.no,
+          no: pt.no,
+          id: pt.id,
+          name: pt.name,
+          zone: pt.zone,
+          total: cnt
+        };
+      });
+
+      const getZoneCount = (fullName) => {
+        const found = zoneSummary.find(z => z.fullName === fullName);
+        return found ? found.count : 0;
+      };
+
       const payload = {
         records: dailyRecords,
         placementDays: placementDays,
         reporter: reporterName,
         reviewer: reviewerName,
+        grandTotal: monthlyGrandTotal,
+        pointTotals: pointTotalsMap,
         updatedAt: new Date().toISOString()
       };
       localStorage.setItem(key, JSON.stringify(payload));
@@ -904,7 +973,7 @@ export default function CockroachesPage() {
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
 
-      // Async sync compact summary to Supabase
+      // Async sync compact summary & point totals to Supabase
       try {
         await fetch('/api/pest-records', {
           method: 'POST',
@@ -914,13 +983,14 @@ export default function CockroachesPage() {
             year: selectedYear,
             month: selectedMonth,
             grand_total: monthlyGrandTotal,
-            zone_1_total: zoneTotals['โรงอาหารตัดแต่งห้องที่ 1'] || 0,
-            zone_2_total: zoneTotals['โรงอาหารตัดแต่งห้องที่ 2'] || 0,
-            zone_3_total: zoneTotals['ใต้ตู้ล็อกเกอร์ ตัดแต่ง'] || 0,
-            zone_4_total: zoneTotals['ห้องน้ำหญิง ตัดแต่ง'] || 0,
-            zone_5_total: zoneTotals['ห้องน้ำชาย ตัดแต่ง'] || 0,
-            zone_6_total: zoneTotals['ห้องน้ำหัวหน้า ตัดแต่ง'] || 0,
-            point_totals: pointTotals,
+            zone_1_total: getZoneCount('โรงอาหารตัดแต่งห้องที่ 1'),
+            zone_2_total: getZoneCount('โรงอาหารตัดแต่งห้องที่ 2'),
+            zone_3_total: getZoneCount('ใต้ตู้ล็อกเกอร์ ตัดแต่ง'),
+            zone_4_total: getZoneCount('ห้องน้ำหญิง ตัดแต่ง'),
+            zone_5_total: getZoneCount('ห้องน้ำชาย ตัดแต่ง'),
+            zone_6_total: getZoneCount('ห้องน้ำหัวหน้า ตัดแต่ง'),
+            point_totals: pointTotalsMap,
+            points_breakdown: pointsBreakdown,
             daily_records: dailyRecords,
             reporter: reporterName,
             reviewer: reviewerName
@@ -929,6 +999,145 @@ export default function CockroachesPage() {
       } catch (e) {
         console.warn('Sync cockroaches to Supabase skipped:', e);
       }
+    }
+  };
+
+  // Export point totals to CSV (Matrix or Flat)
+  const handleExportPointTotalsCSV = (format = 'matrix') => {
+    let csvContent = '\uFEFF'; // BOM for UTF-8 in Excel
+    if (format === 'matrix') {
+      const headers = ['หมายเลขจุด', 'ตำแหน่งที่ตั้ง', 'โซน', ...MONTH_NAMES, 'รวมทั้งปี'];
+      csvContent += headers.map(h => `"${h}"`).join(',') + '\n';
+
+      customPoints.forEach(pt => {
+        let rowSum = 0;
+        const monthVals = MONTH_NAMES.map(m => {
+          const val = getPointCountForMonth(pt.id, m, selectedYear);
+          rowSum += val;
+          return val;
+        });
+        const row = [
+          `"จุดที่ ${pt.no}"`,
+          `"${pt.name}"`,
+          `"${pt.zone}"`,
+          ...monthVals,
+          rowSum
+        ];
+        csvContent += row.join(',') + '\n';
+      });
+
+      const monthTotals = MONTH_NAMES.map(m => {
+        return customPoints.reduce((sum, pt) => sum + getPointCountForMonth(pt.id, m, selectedYear), 0);
+      });
+      const grandSum = monthTotals.reduce((a, b) => a + b, 0);
+      const totalRow = ['"รวมทุกจุดตรวจ"', '""', '""', ...monthTotals, grandSum];
+      csvContent += totalRow.join(',') + '\n';
+    } else {
+      // Flat data format for BI / Database
+      csvContent += '"ปี พ.ศ.","เดือน","หมายเลขจุด","ตำแหน่งที่ตั้ง","โซน","จำนวนแมลงสาบที่พบ (ตัว)"\n';
+      MONTH_NAMES.forEach(m => {
+        customPoints.forEach(pt => {
+          const val = getPointCountForMonth(pt.id, m, selectedYear);
+          csvContent += `"${selectedYear}","${m}","${pt.no}","${pt.name}","${pt.zone}",${val}\n`;
+        });
+      });
+    }
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `FM-QC-08-05_cockroach_point_totals_${selectedYear}_${format}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Sync all recorded months in localStorage to Supabase
+  const handleSyncAllToSupabase = async () => {
+    setIsSyncing(true);
+    setSyncStatus({ state: 'loading', message: 'กำลังเตรียมข้อมูลและเชื่อมต่อฐานข้อมูล Supabase...' });
+    try {
+      let syncedCount = 0;
+      for (const m of MONTH_NAMES) {
+        const key = `cockroach_daily_${selectedYear}_${m}`;
+        const keyAlt = `cockroach_records_${m}_${selectedYear}`;
+        const saved = (typeof window !== 'undefined') ? (localStorage.getItem(key) || localStorage.getItem(keyAlt)) : null;
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const records = parsed.records || {};
+            const pointTotalsMap = {};
+            let monthGrand = 0;
+            const pointsBreakdown = customPoints.map(pt => {
+              const row = records[pt.id] || {};
+              let ptTotal = 0;
+              Object.values(row).forEach(v => {
+                const num = parseInt(v, 10);
+                if (!isNaN(num) && num > 0) ptTotal += num;
+              });
+              monthGrand += ptTotal;
+              pointTotalsMap[pt.no] = ptTotal;
+              pointTotalsMap[String(parseInt(pt.no, 10))] = ptTotal;
+              return {
+                point_no: pt.no,
+                no: pt.no,
+                name: pt.name,
+                zone: pt.zone,
+                total: ptTotal
+              };
+            });
+
+            const getZoneSum = (zoneName) => {
+              return customPoints
+                .filter(p => p.zone === zoneName)
+                .reduce((acc, p) => acc + (pointTotalsMap[p.no] || 0), 0);
+            };
+
+            await fetch('/api/pest-records', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'cockroaches',
+                year: selectedYear,
+                month: m,
+                grand_total: monthGrand,
+                zone_1_total: getZoneSum('โรงอาหารตัดแต่งห้องที่ 1'),
+                zone_2_total: getZoneSum('โรงอาหารตัดแต่งห้องที่ 2'),
+                zone_3_total: getZoneSum('ใต้ตู้ล็อกเกอร์ ตัดแต่ง'),
+                zone_4_total: getZoneSum('ห้องน้ำหญิง ตัดแต่ง'),
+                zone_5_total: getZoneSum('ห้องน้ำชาย ตัดแต่ง'),
+                zone_6_total: getZoneSum('ห้องน้ำหัวหน้า ตัดแต่ง'),
+                point_totals: pointTotalsMap,
+                points_breakdown: pointsBreakdown,
+                daily_records: records,
+                reporter: parsed.reporter || 'อรพิน',
+                reviewer: parsed.reviewer || 'พัชรินทร์'
+              })
+            });
+            syncedCount++;
+          } catch (err) {
+            console.warn(`Sync month ${m} skipped/error:`, err);
+          }
+        }
+      }
+      if (syncedCount > 0) {
+        setSyncStatus({
+          state: 'success',
+          message: `ซิงค์ข้อมูลสำเร็จเรียบร้อย ${syncedCount} เดือน ขึ้นสู่ตาราง fm_cockroach_monthly_summary และ fm_cockroach_points_monthly!`
+        });
+      } else {
+        setSyncStatus({
+          state: 'info',
+          message: `ยังไม่พบข้อมูลเดือนที่บันทึกไว้ของปี ${selectedYear} ในเครื่องนี้ กรุณาบันทึกข้อมูลก่อนซิงค์`
+        });
+      }
+      setTimeout(() => setSyncStatus(null), 6000);
+    } catch (err) {
+      setSyncStatus({ state: 'error', message: 'เกิดข้อผิดพลาดในการซิงค์: ' + err.message });
+      setTimeout(() => setSyncStatus(null), 6000);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -1937,10 +2146,21 @@ export default function CockroachesPage() {
                   <Activity className="w-3.5 h-3.5" />
                   <span>📉 ภาพรวมสถิติทั้งปี & KPI</span>
                 </button>
+                <button
+                  onClick={() => setGraphSubTab('point_summary')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    graphSubTab === 'point_summary'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>📋 ตารางผลรวมแยกตามจุดวาง / เดือน</span>
+                </button>
               </div>
 
-              {/* Quick Print Button */}
-              <div className="flex items-center gap-2">
+              {/* Quick Print & Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
                 {graphSubTab === 'monthly' && (
                   <button
                     onClick={() => handlePrint('monthly')}
@@ -1958,6 +2178,35 @@ export default function CockroachesPage() {
                     <Printer className="w-3.5 h-3.5" />
                     <span>พิมพ์รายงานไตรมาส (3 หน้า A4 แนวนอน)</span>
                   </button>
+                )}
+                {graphSubTab === 'point_summary' && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleExportPointTotalsCSV('matrix')}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="ดาวน์โหลดตารางผลรวมรายเดือน 12 เดือน (เปิดใน Excel ได้ทันที)"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Excel / CSV</span>
+                    </button>
+                    <button
+                      onClick={() => handleExportPointTotalsCSV('flat')}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="ดาวน์โหลดแบบ Flat Data สำหรับนำเข้า BI / ฐานข้อมูล"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Flat CSV</span>
+                    </button>
+                    <button
+                      onClick={handleSyncAllToSupabase}
+                      disabled={isSyncing}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="ซิงค์ข้อมูลทั้งหมดที่บันทึกไว้ในเว็บขึ้นฐานข้อมูล Supabase"
+                    >
+                      <CloudUpload className="w-3.5 h-3.5" />
+                      <span>{isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ขึ้นฐานข้อมูล'}</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -2509,6 +2758,222 @@ export default function CockroachesPage() {
               </div>
             )}
 
+            {/* ─── SUB-TAB 4: COCKROACH POINT TOTALS BY MONTH (MATRIX & EXPORT) ─── */}
+            {graphSubTab === 'point_summary' && (
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                
+                {/* Header & Controls */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
+                        ตารางผลรวมรายจุดตรวจ (Point Summary Matrix)
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200">
+                        {customPoints.length} จุดวาง / 12 เดือน
+                      </span>
+                    </div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+                      สรุปผลรวมจำนวนแมลงสาบ แยกตามหมายเลขจุดวาง / เดือน (พ.ศ. {selectedYear})
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-1">
+                      ดึงข้อมูลจริงที่บันทึกแล้วจากหน้าเว็บ (localStorage) และเชื่อมโยงตรงกับฐานข้อมูล Supabase (ตาราง fm_cockroach_monthly_summary & fm_cockroach_points_monthly)
+                    </p>
+                  </div>
+
+                  {/* Actions: Export & Sync */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleExportPointTotalsCSV('matrix')}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="ดาวน์โหลดตารางผลรวมรายเดือน 12 เดือน (เปิดใน Excel ได้ทันที)"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>ดาวน์โหลด Excel / CSV</span>
+                    </button>
+                    <button
+                      onClick={() => handleExportPointTotalsCSV('flat')}
+                      className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="ดาวน์โหลดแบบ Flat Data สำหรับนำเข้า BI / ฐานข้อมูล"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Flat Data (BI)</span>
+                    </button>
+                    <button
+                      onClick={handleSyncAllToSupabase}
+                      disabled={isSyncing}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-amber-600/20 cursor-pointer"
+                      title="ซิงค์ข้อมูลทุกเดือนที่บันทึกไว้ในเว็บขึ้นฐานข้อมูล Supabase"
+                    >
+                      <CloudUpload className="w-4 h-4" />
+                      <span>{isSyncing ? 'กำลังซิงค์...' : 'ซิงค์ขึ้นฐานข้อมูล Supabase'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status alert if sync is in progress or done */}
+                {syncStatus && (
+                  <div className={`p-4 rounded-2xl text-xs font-bold flex items-center gap-2.5 ${
+                    syncStatus.state === 'loading'
+                      ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                      : syncStatus.state === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                      : syncStatus.state === 'info'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                      : 'bg-red-50 text-red-800 border border-red-200'
+                  }`}>
+                    {syncStatus.state === 'loading' && <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />}
+                    {syncStatus.state === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                    {syncStatus.state === 'info' && <AlertTriangle className="w-4 h-4 text-amber-600" />}
+                    {syncStatus.state === 'error' && <AlertTriangle className="w-4 h-4 text-red-600" />}
+                    <span>{syncStatus.message}</span>
+                  </div>
+                )}
+
+                {/* Recorded Months Summary Pills */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-slate-500">สถานะการบันทึกข้อมูลปี {selectedYear}:</span>
+                  {MONTH_NAMES.map(m => {
+                    const isRec = isMonthRecorded(m, selectedYear);
+                    return (
+                      <span
+                        key={m}
+                        className={`px-2.5 py-1 rounded-lg font-bold text-[11px] flex items-center gap-1 ${
+                          isRec
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                        }`}
+                      >
+                        {isRec && <Check className="w-3 h-3 text-emerald-600" />}
+                        {m}
+                      </span>
+                    );
+                  })}
+                </div>
+
+                {/* Main Point Summary Matrix Table */}
+                <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <table className="w-full text-xs text-left border-collapse">
+                    <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-extrabold sticky top-0">
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="p-2.5 text-center w-14 border-r border-slate-200 dark:border-slate-700">จุดที่</th>
+                        <th className="p-2.5 min-w-[200px] border-r border-slate-200 dark:border-slate-700">ตำแหน่งที่ตั้ง</th>
+                        <th className="p-2.5 min-w-[150px] border-r border-slate-200 dark:border-slate-700">โซน</th>
+                        {MONTH_NAMES.map(m => (
+                          <th key={m} className="p-2 text-center min-w-[48px] border-r border-slate-200 dark:border-slate-700">
+                            {m.substring(0, 4)}
+                          </th>
+                        ))}
+                        <th className="p-2.5 text-center min-w-[64px] bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-300">
+                          รวมทั้งปี
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {customPoints.map((pt, idx) => {
+                        let rowSum = 0;
+                        const monthVals = MONTH_NAMES.map(m => {
+                          const val = getPointCountForMonth(pt.id, m, selectedYear);
+                          rowSum += val;
+                          return val;
+                        });
+
+                        return (
+                          <tr 
+                            key={pt.id} 
+                            className={`hover:bg-amber-50/50 dark:hover:bg-slate-800/50 transition-colors ${
+                              idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-900/50' : 'bg-white dark:bg-slate-900'
+                            }`}
+                          >
+                            <td className="p-2 text-center font-black text-amber-700 dark:text-amber-400 border-r border-slate-100 dark:border-slate-800">
+                              {pt.no}
+                            </td>
+                            <td className="p-2 font-medium text-slate-900 dark:text-white border-r border-slate-100 dark:border-slate-800">
+                              {pt.name}
+                            </td>
+                            <td className="p-2 text-slate-600 dark:text-slate-400 border-r border-slate-100 dark:border-slate-800">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                {pt.zone}
+                              </span>
+                            </td>
+                            {monthVals.map((val, mIdx) => {
+                              const mName = MONTH_NAMES[mIdx];
+                              const isRec = isMonthRecorded(mName, selectedYear);
+                              return (
+                                <td 
+                                  key={mName} 
+                                  className={`p-2 text-center border-r border-slate-100 dark:border-slate-800 font-bold ${
+                                    !isRec
+                                      ? 'text-slate-300 dark:text-slate-700'
+                                      : val > 0 
+                                      ? 'text-red-600 font-black bg-red-50/30' 
+                                      : 'text-slate-600 dark:text-slate-400'
+                                  }`}
+                                >
+                                  {val}
+                                </td>
+                              );
+                            })}
+                            <td className="p-2 text-center font-black bg-amber-50/50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-300">
+                              {rowSum}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 dark:bg-slate-800 font-black text-slate-900 dark:text-white border-t-2 border-slate-300 dark:border-slate-700">
+                      <tr>
+                        <td colSpan={3} className="p-3 text-right pr-4 border-r border-slate-200 dark:border-slate-700">
+                          รวมตรวจพบทุกจุดตรวจประจำเดือน:
+                        </td>
+                        {MONTH_NAMES.map(m => {
+                          const isRec = isMonthRecorded(m, selectedYear);
+                          const totalForMonth = customPoints.reduce(
+                            (sum, pt) => sum + getPointCountForMonth(pt.id, m, selectedYear), 
+                            0
+                          );
+                          return (
+                            <td 
+                              key={m} 
+                              className={`p-2 text-center border-r border-slate-200 dark:border-slate-700 ${
+                                !isRec 
+                                  ? 'text-slate-400' 
+                                  : totalForMonth > 0 
+                                  ? 'text-amber-700 dark:text-amber-400' 
+                                  : 'text-slate-500'
+                              }`}
+                            >
+                              {totalForMonth}
+                            </td>
+                          );
+                        })}
+                        <td className="p-3 text-center bg-amber-200 dark:bg-amber-900 text-amber-950 dark:text-amber-100 text-sm">
+                          {yearlySum}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Helpful Guide Note */}
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                  <p className="font-bold text-slate-800 dark:text-slate-200">
+                    💡 ข้อมูลเกี่ยวกับตารางฐานข้อมูล:
+                  </p>
+                  <p>
+                    • ข้อมูลในตารางนี้คำนวณและสรุปจากยอดรายวัน 31 วันที่บันทึกจริงในแต่ละเดือน โดยแยกผลรวมเป็นรายหมายเลขจุดตรวจ 01 - 23 ชัดเจน
+                  </p>
+                  <p>
+                    • เมื่อกดปุ่ม <strong>"ซิงค์ขึ้นฐานข้อมูล Supabase"</strong> ระบบจะนำผลรวมของทุกเดือนที่บันทึกแล้ว อัปเดตไปยังตาราง <code className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">fm_cockroach_monthly_summary</code> (พร้อมฟิลด์ <code className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">point_totals</code>) และตาราง <code className="px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">fm_cockroach_points_monthly</code> ทันที
+                  </p>
+                  <p>
+                    • สามารถดาวน์โหลดเป็นไฟล์ Excel / CSV เพื่อนำไปทำรายงาน สถิติ หรือเปิดดูใน Microsoft Excel ได้ทันทีโดยภาษาไทยไม่เพี้ยน
+                  </p>
+                </div>
+
+              </div>
+            )}
+
           </div>
         )}
 
@@ -2607,6 +3072,18 @@ export default function CockroachesPage() {
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>บันทึกข้อมูล</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('chart');
+                    setGraphSubTab('point_summary');
+                  }}
+                  className="px-3.5 py-1.5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="ดูตารางสรุปผลรวมแยกรายจุดตรวจ 01 - 23 ทุกเดือน พร้อมดาวน์โหลด Excel / CSV"
+                >
+                  <FileText className="w-3.5 h-3.5 text-amber-600" />
+                  <span>ตารางผลรวมรายจุด</span>
                 </button>
               </div>
             </div>

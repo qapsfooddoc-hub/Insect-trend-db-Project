@@ -90,6 +90,40 @@ CREATE TABLE IF NOT EXISTS fm_cockroach_monthly_summary (
 );
 
 -- ==============================================================================
+-- [ส่วนที่ 3.1] ตารางแยกผลรวมตามหมายเลขจุดวาง / เดือน (Cockroach Point Monthly Breakdown)
+-- บันทึกผลรวมตรวจพบแยกรายหมายเลขจุดวาง (01 - 23) ของแต่ละเดือนและปี
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS fm_cockroach_points_monthly (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    record_year VARCHAR(10) NOT NULL,              -- ปี พ.ศ. เช่น '2569'
+    record_month VARCHAR(30) NOT NULL,             -- ชื่อเดือน เช่น 'มกราคม', 'สิงหาคม'
+    point_no VARCHAR(10) NOT NULL,                 -- หมายเลขจุดวาง เช่น '01', '02', ..., '23'
+    point_name VARCHAR(200),                       -- ชื่อจุดวาง เช่น '01 (โรงอาหารตัดแต่งห้องที่ 1)'
+    zone VARCHAR(100),                             -- โซน เช่น 'โรงอาหารตัดแต่งห้องที่ 1'
+    total_count INT DEFAULT 0 CHECK (total_count >= 0), -- ผลรวมตรวจพบสะสมประจำเดือนของจุดนี้
+    status VARCHAR(30) DEFAULT 'Approved',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_cockroach_point_monthly UNIQUE (record_year, record_month, point_no)
+);
+
+-- SQL View สรุปผลรวมตามหมายเลขจุดวาง / เดือน โดยดึงจากตารางหลัก (View Query)
+CREATE OR REPLACE VIEW v_cockroach_points_monthly AS
+SELECT 
+    s.id AS summary_id,
+    s.record_year,
+    s.record_month,
+    pt.key AS point_no,
+    (pt.value)::int AS total_count,
+    s.grand_total,
+    s.status,
+    s.created_at,
+    s.updated_at
+FROM fm_cockroach_monthly_summary s,
+LATERAL jsonb_each_text(s.point_totals) AS pt(key, value)
+WHERE pt.key ~ '^[0-9]+$';
+
+-- ==============================================================================
 -- [ส่วนที่ 4] ตารางใหม่: หนูและสัตว์พาหะ สโตร์คลังสินค้า (Compact Summary)
 -- ประหยัดพื้นที่: จากเดิม 310 แถว/เดือน เหลือเพียง 1 แถว/เดือน (12 แถว/ปี)
 -- ==============================================================================
@@ -155,6 +189,7 @@ CREATE TABLE IF NOT EXISTS fm_line_walk_monthly_summary (
 -- ==============================================================================
 CREATE INDEX IF NOT EXISTS idx_lizard_summary_lookup ON fm_lizard_monthly_summary (record_year, record_month);
 CREATE INDEX IF NOT EXISTS idx_cockroach_summary_lookup ON fm_cockroach_monthly_summary (record_year, record_month);
+CREATE INDEX IF NOT EXISTS idx_cockroach_point_lookup ON fm_cockroach_points_monthly (record_year, record_month, point_no);
 CREATE INDEX IF NOT EXISTS idx_rodent_summary_lookup ON fm_rodent_monthly_summary (record_year, record_month);
 CREATE INDEX IF NOT EXISTS idx_linewalk_summary_lookup ON fm_line_walk_monthly_summary (record_year, record_month, building_phase);
 
@@ -163,11 +198,13 @@ CREATE INDEX IF NOT EXISTS idx_linewalk_summary_lookup ON fm_line_walk_monthly_s
 -- ==============================================================================
 ALTER TABLE fm_lizard_monthly_summary ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fm_cockroach_monthly_summary ENABLE ROW LEVEL SECURITY;
+ALTER TABLE fm_cockroach_points_monthly ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fm_rodent_monthly_summary ENABLE ROW LEVEL SECURITY;
 ALTER TABLE fm_line_walk_monthly_summary ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Public Read/Write Lizard Summary" ON fm_lizard_monthly_summary FOR ALL USING (true);
 CREATE POLICY "Public Read/Write Cockroach Summary" ON fm_cockroach_monthly_summary FOR ALL USING (true);
+CREATE POLICY "Public Read/Write Cockroach Points Monthly" ON fm_cockroach_points_monthly FOR ALL USING (true);
 CREATE POLICY "Public Read/Write Rodent Summary" ON fm_rodent_monthly_summary FOR ALL USING (true);
 CREATE POLICY "Public Read/Write LineWalk Summary" ON fm_line_walk_monthly_summary FOR ALL USING (true);
 
