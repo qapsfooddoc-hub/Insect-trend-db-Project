@@ -195,6 +195,24 @@ const BoxedBarLabel = (props) => {
   );
 };
 
+// Safe, crash-proof bar label for quarterly clustered bars
+const QuarterlyBarLabel = (props) => {
+  const { x, y, width, value } = props;
+  if (value === undefined || value === null || value === 0 || value === '0') return null;
+  return (
+    <text
+      x={Number(x) + Number(width) / 2}
+      y={Math.max(10, Number(y) - 4)}
+      fill="#334155"
+      textAnchor="middle"
+      fontSize={8.5}
+      fontWeight="bold"
+    >
+      {value}
+    </text>
+  );
+};
+
 // Exact drawing XML narratives from 6.กราฟแนวโน้ม(แมลงสาบ) 2569.xlsx (Continuous text without line breaks for active zones, 3-line format for inactive canteens)
 const QUARTERLY_EXACT_NARRATIVES = {
   'Q1': {
@@ -370,8 +388,12 @@ export default function CockroachesPage() {
   const handlePrint = (job) => {
     setPrintJob(job);
     setTimeout(() => {
-      window.print();
-    }, 150);
+      try {
+        window.print();
+      } catch (err) {
+        console.error('Window print error:', err);
+      }
+    }, 250);
   };
 
   useEffect(() => {
@@ -749,6 +771,26 @@ export default function CockroachesPage() {
     return sum;
   }, [dailyRecords, customPoints]);
 
+  // Helper to verify if a month has real recorded data (in localStorage or current session)
+  const isMonthRecorded = (month, year = selectedYear) => {
+    if (typeof window !== 'undefined') {
+      const key1 = `cockroach_daily_${year}_${month}`;
+      const key2 = `cockroach_records_${month}_${year}`;
+      if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+        return true;
+      }
+    }
+    if (month === selectedMonth && String(year) === String(selectedYear)) {
+      return Object.values(dailyRecords || {}).some(row =>
+        Object.values(row || {}).some(v => {
+          const n = parseInt(v, 10);
+          return !isNaN(n) && n > 0;
+        })
+      );
+    }
+    return false;
+  };
+
   // Zone totals for current month
   const zoneSummary = useMemo(() => {
     const summary = {};
@@ -787,17 +829,42 @@ export default function CockroachesPage() {
 
   // Yearly monthly trends (12 months)
   const yearlyTrendData = useMemo(() => {
-    const monthsTotals = {
+    const demoTotals = {
       'มกราคม': 71, 'กุมภาพันธ์': 77, 'มีนาคม': 125, 'เมษายน': 113,
       'พฤษภาคม': 137, 'มิถุนายน': 135, 'กรกฎาคม': 144, 'สิงหาคม': 62,
       'กันยายน': 70, 'ตุลาคม': 68, 'พฤศจิกายน': 70, 'ธันวาคม': 95
     };
-    return MONTH_NAMES.map(m => ({
-      month: m.substring(0, 4),
-      fullMonth: m,
-      total: m === selectedMonth ? monthlyGrandTotal : (monthsTotals[m] || 0)
-    }));
-  }, [selectedMonth, monthlyGrandTotal]);
+    return MONTH_NAMES.map(m => {
+      if (m === selectedMonth) {
+        return { month: m.substring(0, 4), fullMonth: m, total: monthlyGrandTotal };
+      }
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(`cockroach_daily_${selectedYear}_${m}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            let sum = 0;
+            Object.values(parsed.records || {}).forEach(row => {
+              Object.values(row || {}).forEach(v => {
+                const num = parseInt(v, 10);
+                if (!isNaN(num) && num > 0) sum += num;
+              });
+            });
+            return { month: m.substring(0, 4), fullMonth: m, total: sum };
+          } catch (e) {}
+        }
+      }
+      // If user has recorded any month this year, unrecorded months have total 0
+      if (recordedMonths.length > 0) {
+        return { month: m.substring(0, 4), fullMonth: m, total: 0 };
+      }
+      return {
+        month: m.substring(0, 4),
+        fullMonth: m,
+        total: selectedYear === '2569' ? (demoTotals[m] || 0) : 0
+      };
+    });
+  }, [selectedMonth, selectedYear, monthlyGrandTotal, recordedMonths]);
 
   const yearlySum = useMemo(() => {
     return yearlyTrendData.reduce((sum, r) => sum + r.total, 0);
@@ -919,9 +986,8 @@ export default function CockroachesPage() {
 
   // Dynamic point count for any given month/year (prefers user entry in current session or localStorage, falls back to Excel data)
   const getPointCountForMonth = (pointId, month, year) => {
-    if (month === selectedMonth && year === selectedYear) {
-      const liveTotal = getPointTotal(pointId);
-      if (liveTotal > 0) return liveTotal;
+    if (month === selectedMonth && String(year) === String(selectedYear)) {
+      return getPointTotal(pointId);
     }
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(`cockroach_daily_${year}_${month}`);
@@ -934,11 +1000,16 @@ export default function CockroachesPage() {
             const num = parseInt(v, 10);
             if (!isNaN(num) && num > 0) sum += num;
           });
-          if (sum > 0) return sum;
+          return sum;
         } catch (e) {}
       }
     }
-    if (year === '2569' && COCKROACH_MONTHLY_DATA_2569[month]) {
+    // If user has any recorded months in this year, unrecorded months MUST return 0 (never pull dummy Excel numbers)
+    if (recordedMonths.length > 0) {
+      return 0;
+    }
+    // Clean demo fallback for first-time visitors before any data is recorded
+    if (String(year) === '2569' && COCKROACH_MONTHLY_DATA_2569[month]) {
       const pt = COCKROACH_MONTHLY_DATA_2569[month].find(p => p.id === pointId);
       return pt ? pt.count : 0;
     }
@@ -954,7 +1025,7 @@ export default function CockroachesPage() {
       zone: pt.zone,
       count: getPointCountForMonth(pt.id, selectedMonth, selectedYear)
     }));
-  }, [dailyRecords, selectedMonth, selectedYear, customPoints]);
+  }, [dailyRecords, selectedMonth, selectedYear, customPoints, recordedMonths]);
 
   // Config for Monthly Y-Axis with strictly equal step intervals (e.g. 0, 5, 10, 15, 20, 25...)
   const monthlyYAxisConfig = useMemo(() => {
@@ -1013,6 +1084,11 @@ export default function CockroachesPage() {
   // Monthly report narrative text following the exact company pattern from "ตัวอย่าง รายงานแมลงสาบ ประจำเดือน.txt"
   // Strictly matches the 3 core patterns: โรงอาหาร, ใต้ตู้ล็อคเกอร์, ห้องน้ำ
   const monthlyFormAnalysisText = useMemo(() => {
+    const isRec = isMonthRecorded(selectedMonth, selectedYear) || (recordedMonths.length === 0 && selectedYear === '2569');
+    if (!isRec) {
+      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} ยังไม่มีการบันทึกข้อมูลผลการตรวจนับ กรุณาไปที่แท็บบันทึกข้อมูลเพื่อเริ่มลงบันทึกผลประจำวัน`;
+    }
+
     // กรณีที่ 0: ไม่พบแมลงสาบเลยทุกจุด
     if (topMonthlyPoint.count === 0) {
       return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ทุกตำแหน่งที่วางไม่พบแมลงสาบ (พบ 0 ตัว) ดังนั้นควรเน้นเรื่องการทำความสะอาดในทุกพื้นที่ให้สะอาดอยู่เสมอหลังจากการใช้งาน เพื่อป้องกันไม่ให้แมลงสาบเข้ามาในพื้นที่ และรักษาให้จำนวนที่พบเป็น 0 เสมอ`;
@@ -1054,19 +1130,26 @@ export default function CockroachesPage() {
 
   // Quarterly Custom Legend to strictly ensure chronological order: Month 1 (Blue) -> Month 2 (Red) -> Month 3 (Green)
   const renderQuarterlyLegend = () => {
+    const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
+    const months = qConfig.months;
+    const isDemo = recordedMonths.length === 0 && selectedYear === '2569';
+    const m1Rec = isDemo || isMonthRecorded(months[0], selectedYear);
+    const m2Rec = isDemo || isMonthRecorded(months[1], selectedYear);
+    const m3Rec = isDemo || isMonthRecorded(months[2], selectedYear);
+
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', fontSize: '9.5px', color: '#334155', marginTop: '2px', width: '100%' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '8.5px', height: '8.5px', backgroundColor: '#4F81BD', borderRadius: '1px' }}></span>
-          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[0]}</span>
+          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[0]}{!m1Rec ? ' (ยังไม่บันทึก)' : ''}</span>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '8.5px', height: '8.5px', backgroundColor: '#C0504D', borderRadius: '1px' }}></span>
-          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[1]}</span>
+          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[1]}{!m2Rec ? ' (ยังไม่บันทึก)' : ''}</span>
         </div>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
           <span style={{ display: 'inline-block', width: '8.5px', height: '8.5px', backgroundColor: '#9BBB59', borderRadius: '1px' }}></span>
-          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[2]}</span>
+          <span style={{ fontWeight: 600 }}>{currentQuarterMonthsShort[2]}{!m3Rec ? ' (ยังไม่บันทึก)' : ''}</span>
         </div>
       </div>
     );
@@ -1081,18 +1164,26 @@ export default function CockroachesPage() {
     const zonePoints = customPoints.filter(p => p.zone === zone.name);
     const activePoints = zonePoints.length > 0 ? zonePoints : zone.pointIds.map(id => COCKROACH_POINTS.find(p => p.id === id)).filter(Boolean);
 
+    const isDemo = recordedMonths.length === 0 && selectedYear === '2569';
+    const m1Rec = isDemo || isMonthRecorded(months[0], selectedYear);
+    const m2Rec = isDemo || isMonthRecorded(months[1], selectedYear);
+    const m3Rec = isDemo || isMonthRecorded(months[2], selectedYear);
+
     return activePoints.map(pt => {
       const ptId = pt.id;
-      const m1Count = getPointCountForMonth(ptId, months[0], selectedYear);
-      const m2Count = getPointCountForMonth(ptId, months[1], selectedYear);
-      const m3Count = getPointCountForMonth(ptId, months[2], selectedYear);
+      const m1Count = m1Rec ? getPointCountForMonth(ptId, months[0], selectedYear) : 0;
+      const m2Count = m2Rec ? getPointCountForMonth(ptId, months[1], selectedYear) : 0;
+      const m3Count = m3Rec ? getPointCountForMonth(ptId, months[2], selectedYear) : 0;
 
       return {
         no: `No.${pt ? parseInt(pt.no, 10) : ptId}`,
         pointId: ptId,
         month1: m1Count,
         month2: m2Count,
-        month3: m3Count
+        month3: m3Count,
+        month1Recorded: m1Rec,
+        month2Recorded: m2Rec,
+        month3Recorded: m3Rec
       };
     });
   };
@@ -1125,69 +1216,28 @@ export default function CockroachesPage() {
     const months = qConfig.months;
     const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
 
-    const totalQuarter = chartData.reduce((sum, d) => sum + (d.month1 || 0) + (d.month2 || 0) + (d.month3 || 0), 0);
-    if (totalQuarter === 0) {
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ทุกตำแหน่งไม่พบแมลงสาบตลอดทั้งไตรมาส (พบ 0 ตัว) ทางทีมทำความสะอาดควรรักษามาตรฐานความสะอาดอย่างสม่ำเสมอ เพื่อควบคุมให้จำนวนแมลงสาบเป็น 0 เสมอ`;
+    const isDemo = recordedMonths.length === 0 && String(year) === '2569';
+    const m1Recorded = isDemo || isMonthRecorded(months[0], year);
+    const m2Recorded = isDemo || isMonthRecorded(months[1], year);
+    const m3Recorded = isDemo || isMonthRecorded(months[2], year);
+
+    const recordedCount = (m1Recorded ? 1 : 0) + (m2Recorded ? 1 : 0) + (m3Recorded ? 1 : 0);
+
+    // If no months in this quarter have data yet
+    if (recordedCount === 0) {
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} ยังไม่มีการบันทึกข้อมูลการตรวจนับแมลงสาบในไตรมาสนี้`;
     }
 
-    // Group points by identical trend description for clean, human-like reporting
-    const trendGroups = {};
-    chartData.forEach(d => {
-      const m1 = d.month1 || 0;
-      const m2 = d.month2 || 0;
-      const m3 = d.month3 || 0;
-      const noLabel = d.no;
-
-      let key = '';
-      let desc = '';
-
-      if (m1 === 0 && m2 === 0 && m3 === 0) {
-        key = 'zero';
-        desc = 'ไม่พบแมลงสาบ';
-      } else if (m1 < m2 && m2 < m3) {
-        key = 'increasing';
-        desc = 'มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง';
-      } else if (m1 > m2 && m2 > m3) {
-        key = 'decreasing';
-        desc = 'มีแนวโน้มลดลงอย่างต่อเนื่อง';
-      } else if (m1 < m2 && m2 > m3) {
-        key = 'up_down';
-        desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
-      } else if (m1 > m2 && m2 < m3) {
-        key = 'down_up';
-        desc = `มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
-      } else if (m1 === m2 && m2 === m3) {
-        key = 'steady';
-        desc = 'มีแนวโน้มคงที่ตลอดทั้งไตรมาส';
-      } else if (m1 === m2 && m2 < m3) {
-        key = 'steady_up';
-        desc = `มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
-      } else if (m1 === m2 && m2 > m3) {
-        key = 'steady_down';
-        desc = `มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
-      } else if (m1 < m2 && m2 === m3) {
-        key = 'up_steady';
-        desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-      } else if (m1 > m2 && m2 === m3) {
-        key = 'down_steady';
-        desc = `มีแนวโน้มลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-      } else {
-        key = `custom_${m1}_${m2}_${m3}`;
-        desc = `ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
+    const totalQuarter = chartData.reduce((sum, d) => sum + (d.month1 || 0) + (d.month2 || 0) + (d.month3 || 0), 0);
+    if (totalQuarter === 0) {
+      let unrecordedNote = '';
+      if (!m3Recorded && m1Recorded && m2Recorded) {
+        unrecordedNote = ` (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
+      } else if (!m2Recorded && !m3Recorded && m1Recorded) {
+        unrecordedNote = ` (สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
       }
-
-      if (!trendGroups[key]) {
-        trendGroups[key] = { desc, points: [] };
-      }
-      trendGroups[key].points.push(noLabel);
-    });
-
-    const pointSummaries = Object.values(trendGroups).map(g => {
-      if (g.points.length === 1) {
-        return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
-      }
-      return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
-    });
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ทุกตำแหน่งไม่พบแมลงสาบ (พบ 0 ตัว)${unrecordedNote} ทางทีมทำความสะอาดควรรักษามาตรฐานความสะอาดอย่างสม่ำเสมอ เพื่อควบคุมให้จำนวนแมลงสาบเป็น 0 เสมอ`;
+    }
 
     let conclusion = 'ดังนั้นทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง';
     if (zoneId === 'toiletFemale') {
@@ -1198,7 +1248,119 @@ export default function CockroachesPage() {
       conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำหัวหน้าตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้';
     }
 
-    return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} ${conclusion}`;
+    // CASE 1: All 3 months recorded
+    if (m1Recorded && m2Recorded && m3Recorded) {
+      const trendGroups = {};
+      chartData.forEach(d => {
+        const m1 = d.month1 || 0;
+        const m2 = d.month2 || 0;
+        const m3 = d.month3 || 0;
+        const noLabel = d.no;
+
+        let key = '';
+        let desc = '';
+
+        if (m1 === 0 && m2 === 0 && m3 === 0) {
+          key = 'zero';
+          desc = 'ไม่พบแมลงสาบ';
+        } else if (m1 < m2 && m2 < m3) {
+          key = 'increasing';
+          desc = 'มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง';
+        } else if (m1 > m2 && m2 > m3) {
+          key = 'decreasing';
+          desc = 'มีแนวโน้มลดลงอย่างต่อเนื่อง';
+        } else if (m1 < m2 && m2 > m3) {
+          key = 'up_down';
+          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
+        } else if (m1 > m2 && m2 < m3) {
+          key = 'down_up';
+          desc = `มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
+        } else if (m1 === m2 && m2 === m3) {
+          key = 'steady';
+          desc = 'มีแนวโน้มคงที่ตลอดทั้งไตรมาส';
+        } else if (m1 === m2 && m2 < m3) {
+          key = 'steady_up';
+          desc = `มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
+        } else if (m1 === m2 && m2 > m3) {
+          key = 'steady_down';
+          desc = `มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
+        } else if (m1 < m2 && m2 === m3) {
+          key = 'up_steady';
+          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
+        } else if (m1 > m2 && m2 === m3) {
+          key = 'down_steady';
+          desc = `มีแนวโน้มลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
+        } else {
+          key = `custom_${m1}_${m2}_${m3}`;
+          desc = `ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
+        }
+
+        if (!trendGroups[key]) {
+          trendGroups[key] = { desc, points: [] };
+        }
+        trendGroups[key].points.push(noLabel);
+      });
+
+      const pointSummaries = Object.values(trendGroups).map(g => {
+        if (g.points.length === 1) {
+          return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
+        }
+        return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
+      });
+
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} ${conclusion}`;
+    }
+
+    // CASE 2: Month 1 & Month 2 recorded, Month 3 NOT recorded yet
+    if (m1Recorded && m2Recorded && !m3Recorded) {
+      const trendGroups = {};
+      chartData.forEach(d => {
+        const m1 = d.month1 || 0;
+        const m2 = d.month2 || 0;
+        const noLabel = d.no;
+
+        let key = '';
+        let desc = '';
+
+        if (m1 === 0 && m2 === 0) {
+          key = 'zero';
+          desc = 'ไม่พบแมลงสาบ';
+        } else if (m1 < m2) {
+          key = 'increasing';
+          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}`;
+        } else if (m1 > m2) {
+          key = 'decreasing';
+          desc = `มีแนวโน้มลดลงในเดือน${months[1]}`;
+        } else {
+          key = 'steady';
+          desc = `มีจำนวนคงที่ในเดือน${months[0]}-${months[1]}`;
+        }
+
+        if (!trendGroups[key]) {
+          trendGroups[key] = { desc, points: [] };
+        }
+        trendGroups[key].points.push(noLabel);
+      });
+
+      const pointSummaries = Object.values(trendGroups).map(g => {
+        if (g.points.length === 1) {
+          return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
+        }
+        return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
+      });
+
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ) ${conclusion}`;
+    }
+
+    // CASE 3: Only Month 1 recorded
+    if (m1Recorded && !m2Recorded && !m3Recorded) {
+      const topPt = [...chartData].sort((a, b) => (b.month1 || 0) - (a.month1 || 0))[0];
+      const m1Total = chartData.reduce((sum, d) => sum + (d.month1 || 0), 0);
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า บันทึกผลในเดือน${months[0]} ตรวจพบรวม ${m1Total} ตัว (พบมากที่สุดที่ ${topPt?.no || 'จุดตรวจ'} จำนวน ${topPt?.month1 || 0} ตัว) สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ ${conclusion}`;
+    }
+
+    // Fallback for other combinations
+    return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ข้อมูลอยู่ระหว่างการบันทึกผลตรวจนับ (ยอดตรวจพบรวม ${totalQuarter} ตัว) ${conclusion}`;
   };
 
   // Quarterly narrative text for a zone
@@ -1223,9 +1385,9 @@ export default function CockroachesPage() {
     }
 
     // เปิดใช้งาน (Active)
-    // Fallback to exact memo text for demo year 2569 ONLY if no custom data exists
-    const hasData = chartData && chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-    if (year === '2569' && !hasData && QUARTERLY_EXACT_NARRATIVES[quarter]?.[zoneId] && zoneId !== 'canteen1' && zoneId !== 'canteen2') {
+    // Fallback to exact memo text for demo year 2569 ONLY if no records exist at all
+    const isDemo = recordedMonths.length === 0 && String(year) === '2569';
+    if (isDemo && QUARTERLY_EXACT_NARRATIVES[quarter]?.[zoneId] && zoneId !== 'canteen1' && zoneId !== 'canteen2') {
       return QUARTERLY_EXACT_NARRATIVES[quarter][zoneId].replace('{year}', year);
     }
 
@@ -1234,7 +1396,8 @@ export default function CockroachesPage() {
 
   // Render Monthly Print Page (matches Image 1)
   const renderMonthlyPrintPage = () => {
-    return (
+    try {
+      return (
       <div 
         className="print-page font-niramit"
         style={{
@@ -1332,15 +1495,20 @@ export default function CockroachesPage() {
         </div>
       </div>
     );
+    } catch (err) {
+      console.error('Error rendering monthly print page:', err);
+      return null;
+    }
   };
 
   // Render Quarterly Print Page (matches Images 2, 3, 4)
   const renderQuarterlyPrintPage = (pageConfig) => {
-    const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
+    try {
+      const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
 
-    return (
-      <div 
-        key={`q-print-page-${pageConfig.page}`}
+      return (
+        <div 
+          key={`q-print-page-${pageConfig.page}`}
         className="print-page font-niramit"
         style={{
           pageBreakAfter: pageConfig.page < 3 ? 'always' : 'avoid',
@@ -1433,13 +1601,13 @@ export default function CockroachesPage() {
                         wrapperStyle={{ bottom: -6, left: 0, width: '100%', fontSize: '9.5px', textAlign: 'center' }} 
                       />
                       <Bar dataKey="month1" name={currentQuarterMonthsShort[0]} fill="#4F81BD" barSize={12} isAnimationActive={false}>
-                        <LabelList dataKey="month1" position="top" style={{ fontSize: 8.5, fill: '#334155', fontWeight: 'bold' }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                        <LabelList dataKey="month1" content={QuarterlyBarLabel} />
                       </Bar>
                       <Bar dataKey="month2" name={currentQuarterMonthsShort[1]} fill="#C0504D" barSize={12} isAnimationActive={false}>
-                        <LabelList dataKey="month2" position="top" style={{ fontSize: 8.5, fill: '#334155', fontWeight: 'bold' }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                        <LabelList dataKey="month2" content={QuarterlyBarLabel} />
                       </Bar>
                       <Bar dataKey="month3" name={currentQuarterMonthsShort[2]} fill="#9BBB59" barSize={12} isAnimationActive={false}>
-                        <LabelList dataKey="month3" position="top" style={{ fontSize: 8.5, fill: '#334155', fontWeight: 'bold' }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                        <LabelList dataKey="month3" content={QuarterlyBarLabel} />
                       </Bar>
                     </BarChart>
                   </div>
@@ -1511,88 +1679,97 @@ export default function CockroachesPage() {
         </div>
       </div>
     );
+    } catch (err) {
+      console.error('Error rendering quarterly print page:', err);
+      return null;
+    }
   };
 
   const renderCockroachPrintPage = (zone) => {
-    const chartData = getZoneDetailedChartData(zone);
-    const reportText = getCockroachZoneReportText(zone);
+    try {
+      const chartData = getZoneDetailedChartData(zone);
+      const reportText = getCockroachZoneReportText(zone);
 
-    return (
-      <div 
-        key={zone}
-        className="print-page font-niramit"
-        style={{
-          pageBreakAfter: 'always',
-          breakAfter: 'page',
-          width: '297mm',
-          height: '210mm',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          padding: '8mm 14mm',
-          boxSizing: 'border-box',
-          backgroundColor: 'white',
-          color: 'black'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px', fontSize: '10px', color: '#64748b' }}>
-          <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด</span>
-          <span>เอกสารควบคุมภายใน</span>
-        </div>
-
-        <div style={{ textAlign: 'center', margin: '6px 0 8px 0' }}>
-          <h1 style={{ fontSize: '17px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>รายงานสถิติตรวจนับจำนวนแมลงสาบประจำเดือน</h1>
-          <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px', marginBottom: 0 }}>
-            {zone === 'ภาพรวม 6 โซน' ? 'สรุปภาพรวม 6 โซนตรวจวัด (23 จุดดัก)' : `โซน ${zone}`} · ประจำเดือน {selectedMonth} {selectedYear}
-          </h2>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '380px', marginBottom: '8px' }}>
-          <BarChart width={1009} height={380} data={chartData} margin={{ top: 25, right: 10, left: -10, bottom: 25 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
-            <YAxis stroke="#64748b" fontSize={10} tickLine={false} allowDecimals={false} />
-            <Tooltip formatter={(val) => [`${val} ตัว`, 'จำนวนแมลงสาบ']} />
-            <Legend wrapperStyle={{ bottom: 0, left: 0, width: '100%', fontSize: '11px', textAlign: 'center' }} />
-            <Bar dataKey="count" name="จำนวนแมลงสาบที่ตรวจพบ (ตัว)" fill="#ea580c" isAnimationActive={false}>
-              <LabelList dataKey="count" position="top" style={{ fill: '#ea580c', fontSize: 10, fontWeight: 'bold' }} />
-            </Bar>
-          </BarChart>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#334155' }}>
-            <p style={{ lineHeight: '1.45', margin: 0, fontSize: '12px' }}>{reportText}</p>
+      return (
+        <div 
+          key={zone}
+          className="print-page font-niramit"
+          style={{
+            pageBreakAfter: 'always',
+            breakAfter: 'page',
+            width: '297mm',
+            height: '210mm',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            padding: '8mm 14mm',
+            boxSizing: 'border-box',
+            backgroundColor: 'white',
+            color: 'black'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px', fontSize: '10px', color: '#64748b' }}>
+            <span style={{ fontWeight: 'bold' }}>บริษัท พี.เอส.ฟู้ด โปรดักส์ จำกัด</span>
+            <span>เอกสารควบคุมภายใน</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '16px', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
-                จัดทำโดย
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
-                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
-                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
-                  วันที่......./......./.......
+          <div style={{ textAlign: 'center', margin: '6px 0 8px 0' }}>
+            <h1 style={{ fontSize: '17px', fontWeight: 'bold', color: '#1e293b', margin: 0 }}>รายงานสถิติตรวจนับจำนวนแมลงสาบประจำเดือน</h1>
+            <h2 style={{ fontSize: '12px', fontWeight: 'bold', color: '#475569', marginTop: '2px', marginBottom: 0 }}>
+              {zone === 'ภาพรวม 6 โซน' ? 'สรุปภาพรวม 6 โซนตรวจวัด (23 จุดดัก)' : `โซน ${zone}`} · ประจำเดือน {selectedMonth} {selectedYear}
+            </h2>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '380px', marginBottom: '8px' }}>
+            <BarChart width={1009} height={380} data={chartData} margin={{ top: 25, right: 10, left: -10, bottom: 25 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <XAxis dataKey="name" stroke="#64748b" fontSize={10} tickLine={false} />
+              <YAxis stroke="#64748b" fontSize={10} tickLine={false} allowDecimals={false} />
+              <Tooltip formatter={(val) => [`${val} ตัว`, 'จำนวนแมลงสาบ']} />
+              <Legend wrapperStyle={{ bottom: 0, left: 0, width: '100%', fontSize: '11px', textAlign: 'center' }} />
+              <Bar dataKey="count" name="จำนวนแมลงสาบที่ตรวจพบ (ตัว)" fill="#ea580c" isAnimationActive={false}>
+                <LabelList dataKey="count" position="top" style={{ fill: '#ea580c', fontSize: 10, fontWeight: 'bold' }} />
+              </Bar>
+            </BarChart>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ padding: '8px 12px', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#f8fafc', color: '#334155' }}>
+              <p style={{ lineHeight: '1.45', margin: 0, fontSize: '12px' }}>{reportText}</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', borderTop: '1px solid #cbd5e1', paddingTop: '10px', marginTop: '16px', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
+                  จัดทำโดย
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
+                  <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                    วันที่......./......./.......
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
+                  รับทราบโดย
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
+                  <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
+                  <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
+                    วันที่......./......./.......
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center' }}>
-              <span style={{ fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '10px', marginTop: '2px' }}>
-                รับทราบโดย
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '180px' }}>
-                <div style={{ width: '100%', borderBottom: '1px solid #000', height: '16px' }}></div>
-                <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '11px', color: '#475569' }}>
-                  วันที่......./......./.......
-                </div>
-              </div>
-            </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    } catch (err) {
+      console.error('Error rendering cockroach zone print page:', err);
+      return null;
+    }
   };
 
   return (
@@ -2054,13 +2231,13 @@ export default function CockroachesPage() {
                                             wrapperStyle={{ bottom: -8, left: 0, width: '100%', fontSize: '10px', textAlign: 'center' }} 
                                           />
                                           <Bar dataKey="month1" name={currentQuarterMonthsShort[0]} fill="#4F81BD" barSize={12}>
-                                            <LabelList dataKey="month1" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month1" content={QuarterlyBarLabel} />
                                           </Bar>
                                           <Bar dataKey="month2" name={currentQuarterMonthsShort[1]} fill="#C0504D" barSize={12}>
-                                            <LabelList dataKey="month2" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month2" content={QuarterlyBarLabel} />
                                           </Bar>
                                           <Bar dataKey="month3" name={currentQuarterMonthsShort[2]} fill="#9BBB59" barSize={12}>
-                                            <LabelList dataKey="month3" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month3" content={QuarterlyBarLabel} />
                                           </Bar>
                                         </BarChart>
                                       </ResponsiveContainer>
@@ -3104,13 +3281,13 @@ export default function CockroachesPage() {
                                           <Tooltip formatter={(val, name) => [`${val} ตัว`, name]} />
                                           <Legend content={renderQuarterlyLegend} wrapperStyle={{ bottom: -8, left: 0, width: '100%', fontSize: '10px', textAlign: 'center' }} />
                                           <Bar dataKey="month1" name={currentQuarterMonthsShort[0]} fill="#4F81BD" barSize={12}>
-                                            <LabelList dataKey="month1" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month1" content={QuarterlyBarLabel} />
                                           </Bar>
                                           <Bar dataKey="month2" name={currentQuarterMonthsShort[1]} fill="#C0504D" barSize={12}>
-                                            <LabelList dataKey="month2" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month2" content={QuarterlyBarLabel} />
                                           </Bar>
                                           <Bar dataKey="month3" name={currentQuarterMonthsShort[2]} fill="#9BBB59" barSize={12}>
-                                            <LabelList dataKey="month3" position="top" style={{ fontSize: 9, fill: '#334155', fontWeight: 600 }} formatter={v => v !== undefined && v !== null ? v : ''} />
+                                            <LabelList dataKey="month3" content={QuarterlyBarLabel} />
                                           </Bar>
                                         </BarChart>
                                       </ResponsiveContainer>
@@ -3251,9 +3428,15 @@ export default function CockroachesPage() {
           }
           .print-layout {
             display: block !important;
+            position: static !important;
+            left: auto !important;
+            top: auto !important;
+            visibility: visible !important;
+            opacity: 1 !important;
             width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
+            z-index: auto !important;
           }
           .print-page {
             page-break-after: always;
@@ -3276,7 +3459,14 @@ export default function CockroachesPage() {
         }
         @media screen {
           .print-layout {
-            display: none !important;
+            position: fixed !important;
+            left: -99999px !important;
+            top: 0 !important;
+            width: 297mm !important;
+            visibility: hidden !important;
+            pointer-events: none !important;
+            opacity: 0 !important;
+            z-index: -9999 !important;
           }
         }
       `}</style>
