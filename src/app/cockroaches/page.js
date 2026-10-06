@@ -249,6 +249,99 @@ export default function CockroachesPage() {
   const [placementDays, setPlacementDays] = useState([5, 11, 19, 26]);
   const [placementInput, setPlacementInput] = useState('5, 11, 19, 26');
 
+  // Zone status configuration (key: `${year}_${quarter}_${zoneId}` -> 'auto' | 'active' | 'inactive' | 'renovating')
+  const [zoneStatuses, setZoneStatuses] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cockroach_zone_statuses');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  // Custom user narrative overrides (key: `${year}_${quarter}_${zoneId}` -> custom text string)
+  const [customNarratives, setCustomNarratives] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('cockroach_custom_narratives');
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  // Inline editing state for narrative on screen
+  const [editingNarrativeKey, setEditingNarrativeKey] = useState(null); // `${year}_${quarter}_${zoneId}`
+  const [editingNarrativeText, setEditingNarrativeText] = useState('');
+
+  const handleSetZoneStatus = (zoneId, status, year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    setZoneStatuses(prev => {
+      const next = { ...prev, [key]: status };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cockroach_zone_statuses', JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  const handleBatchSetZoneStatuses = (status, year = selectedYear, quarter = selectedQuarter) => {
+    const zoneIds = ['canteen1', 'canteen2', 'locker', 'toiletFemale', 'toiletMale', 'toiletHead'];
+    setZoneStatuses(prev => {
+      const next = { ...prev };
+      zoneIds.forEach(id => {
+        next[`${year}_${quarter}_${id}`] = status;
+      });
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cockroach_zone_statuses', JSON.stringify(next));
+      }
+      return next;
+    });
+  };
+
+  const handleStartEditNarrative = (zoneId, currentText, year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    setEditingNarrativeKey(key);
+    setEditingNarrativeText(currentText);
+  };
+
+  const handleSaveEditNarrative = (zoneId, year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    setCustomNarratives(prev => {
+      const next = { ...prev, [key]: editingNarrativeText.trim() };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cockroach_custom_narratives', JSON.stringify(next));
+      }
+      return next;
+    });
+    setEditingNarrativeKey(null);
+  };
+
+  const handleResetCustomNarrative = (zoneId, year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    setCustomNarratives(prev => {
+      const next = { ...prev };
+      delete next[key];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cockroach_custom_narratives', JSON.stringify(next));
+      }
+      return next;
+    });
+    if (editingNarrativeKey === key) {
+      setEditingNarrativeKey(null);
+    }
+  };
+
+  const handleCancelEditNarrative = () => {
+    setEditingNarrativeKey(null);
+    setEditingNarrativeText('');
+  };
+
   // Dynamic cockroach points managed by Admin (falls back to 23 default points)
   const [customPoints, setCustomPoints] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1004,56 +1097,139 @@ export default function CockroachesPage() {
     });
   };
 
-  // Quarterly narrative text for a zone
-  const getQuarterlyZoneNarrative = (zoneId, zoneName, chartData = []) => {
-    const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
+  // Determine effective zone status (supports 'auto', 'active', 'inactive', 'renovating')
+  const getEffectiveZoneStatus = (zoneId, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    const configured = zoneStatuses[key];
+    if (configured && configured !== 'auto') {
+      return configured; // 'active', 'inactive', 'renovating'
+    }
+
+    // Auto-detection logic:
+    const hasData = chartData && chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
+    if (hasData) {
+      return 'active';
+    }
+
+    // Default for canteens when no data is recorded is 'inactive', for other zones 'active'
+    if (zoneId === 'canteen1' || zoneId === 'canteen2') {
+      return 'inactive';
+    }
+
+    return 'active';
+  };
+
+  // Dynamic grouped trend narrative generator following exact company QC style
+  const generateTrendAnalysisText = (zoneId, zoneName, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
+    const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
     const months = qConfig.months;
     const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
 
-    // For Page 1/3 (canteen1, canteen2) when inactive:
-    // Format into exactly 3 lines as requested:
-    // บรรทัดที่ 1 จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่งโรงอาหารห้อง 1 (หรือ 2)
-    // บรรทัดที่ 2 เดือน... พ.ศ. ...
-    // บรรทัดที่ 3 ไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่
-    if (zoneId === 'canteen1' || zoneId === 'canteen2') {
-      const hasAny = chartData && chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-      if (!hasAny) {
-        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName}\nเดือน${cleanRange} พ.ศ. ${selectedYear}\nไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่`;
-      }
+    const totalQuarter = chartData.reduce((sum, d) => sum + (d.month1 || 0) + (d.month2 || 0) + (d.month3 || 0), 0);
+    if (totalQuarter === 0) {
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ทุกตำแหน่งไม่พบแมลงสาบตลอดทั้งไตรมาส (พบ 0 ตัว) ทางทีมทำความสะอาดควรรักษามาตรฐานความสะอาดอย่างสม่ำเสมอ เพื่อควบคุมให้จำนวนแมลงสาบเป็น 0 เสมอ`;
     }
 
-    let raw = '';
-    if (QUARTERLY_EXACT_NARRATIVES[selectedQuarter]?.[zoneId]) {
-      raw = QUARTERLY_EXACT_NARRATIVES[selectedQuarter][zoneId].replace('{year}', selectedYear);
-    } else if (chartData && chartData.length > 0) {
-      const hasAny = chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-      if (!hasAny) {
-        raw = `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${selectedYear} ไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่`;
+    // Group points by identical trend description for clean, human-like reporting
+    const trendGroups = {};
+    chartData.forEach(d => {
+      const m1 = d.month1 || 0;
+      const m2 = d.month2 || 0;
+      const m3 = d.month3 || 0;
+      const noLabel = d.no;
+
+      let key = '';
+      let desc = '';
+
+      if (m1 === 0 && m2 === 0 && m3 === 0) {
+        key = 'zero';
+        desc = 'ไม่พบแมลงสาบ';
+      } else if (m1 < m2 && m2 < m3) {
+        key = 'increasing';
+        desc = 'มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง';
+      } else if (m1 > m2 && m2 > m3) {
+        key = 'decreasing';
+        desc = 'มีแนวโน้มลดลงอย่างต่อเนื่อง';
+      } else if (m1 < m2 && m2 > m3) {
+        key = 'up_down';
+        desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
+      } else if (m1 > m2 && m2 < m3) {
+        key = 'down_up';
+        desc = `มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
+      } else if (m1 === m2 && m2 === m3) {
+        key = 'steady';
+        desc = 'มีแนวโน้มคงที่ตลอดทั้งไตรมาส';
+      } else if (m1 === m2 && m2 < m3) {
+        key = 'steady_up';
+        desc = `มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
+      } else if (m1 === m2 && m2 > m3) {
+        key = 'steady_down';
+        desc = `มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
+      } else if (m1 < m2 && m2 === m3) {
+        key = 'up_steady';
+        desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
+      } else if (m1 > m2 && m2 === m3) {
+        key = 'down_steady';
+        desc = `มีแนวโน้มลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
       } else {
-        const pointDescriptions = chartData.map(d => {
-          const m1 = d.month1 || 0;
-          const m2 = d.month2 || 0;
-          const m3 = d.month3 || 0;
-          const noLabel = d.no;
-
-          if (m1 === 0 && m2 === 0 && m3 === 0) return `${noLabel} ไม่พบแมลงสาบ`;
-          if (m1 < m2 && m2 < m3) return `${noLabel} มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง`;
-          if (m1 > m2 && m2 > m3) return `${noLabel} มีแนวโน้มลดลงอย่างต่อเนื่อง`;
-          if (m1 < m2 && m2 > m3) return `${noLabel} มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
-          if (m1 > m2 && m2 < m3) return `${noLabel} มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
-          if (m1 === m2 && m2 === m3) return `${noLabel} มีแนวโน้มคงที่ตลอดทั้งไตรมาส`;
-          if (m1 === m2 && m2 < m3) return `${noLabel} มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
-          if (m1 === m2 && m2 > m3) return `${noLabel} มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
-          if (m1 < m2 && m2 === m3) return `${noLabel} เพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-          if (m1 > m2 && m2 === m3) return `${noLabel} ลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-          return `${noLabel} ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
-        });
-        raw = `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${selectedYear} พบว่า ${pointDescriptions.join(' ')} ดังนั้นทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง`;
+        key = `custom_${m1}_${m2}_${m3}`;
+        desc = `ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
       }
-    } else {
-      raw = `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${selectedYear} ทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง`;
+
+      if (!trendGroups[key]) {
+        trendGroups[key] = { desc, points: [] };
+      }
+      trendGroups[key].points.push(noLabel);
+    });
+
+    const pointSummaries = Object.values(trendGroups).map(g => {
+      if (g.points.length === 1) {
+        return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
+      }
+      return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
+    });
+
+    let conclusion = 'ดังนั้นทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง';
+    if (zoneId === 'toiletFemale') {
+      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดในตำแหน่งห้องน้ำหญิงตัดแต่งอย่างสม่ำเสมอ พร้อมทั้งให้หน่วยงานที่เกี่ยวข้องเฝ้าระวังกิจกรรมที่จะก่อให้เกิดแมลงสาบ เพื่อให้แมลงสาบที่พบมีจำนวนลดลงจนเป็น 0';
+    } else if (zoneId === 'toiletMale') {
+      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำชายตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้เป็นประจำ';
+    } else if (zoneId === 'toiletHead') {
+      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำหัวหน้าตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้';
     }
-    return raw.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} ${conclusion}`;
+  };
+
+  // Quarterly narrative text for a zone
+  const getQuarterlyZoneNarrative = (zoneId, zoneName, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
+    const key = `${year}_${quarter}_${zoneId}`;
+    if (customNarratives[key]) {
+      return customNarratives[key];
+    }
+
+    const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
+    const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
+    const status = getEffectiveZoneStatus(zoneId, chartData, year, quarter);
+
+    // ปิดใช้งาน / ไม่มีการใช้งานพื้นที่
+    if (status === 'inactive') {
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName}\nเดือน${cleanRange} พ.ศ. ${year}\nไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่`;
+    }
+
+    // ปรับปรุงพื้นที่
+    if (status === 'renovating') {
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พื้นที่อยู่ระหว่างปรับปรุงและปิดใช้งานจึงไม่มีการวางบ้านแมลงสาบในพื้นที่ ดังนั้นทีมทำความสะอาดต้องทำความสะอาดตำแหน่ง${zoneName}อย่างสม่ำเสมอ จนกว่าจะมีการเปิดใช้งานอีกครั้ง เพื่อควบคุมแนวโน้มแมลงที่มีจำนวนลดลง`;
+    }
+
+    // เปิดใช้งาน (Active)
+    // Fallback to exact memo text for demo year 2569 ONLY if no custom data exists
+    const hasData = chartData && chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
+    if (year === '2569' && !hasData && QUARTERLY_EXACT_NARRATIVES[quarter]?.[zoneId] && zoneId !== 'canteen1' && zoneId !== 'canteen2') {
+      return QUARTERLY_EXACT_NARRATIVES[quarter][zoneId].replace('{year}', year);
+    }
+
+    return generateTrendAnalysisText(zoneId, zoneName, chartData, year, quarter);
   };
 
   // Render Monthly Print Page (matches Image 1)
@@ -1194,10 +1370,10 @@ export default function CockroachesPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '8px', minHeight: 0 }}>
           {pageConfig.zones.map(zone => {
             const chartData = getZoneQuarterlyChartData(zone);
-            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData);
+            const status = getEffectiveZoneStatus(zone.id, chartData, selectedYear, selectedQuarter);
+            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData, selectedYear, selectedQuarter);
             const yAxisConfig = getQuarterlyYAxisConfig(chartData);
-            const hasData = chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-            const isCentered = (pageConfig.page === 1 && !hasData);
+            const isCentered = (status === 'inactive');
 
             return (
               <div 
@@ -1281,14 +1457,14 @@ export default function CockroachesPage() {
                     flexDirection: 'column', 
                     justifyContent: isCentered ? 'center' : 'flex-start',
                     alignItems: isCentered ? 'center' : 'flex-start',
-                    padding: isCentered ? '20px 20px' : '24px 28px'
+                    padding: isCentered ? '20px 20px' : '20px 24px'
                   }}
                 >
                   <div style={{ 
                     width: '100%', 
                     textAlign: isCentered ? 'center' : 'left',
-                    fontSize: pageConfig.page === 1 ? '10.5pt' : '10pt', 
-                    lineHeight: isCentered ? '1.85' : '1.6', 
+                    fontSize: isCentered ? '10.5pt' : '9.5pt', 
+                    lineHeight: isCentered ? '1.85' : '1.55', 
                     color: '#1e293b' 
                   }}>
                     <p style={{ margin: 0, whiteSpace: isCentered ? 'pre-line' : 'normal' }}>{narrative}</p>
@@ -1775,6 +1951,44 @@ export default function CockroachesPage() {
                   </div>
                 </div>
 
+                {/* Batch Status Configuration Bar */}
+                <div className="bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">⚙️ กำหนดสถานะเปิด-ปิดพื้นที่ ({selectedQuarter} ปี {selectedYear}):</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:inline">(เลือกล็อคสถานะด่วนทั้งไตรมาส หรือปรับแยกเฉพาะจุดที่การ์ดด้านล่างได้)</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => handleBatchSetZoneStatuses('active')}
+                      className="px-2.5 py-1 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      title="เปิดใช้งานทุกจุดในไตรมาสนี้ เพื่อวิเคราะห์แนวโน้มจากข้อมูลจริง"
+                    >
+                      🟢 เปิดทุกพื้นที่ (Active)
+                    </button>
+                    <button
+                      onClick={() => handleBatchSetZoneStatuses('auto')}
+                      className="px-2.5 py-1 bg-blue-100 hover:bg-blue-200 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      title="ตรวจจับอัตโนมัติตามข้อมูลที่บันทึกไว้"
+                    >
+                      ⚙️ อัตโนมัติ (ตามข้อมูลจริง)
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleSetZoneStatus('canteen1', 'inactive');
+                        handleSetZoneStatus('canteen2', 'inactive');
+                        handleSetZoneStatus('locker', 'active');
+                        handleSetZoneStatus('toiletFemale', 'active');
+                        handleSetZoneStatus('toiletMale', 'active');
+                        handleSetZoneStatus('toiletHead', 'active');
+                      }}
+                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                      title="ปิดการใช้งานเฉพาะโรงอาหารห้อง 1 และ 2 ตามแบบฟอร์มเดิม"
+                    >
+                      🔴 ปิดเฉพาะโรงอาหาร
+                    </button>
+                  </div>
+                </div>
+
                 {/* Quarterly Page Cards (Page 1/3, 2/3, 3/3 matching Images 2, 3, 4) */}
                 {COCKROACH_QUARTERLY_PAGES
                   .filter(p => quarterlyPage === 'all' || quarterlyPage === String(p.page))
@@ -1799,10 +2013,14 @@ export default function CockroachesPage() {
                         <div className="space-y-6">
                           {pageConfig.zones.map(zone => {
                             const chartData = getZoneQuarterlyChartData(zone);
-                            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData);
+                            const status = getEffectiveZoneStatus(zone.id, chartData, selectedYear, selectedQuarter);
+                            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData, selectedYear, selectedQuarter);
                             const yAxisConfig = getQuarterlyYAxisConfig(chartData);
-                            const hasData = chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-                            const isCentered = (pageConfig.page === 1 && !hasData);
+                            const isCentered = (status === 'inactive');
+                            const editKey = `${selectedYear}_${selectedQuarter}_${zone.id}`;
+                            const isEditing = editingNarrativeKey === editKey;
+                            const isCustom = Boolean(customNarratives[editKey]);
+                            const configuredStatus = zoneStatuses[editKey] || 'auto';
 
                             return (
                               <div key={zone.id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
@@ -1851,9 +2069,89 @@ export default function CockroachesPage() {
                                 </div>
 
                                 {/* Right: Narrative Frame (~42% - 5 cols) */}
-                                <div className={`lg:col-span-5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col shadow-2xs ${isCentered ? 'justify-center items-center' : 'justify-start items-start'}`}>
-                                  <div className={`leading-relaxed ${pageConfig.page === 1 ? 'text-[14px]' : 'text-xs sm:text-sm'} text-slate-800 dark:text-slate-200 ${isCentered ? 'text-center' : 'text-left'}`}>
-                                    <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : undefined }}>{narrative}</p>
+                                <div className="lg:col-span-5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl p-5 flex flex-col justify-between shadow-2xs">
+                                  {/* Header Controls for Status & Edit */}
+                                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-100 dark:border-slate-800 w-full">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400">สถานะพื้นที่:</span>
+                                      <select
+                                        value={configuredStatus}
+                                        onChange={(e) => handleSetZoneStatus(zone.id, e.target.value)}
+                                        className={`text-[11px] font-bold rounded-lg px-2 py-1 border transition-all cursor-pointer ${
+                                          status === 'active'
+                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700'
+                                            : status === 'inactive'
+                                            ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-700'
+                                            : 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-700'
+                                        }`}
+                                      >
+                                        <option value="auto">⚙️ อัตโนมัติ ({status === 'active' ? 'เปิดใช้งาน' : 'ปิดใช้งาน'})</option>
+                                        <option value="active">🟢 เปิดใช้งาน (Active)</option>
+                                        <option value="inactive">🔴 ปิดใช้งาน (ไม่มีการวางบ้าน)</option>
+                                        <option value="renovating">🟡 ปรับปรุงพื้นที่ (ปิดชั่วคราว)</option>
+                                      </select>
+                                    </div>
+
+                                    <div className="flex items-center gap-1">
+                                      {isCustom && (
+                                        <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                                          กำหนดเอง
+                                        </span>
+                                      )}
+                                      {!isEditing && (
+                                        <>
+                                          <button
+                                            onClick={() => handleStartEditNarrative(zone.id, narrative)}
+                                            className="text-[11px] font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 px-2 py-1 rounded-md transition-all cursor-pointer"
+                                            title="แก้ไขข้อความรายงานนี้"
+                                          >
+                                            ✏️ แก้ไข
+                                          </button>
+                                          {isCustom && (
+                                            <button
+                                              onClick={() => handleResetCustomNarrative(zone.id)}
+                                              className="text-[11px] font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded-md transition-all cursor-pointer"
+                                              title="คืนค่าข้อความอัตโนมัติ"
+                                            >
+                                              🔄 รีเซ็ต
+                                            </button>
+                                          )}
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Narrative Text or Edit Box */}
+                                  <div className={`flex-1 flex flex-col ${isCentered ? 'justify-center items-center' : 'justify-start items-start'} w-full`}>
+                                    {isEditing ? (
+                                      <div className="w-full space-y-2 mt-1">
+                                        <textarea
+                                          value={editingNarrativeText}
+                                          onChange={(e) => setEditingNarrativeText(e.target.value)}
+                                          rows={5}
+                                          className="w-full text-xs sm:text-sm p-2.5 rounded-xl border border-blue-400 dark:border-blue-600 bg-blue-50/20 dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500 leading-relaxed resize-y"
+                                          placeholder="พิมพ์ข้อความรายงานที่ต้องการ..."
+                                        />
+                                        <div className="flex items-center justify-end gap-2">
+                                          <button
+                                            onClick={handleCancelEditNarrative}
+                                            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 cursor-pointer"
+                                          >
+                                            ยกเลิก
+                                          </button>
+                                          <button
+                                            onClick={() => handleSaveEditNarrative(zone.id)}
+                                            className="px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-xs cursor-pointer"
+                                          >
+                                            บันทึกข้อความ
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className={`leading-relaxed text-xs sm:text-sm text-slate-800 dark:text-slate-200 w-full ${isCentered ? 'text-center' : 'text-left'}`}>
+                                        <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.6 }}>{narrative}</p>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -2779,10 +3077,10 @@ export default function CockroachesPage() {
                         <div className="space-y-6">
                           {pageConfig.zones.map(zone => {
                             const chartData = getZoneQuarterlyChartData(zone);
-                            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData);
+                            const status = getEffectiveZoneStatus(zone.id, chartData, selectedYear, selectedQuarter);
+                            const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData, selectedYear, selectedQuarter);
                             const yAxisConfig = getQuarterlyYAxisConfig(chartData);
-                            const hasData = chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-                            const isCentered = (pageConfig.page === 1 && !hasData);
+                            const isCentered = (status === 'inactive');
 
                             return (
                               <div key={zone.id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
@@ -2821,8 +3119,8 @@ export default function CockroachesPage() {
                                 </div>
 
                                 <div className={`lg:col-span-5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col shadow-2xs ${isCentered ? 'justify-center items-center' : 'justify-start items-start'}`}>
-                                  <div className={`leading-relaxed ${pageConfig.page === 1 ? 'text-[14px]' : 'text-xs sm:text-sm'} text-slate-800 dark:text-slate-200 ${isCentered ? 'text-center' : 'text-left'}`}>
-                                    <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : undefined }}>{narrative}</p>
+                                  <div className={`leading-relaxed text-xs sm:text-sm text-slate-800 dark:text-slate-200 ${isCentered ? 'text-center' : 'text-left'}`}>
+                                    <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.6 }}>{narrative}</p>
                                   </div>
                                 </div>
                               </div>
