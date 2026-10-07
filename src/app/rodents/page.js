@@ -15,7 +15,9 @@ import FormNav from '@/components/FormNav';
 import MonthYearPicker from '@/components/MonthYearPicker';
 import { 
   RODENT_STATIONS, 
-  RODENT_YEARLY_TREND_2569 
+  RODENT_ALL_YEARLY_TREND,
+  RODENT_RECORDED_MONTHS_MAP,
+  isRodentMonthOfficiallyRecorded
 } from '@/lib/data/rodentData';
 
 const MONTH_NAMES = [
@@ -50,17 +52,20 @@ export default function RodentsPage() {
 
   // Track months that have real recorded data for the selected year
   const recordedMonths = useMemo(() => {
-    const list = [];
+    const list = new Set();
+    const officialMonths = RODENT_RECORDED_MONTHS_MAP[String(selectedYear)] || [];
+    officialMonths.forEach(m => list.add(m));
+
     if (typeof window !== 'undefined') {
       MONTH_NAMES.forEach(m => {
         const key1 = `rodent_${selectedYear}_${m}`;
         const key2 = `rodent_records_${m}_${selectedYear}`;
         if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
-          list.push(m);
+          list.add(m);
         }
       });
     }
-    return list;
+    return Array.from(list);
   }, [selectedYear, savedSuccess]);
 
   // All 12 months are accessible
@@ -76,25 +81,53 @@ export default function RodentsPage() {
   });
 
   useEffect(() => {
+    let isCancelled = false;
     if (typeof window !== 'undefined') {
       const key = `rodent_${selectedYear}_${selectedMonth}`;
       const saved = localStorage.getItem(key);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setStationRecords(parsed.records || {});
-          setInspectorName(parsed.inspector || '');
-          setReviewerName(parsed.reviewer || '');
-          return;
+          if (parsed.records && Object.keys(parsed.records).length > 0) {
+            setStationRecords(parsed.records);
+            setInspectorName(parsed.inspector || '');
+            setReviewerName(parsed.reviewer || '');
+            return;
+          }
         } catch (e) {}
       }
 
-      const map = {};
-      RODENT_STATIONS.forEach(st => {
-        map[st.id] = { count: 0, bait: 'ปกติ', status: 'พร้อมใช้งาน' };
-      });
-      setStationRecords(map);
+      // Check Supabase if not in localStorage
+      fetch(`/api/pest-records?type=rodents&year=${selectedYear}&month=${selectedMonth}`)
+        .then(res => res.json())
+        .then(res => {
+          if (!isCancelled && res.data && res.data.length > 0) {
+            const rec = res.data[0];
+            if (rec.station_totals && Object.keys(rec.station_totals).length > 0) {
+              setStationRecords(rec.station_totals);
+              if (rec.inspector_name) setInspectorName(rec.inspector_name);
+              if (rec.reviewer_name) setReviewerName(rec.reviewer_name);
+              return;
+            }
+          }
+          // Default: 0 for all stations
+          const map = {};
+          RODENT_STATIONS.forEach(st => {
+            map[st.id] = { count: 0, bait: 'ปกติ', status: 'พร้อมใช้งาน' };
+          });
+          setStationRecords(map);
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            const map = {};
+            RODENT_STATIONS.forEach(st => {
+              map[st.id] = { count: 0, bait: 'ปกติ', status: 'พร้อมใช้งาน' };
+            });
+            setStationRecords(map);
+          }
+        });
     }
+    return () => { isCancelled = true; };
   }, [selectedMonth, selectedYear]);
 
   // Handle cell edit
@@ -168,6 +201,9 @@ export default function RodentsPage() {
           return sum;
         } catch (e) {}
       }
+    }
+    if (isRodentMonthOfficiallyRecorded(selectedYear, m)) {
+      return 0;
     }
     return 0;
   };
@@ -585,7 +621,7 @@ export default function RodentsPage() {
                     <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
                       แนวโน้มสถิติกับดักหนูสโตร์ 12 เดือน (ปี {selectedYear})
                     </h3>
-                    <p className="text-xs text-slate-400">มกราคม ถึง ธันวาคม 2569</p>
+                    <p className="text-xs text-slate-400">มกราคม ถึง ธันวาคม {selectedYear}</p>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700">
                     คงที่ 0 ตัวตลอดปี

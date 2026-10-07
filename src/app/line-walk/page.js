@@ -15,7 +15,8 @@ import FormNav from '@/components/FormNav';
 import MonthYearPicker from '@/components/MonthYearPicker';
 import { 
   LINE_WALK_AREAS, 
-  LINE_WALK_MONTHLY_DATA_2569 
+  LINE_WALK_ALL_DATA,
+  LINE_WALK_EXCEL_TOTALS
 } from '@/lib/data/lineWalkData';
 
 const MONTH_NAMES = [
@@ -84,27 +85,9 @@ export default function LineWalkPage() {
     return () => window.removeEventListener('afterprint', handleAfterPrint);
   }, []);
 
-  // Track months that have real recorded data for the selected year
-  const recordedMonths = useMemo(() => {
-    const list = [];
-    if (typeof window !== 'undefined') {
-      MONTH_NAMES.forEach(m => {
-        const key1 = `linewalk_${selectedYear}_${m}`;
-        const key2 = `linewalk_records_${m}_${selectedYear}`;
-        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
-          list.push(m);
-        }
-      });
-    }
-    return list;
-  }, [selectedYear, savedSuccess]);
-
-  // All 12 months are accessible
-  const availableMonths = MONTH_NAMES;
-
-  // Table rows for the selected month: area -> { ยุง, แมลงวัน, แมลงสาบ, มด, หนู, กรงดักหนู, อื่นๆ }
-  const [tableData, setTableData] = useState(() => {
-    const monthRows = LINE_WALK_MONTHLY_DATA_2569['สิงหาคม'] || [];
+  // Helper to extract table data for a given year & month from Excel dataset
+  const getInitialLineWalkTableData = (year, month) => {
+    const monthRows = LINE_WALK_ALL_DATA[year]?.[month] || [];
     const map = {};
     LINE_WALK_AREAS.forEach(area => {
       const existing = monthRows.find(r => r['แผนก/พื้นที่'] === area);
@@ -119,40 +102,100 @@ export default function LineWalkPage() {
       };
     });
     return map;
-  });
+  };
+
+  // Track months that have real recorded data for the selected year
+  const recordedMonths = useMemo(() => {
+    const list = new Set();
+    // 1. From official Excel datasets
+    if (selectedYear === '2567' || selectedYear === '2568') {
+      MONTH_NAMES.forEach(m => list.add(m));
+    } else if (selectedYear === '2569') {
+      ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน'].forEach(m => list.add(m));
+    }
+
+    // 2. From localStorage
+    if (typeof window !== 'undefined') {
+      MONTH_NAMES.forEach(m => {
+        const key1 = `linewalk_${selectedYear}_${m}`;
+        const key2 = `linewalk_records_${m}_${selectedYear}`;
+        if (localStorage.getItem(key1) || localStorage.getItem(key2)) {
+          list.add(m);
+        }
+      });
+    }
+    return Array.from(list);
+  }, [selectedYear, savedSuccess]);
+
+  // All 12 months are accessible
+  const availableMonths = MONTH_NAMES;
+
+  // Table rows for the selected month: area -> { ยุง, แมลงวัน, แมลงสาบ, มด, หนู, กรงดักหนู, อื่นๆ }
+  const [tableData, setTableData] = useState(() => getInitialLineWalkTableData('2569', 'สิงหาคม'));
 
   // Load when month changes
   useEffect(() => {
+    let isCancelled = false;
     if (typeof window !== 'undefined') {
       const key = `linewalk_${selectedYear}_${selectedMonth}`;
       const saved = localStorage.getItem(key);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setTableData(parsed.records || {});
-          setInspectorName(parsed.inspector || '');
-          setReviewerName(parsed.reviewer || '');
-          return;
+          if (parsed.records && Object.keys(parsed.records).length > 0) {
+            setTableData(parsed.records);
+            setInspectorName(parsed.inspector || '');
+            setReviewerName(parsed.reviewer || '');
+            return;
+          }
         } catch (e) {}
       }
 
-      // If selectedYear is 2569 and no recorded data, load sample baseline
-      const monthRows = selectedYear === '2569' ? (LINE_WALK_MONTHLY_DATA_2569[selectedMonth] || []) : [];
-      const map = {};
-      LINE_WALK_AREAS.forEach(area => {
-        const existing = monthRows.find(r => r['แผนก/พื้นที่'] === area);
-        map[area] = {
-          'ยุง': existing?.['ยุง'] ?? '',
-          'แมลงวัน': existing?.['แมลงวัน'] ?? '',
-          'แมลงสาบ': existing?.['แมลงสาบ'] ?? '',
-          'มด': existing?.['มด'] ?? '',
-          'หนู': existing?.['หนู'] ?? '',
-          'กรงดักหนู': existing?.['กรงดักหนู'] ?? '',
-          'อื่นๆ': existing?.['อื่นๆ'] ?? ''
-        };
-      });
-      setTableData(map);
+      // Check Supabase via /api/pest-records if not in localStorage
+      fetch(`/api/pest-records?type=line-walk&year=${selectedYear}&month=${selectedMonth}`)
+        .then(res => res.json())
+        .then(res => {
+          if (!isCancelled && res.data && res.data.length > 0) {
+            const combinedMap = {};
+            LINE_WALK_AREAS.forEach(area => {
+              combinedMap[area] = { 'ยุง': '', 'แมลงวัน': '', 'แมลงสาบ': '', 'มด': '', 'หนู': '', 'กรงดักหนู': '', 'อื่นๆ': '' };
+            });
+            let foundAny = false;
+            let insp = '';
+            let rev = '';
+            res.data.forEach(row => {
+              if (row.inspector_name) insp = row.inspector_name;
+              if (row.reviewer_name) rev = row.reviewer_name;
+              if (Array.isArray(row.area_records)) {
+                row.area_records.forEach(ar => {
+                  if (ar && ar.area && combinedMap[ar.area]) {
+                    foundAny = true;
+                    PEST_COLS.forEach(p => {
+                      if (ar[p.key] !== undefined && ar[p.key] !== '') {
+                        combinedMap[ar.area][p.key] = Number(ar[p.key]) || 0;
+                      }
+                    });
+                  }
+                });
+              }
+            });
+            if (foundAny) {
+              setTableData(combinedMap);
+              if (insp) setInspectorName(insp);
+              if (rev) setReviewerName(rev);
+              return;
+            }
+          }
+          // Fallback to Excel dataset
+          setTableData(getInitialLineWalkTableData(selectedYear, selectedMonth));
+        })
+        .catch(() => {
+          if (!isCancelled) {
+            setTableData(getInitialLineWalkTableData(selectedYear, selectedMonth));
+          }
+        });
     }
+    return () => { isCancelled = true; };
   }, [selectedMonth, selectedYear]);
 
   // Handle cell edit
@@ -306,14 +349,16 @@ export default function LineWalkPage() {
         } catch (e) {}
       }
     }
-    // Only for 2569 if no recorded months exist across whole year, fallback to sample
-    if (selectedYear === '2569' && recordedMonths.length === 0) {
-      const excelTotals = {
-        'มกราคม': 6, 'กุมภาพันธ์': 0, 'มีนาคม': 14, 'เมษายน': 9,
-        'พฤษภาคม': 0, 'มิถุนายน': 6, 'กรกฎาคม': 1, 'สิงหาคม': 17,
-        'กันยายน': 11, 'ตุลาคม': 7, 'พฤศจิกายน': 7, 'ธันวาคม': 25
-      };
-      return excelTotals[m] || 0;
+    // Pull from Excel datasets
+    if (LINE_WALK_EXCEL_TOTALS[selectedYear]) {
+      if (selectedYear === '2569') {
+        const rec69 = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน'];
+        if (rec69.includes(m)) {
+          return LINE_WALK_EXCEL_TOTALS['2569'][m] ?? 0;
+        }
+        return 0;
+      }
+      return LINE_WALK_EXCEL_TOTALS[selectedYear][m] ?? 0;
     }
     return 0;
   };
@@ -350,7 +395,7 @@ export default function LineWalkPage() {
   }, [monthlyTotal, pestTotals, topAreasData, selectedMonth, selectedYear]);
 
   // Save handler
-  const handleSave = () => {
+  const handleSave = async () => {
     if (typeof window !== 'undefined') {
       const key = `linewalk_${selectedYear}_${selectedMonth}`;
       const payload = {
@@ -362,6 +407,83 @@ export default function LineWalkPage() {
       localStorage.setItem(key, JSON.stringify(payload));
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3000);
+
+      // Async sync to Supabase via /api/pest-records
+      try {
+        const phase5Areas = LINE_WALK_AREAS.filter(a => PHASE_5_AREAS.includes(a));
+        const wh3Areas = LINE_WALK_AREAS.filter(a => WAREHOUSE_3_AREAS.includes(a));
+
+        const getPhaseTotals = (areas) => {
+          let sum = 0;
+          const pestSum = {};
+          PEST_COLS.forEach(p => { pestSum[p.key] = 0; });
+          const rows = [];
+          areas.forEach(a => {
+            const r = tableData[a] || {};
+            let aSum = 0;
+            PEST_COLS.forEach(p => {
+              const v = Number(r[p.key]) || 0;
+              pestSum[p.key] += v;
+              aSum += v;
+            });
+            sum += aSum;
+            rows.push({ area: a, ...r, total: aSum });
+          });
+          return { sum, pestSum, rows };
+        };
+
+        const p5 = getPhaseTotals(phase5Areas);
+        const wh3 = getPhaseTotals(wh3Areas);
+
+        await Promise.all([
+          fetch('/api/pest-records', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'line-walk',
+              year: selectedYear,
+              month: selectedMonth,
+              building_phase: 'อาคารเฟส 5',
+              mosquitoes_total: p5.pestSum['ยุง'] || 0,
+              flies_total: p5.pestSum['แมลงวัน'] || 0,
+              cockroaches_total: p5.pestSum['แมลงสาบ'] || 0,
+              ants_total: p5.pestSum['มด'] || 0,
+              rats_total: p5.pestSum['หนู'] || 0,
+              rat_traps_total: p5.pestSum['กรงดักหนู'] || 0,
+              others_total: p5.pestSum['อื่นๆ'] || 0,
+              grand_total: p5.sum,
+              area_records: p5.rows,
+              inspector_name: inspectorName,
+              reviewer_name: reviewerName,
+              status: 'Approved'
+            })
+          }),
+          fetch('/api/pest-records', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'line-walk',
+              year: selectedYear,
+              month: selectedMonth,
+              building_phase: 'อาคารคลังสินค้า 3',
+              mosquitoes_total: wh3.pestSum['ยุง'] || 0,
+              flies_total: wh3.pestSum['แมลงวัน'] || 0,
+              cockroaches_total: wh3.pestSum['แมลงสาบ'] || 0,
+              ants_total: wh3.pestSum['มด'] || 0,
+              rats_total: wh3.pestSum['หนู'] || 0,
+              rat_traps_total: wh3.pestSum['กรงดักหนู'] || 0,
+              others_total: wh3.pestSum['อื่นๆ'] || 0,
+              grand_total: wh3.sum,
+              area_records: wh3.rows,
+              inspector_name: inspectorName,
+              reviewer_name: reviewerName,
+              status: 'Approved'
+            })
+          })
+        ]);
+      } catch (err) {
+        console.warn('Line walk sync to Supabase skipped:', err);
+      }
     }
   };
 
