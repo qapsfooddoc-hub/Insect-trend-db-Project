@@ -229,7 +229,7 @@ export default function InspectionPage() {
     if (!dateStr) return false;
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return false;
-    return d < new Date('2026-06-01');
+    return d < new Date('2026-10-01');
   };
 
   const getThaiMonthName = (dateString) => {
@@ -661,8 +661,11 @@ export default function InspectionPage() {
           if (isAutoApprovedDate(weekDate)) {
             localStorage.setItem(statusKey, 'Approved');
           } else {
-            // When operator enters new data, set status to Draft
-            localStorage.setItem(statusKey, 'Draft');
+            // Do not demote an already approved month back to Draft
+            const existingStatus = localStorage.getItem(statusKey);
+            if (existingStatus !== 'Approved') {
+              localStorage.setItem(statusKey, 'Draft');
+            }
           }
         }
         

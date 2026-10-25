@@ -51,7 +51,7 @@ async function seedLineWalk() {
 
     for (const month of MONTH_NAMES) {
       const rows = yearData[month] || [];
-      const isApproved = year === '2567' || year === '2568' || (year === '2569' && ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน'].includes(month));
+      const isApproved = year === '2567' || year === '2568' || (year === '2569' && ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน'].includes(month));
 
       // Separate rows into Phase 5 and Warehouse 3
       const calcPhase = (phaseName, targetAreas) => {

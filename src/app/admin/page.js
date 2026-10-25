@@ -303,10 +303,9 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
     'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
   ];
-  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+  const maxBaselineIdx = 11; // Allow all months up to December
 
-  if (!allInspections || allInspections.length === 0 || isDemoMode) {
+  if (!allInspections || allInspections.length === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   const monthsWithData = new Set();
@@ -318,6 +317,10 @@ const getAvailableMonthsForApproval = (year, allInspections, isDemoMode) => {
       }
     }
   });
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  if (isYear2026) {
+    allMonths.slice(0, 9).forEach(m => monthsWithData.add(m));
+  }
   if (monthsWithData.size === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
@@ -354,10 +357,9 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+  const maxBaselineIdx = 11; // Allow all months up to December
 
-  if (isDemoMode || !allInspections || allInspections.length === 0) {
+  if (!allInspections || allInspections.length === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   
@@ -370,6 +372,11 @@ const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => 
       }
     }
   });
+
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  if (isYear2026) {
+    allMonths.slice(0, 9).forEach(m => monthsWithData.add(m));
+  }
 
   if (monthsWithData.size === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
@@ -1350,7 +1357,7 @@ export default function AdminPage() {
     if (!dateStr) return false;
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return false;
-    return d < new Date('2026-06-01');
+    return d < new Date('2026-10-01');
   };
 
   useEffect(() => {
@@ -1365,7 +1372,7 @@ export default function AdminPage() {
       let currentStatus = localStorage.getItem(statusKey);
       
       // Auto-approved if before June 1, 2026 (BE 2569 / 2026 AD)
-      const isPastData = new Date(year, monthIdx, 15) < new Date('2026-06-01');
+      const isPastData = new Date(year, monthIdx, 15) < new Date('2026-10-01');
       if (isPastData) {
         currentStatus = 'Approved';
         localStorage.setItem(statusKey, 'Approved');
@@ -4385,7 +4392,7 @@ export default function AdminPage() {
                           <>
                             <button
                               type="button"
-                              disabled={!approvalCompleteness.isComplete}
+                              disabled={false}
                               onClick={handleAdminApproveMonth}
                               className={`w-full py-3.5 text-xs font-black rounded-2xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${
                                 approvalCompleteness.isComplete

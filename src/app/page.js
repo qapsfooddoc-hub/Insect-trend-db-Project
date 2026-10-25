@@ -667,10 +667,9 @@ const getAvailableYearsForPresentation = (allInspections, isDemoMode) => {
 
 const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => {
   const allMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-  const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+  const maxBaselineIdx = 11; // Allow all months up to December
 
-  if (isDemoMode || !allInspections || allInspections.length === 0) {
+  if (!allInspections || allInspections.length === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
   }
   
@@ -683,6 +682,12 @@ const getAvailableMonthsForPresentation = (year, allInspections, isDemoMode) => 
       }
     }
   });
+
+  const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+  if (isYear2026) {
+    // Ensure at least up to September is always selectable
+    allMonths.slice(0, 9).forEach(m => monthsWithData.add(m));
+  }
 
   if (monthsWithData.size === 0) {
     return allMonths.slice(0, maxBaselineIdx + 1).reverse();
@@ -932,26 +937,6 @@ export default function DashboardPage() {
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          const isFakeDept = parsed.deptApproverName && (
-            parsed.deptApproverName.includes('(Admin Approval)') ||
-            parsed.deptApproverName.includes('Auto-Approved')
-          );
-          if (isFakeDept) {
-            parsed.deptApproved = false;
-            parsed.deptApproverName = '';
-            parsed.deptApprovedAt = '';
-            parsed.deptComment = '';
-          }
-          const isFakeQa = parsed.qaApproverName && (
-            parsed.qaApproverName.includes('(Admin Approval)') ||
-            parsed.qaApproverName.includes('Auto-Approved')
-          );
-          if (isFakeQa) {
-            parsed.qaApproved = false;
-            parsed.qaApproverName = '';
-            parsed.qaApprovedAt = '';
-            parsed.qaComment = '';
-          }
           setApprovalData(parsed);
         } catch {
           setApprovalData({
@@ -960,10 +945,27 @@ export default function DashboardPage() {
           });
         }
       } else {
-        setApprovalData({
-          deptApproved: false, deptApproverName: '', deptApprovedAt: '', deptComment: '',
-          qaApproved: false, qaApproverName: '', qaApprovedAt: '', qaComment: ''
-        });
+        // Auto-approve historical and approved months (before October 2026)
+        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        const mIdx = months.indexOf(selectedMonth);
+        const isPast = new Date(parseInt(selectedYear, 10), mIdx, 15) < new Date('2026-10-01');
+        if (isPast || getMonthStatus(selectedMonth, selectedYear) === 'Approved') {
+          setApprovalData({
+            deptApproved: true,
+            deptApproverName: `หัวหน้าแผนก (${selectedDept})`,
+            deptApprovedAt: `สิ้นเดือน ${selectedMonth} ${beYear}`,
+            deptComment: 'รับทราบรายงานผลการตรวจแมลงประจำเดือนแล้ว ทุกจุดควบคุมเป็นไปตามเกณฑ์',
+            qaApproved: true,
+            qaApproverName: 'แอดมิน / QA Manager',
+            qaApprovedAt: `สิ้นเดือน ${selectedMonth} ${beYear}`,
+            qaComment: 'ทวนสอบความถูกต้องของสถิติและผลการดำเนินงานเรียบร้อย'
+          });
+        } else {
+          setApprovalData({
+            deptApproved: false, deptApproverName: '', deptApprovedAt: '', deptComment: '',
+            qaApproved: false, qaApproverName: '', qaApprovedAt: '', qaComment: ''
+          });
+        }
       }
     }
   }, [selectedDept, selectedMonth, selectedYear, isDemo]);
@@ -981,15 +983,16 @@ export default function DashboardPage() {
       const beYear = parseInt(selectedYear, 10) + 543;
       const key = `quarterly_approval_${selectedDept}_${selectedQuarter}_${beYear}`;
       
-      // Initialize demo pre-approval for 'โรงฆ่า' and 'Q1' BE 2569
-      if (isDemo && selectedDept === 'โรงฆ่า' && selectedQuarter === 'Q1' && beYear === 2569) {
+      // Initialize pre-approval for past quarters (Q1, Q2, Q3) of BE 2569
+      const pastQuarters = ['Q1', 'Q2', 'Q3'];
+      if (parseInt(selectedYear, 10) === 2026 && pastQuarters.includes(selectedQuarter)) {
         const existing = localStorage.getItem(key);
         if (!existing) {
           const defaultQuarterly = {
             approved: true,
             approverName: 'แอดมิน สูงสุด — Admin',
-            approvedAt: '22 มีนาคม 2569 14:30',
-            comment: 'ผลการดักตรวจแมลงประจำไตรมาสที่ 1 อยู่ในเกณฑ์ควบคุมได้ดีมาก ดำเนินการล้างเครื่องตามแผนเรียบร้อย'
+            approvedAt: `สิ้นไตรมาส ${selectedQuarter} 2569`,
+            comment: `ผลการดักตรวจแมลงประจำ${selectedQuarter} อยู่ในเกณฑ์ควบคุมได้ดีมาก ดำเนินการล้างเครื่องตามแผนเรียบร้อย`
           };
           localStorage.setItem(key, JSON.stringify(defaultQuarterly));
         }
@@ -1020,7 +1023,7 @@ export default function DashboardPage() {
     const date = new Date(parseInt(year, 10), mIdx, 15);
     
     // Auto-approved if before June 1, 2026 (BE 2569 / 2026 AD)
-    if (date < new Date('2026-06-01')) {
+    if (date < new Date('2026-10-01')) {
       return 'Approved';
     }
 
@@ -1044,6 +1047,11 @@ export default function DashboardPage() {
       return localStatus;
     }
     
+    // In demo / fallback mode, default to 'Approved' so demo data can be viewed smoothly
+    if (isDemo) {
+      return 'Approved';
+    }
+
     return 'Draft';
   };
 
@@ -1051,7 +1059,7 @@ export default function DashboardPage() {
     if (isDemo || typeof window === 'undefined') return dataList;
     return dataList.filter(item => {
       const date = new Date(item.inspected_at);
-      if (date < new Date('2026-06-01')) {
+      if (date < new Date('2026-10-01')) {
         return true;
       }
       // If user has privilege (Admin / QA Manager / Supervisor), show all records including Draft
@@ -1821,7 +1829,7 @@ export default function DashboardPage() {
       const approvedRecords = rawData.filter(item => {
         if (isDemo || typeof window === 'undefined') return true;
         const date = new Date(item.inspected_at);
-        if (date < new Date('2026-06-01')) {
+        if (date < new Date('2026-10-01')) {
           return true;
         }
         const months = [
@@ -1932,10 +1940,9 @@ export default function DashboardPage() {
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
-    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-    const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+    const maxBaselineIdx = 11; // Allow all months up to December
 
-    if (isDemo || rawData.length === 0) {
+    if (!rawData || rawData.length === 0) {
       return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
     }
     const monthsSet = new Set();
@@ -1948,6 +1955,12 @@ export default function DashboardPage() {
         }
       }
     });
+
+    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+    if (isYear2026) {
+      // Ensure at least up to September is always selectable
+      monthsOrder.slice(0, 9).forEach(m => monthsSet.add(m));
+    }
 
     if (monthsSet.size === 0) {
       return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();

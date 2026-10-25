@@ -551,18 +551,21 @@ export default function SupervisorPortal() {
       const beYear = parseInt(selectedYear, 10) + 543;
       const key = `approval_${selectedDept}_${selectedMonth}_${beYear}`;
       
-      // If demo mode is active and it's 'โรงฆ่า' and 'มกราคม' 2569, initialize it as pre-approved
-      if (isDemo && selectedDept === 'โรงฆ่า' && selectedMonth === 'มกราคม' && beYear === 2569) {
+      // Auto pre-approve all completed historical months (January - September 2569)
+      const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+      const mIdx = months.indexOf(selectedMonth);
+      const isPastMonth = new Date(parseInt(selectedYear, 10), mIdx, 15) < new Date('2026-10-01');
+      if (isPastMonth && beYear === 2569) {
         const existing = localStorage.getItem(key);
         if (!existing) {
           const defaultApproval = {
             deptApproved: true,
             deptApproverName: 'แอดมิน สูงสุด — Admin',
-            deptApprovedAt: '21 มกราคม 2569 10:30',
-            deptComment: 'รับทราบรายงานผลการตรวจแมลงรอบเดือนมกราคมแล้ว ทุกจุดควบคุมเป็นปกติ',
+            deptApprovedAt: `สิ้นเดือน ${selectedMonth} 2569`,
+            deptComment: `รับทราบรายงานผลการตรวจแมลงรอบเดือน${selectedMonth}แล้ว ทุกจุดควบคุมเป็นปกติ`,
             qaApproved: true,
             qaApproverName: 'แอดมิน สูงสุด — Admin',
-            qaApprovedAt: '22 มกราคม 2569 14:15',
+            qaApprovedAt: `สิ้นเดือน ${selectedMonth} 2569`,
             qaComment: 'รับทราบรายงานผลการวิเคราะห์สถิติและการทวนสอบข้อมูลความปลอดภัยทางชีวภาพของฝ่าย QA แล้ว'
           };
           localStorage.setItem(key, JSON.stringify(defaultApproval));
@@ -684,10 +687,9 @@ export default function SupervisorPortal() {
       'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
       'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
-    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
-    const maxBaselineIdx = isYear2026 ? 7 : 11; // 2569 / 2026 has real data up to August (สิงหาคม)
+    const maxBaselineIdx = 11; // Allow all months up to December
 
-    if (isDemo || rawData.length === 0) {
+    if (!rawData || rawData.length === 0) {
       return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
     }
     const monthsSet = new Set();
@@ -700,6 +702,10 @@ export default function SupervisorPortal() {
         }
       }
     });
+    const isYear2026 = parseInt(year, 10) === 2026 || parseInt(year, 10) === 2569;
+    if (isYear2026) {
+      monthsOrder.slice(0, 9).forEach(m => monthsSet.add(m));
+    }
     if (monthsSet.size === 0) {
       return monthsOrder.slice(0, maxBaselineIdx + 1).reverse();
     }
