@@ -2,8 +2,9 @@ name: Keep Supabase Alive
 
 on:
   schedule:
-    # Runs every 3 days at 04:00 UTC (11:00 AM Bangkok time) to prevent 7-day inactivity pause
-    - cron: '0 4 */3 * *'
+    # Runs twice every day (02:00 UTC and 14:00 UTC = 09:00 and 21:00 Bangkok time)
+    # Supabase Free Tier requires requests each day over the week to prevent the 7-day inactivity pause
+    - cron: '0 2,14 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub Actions UI
 
 jobs:
@@ -19,7 +20,7 @@ jobs:
           URL="${SUPABASE_URL:-https://cjmzxgleiyjmmekplarl.supabase.co}"
           KEY="${SUPABASE_ANON_KEY:-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNqbXp4Z2xlaXlqbW1la3BsYXJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4OTk1NTYsImV4cCI6MjA5NzQ3NTU1Nn0.BYGRrHLvbP9qzEREs1wACjU5VK62hBR-WFYl81jz--s}"
           
-          echo "Pinging Supabase REST API to maintain active status..."
+          echo "Pinging Supabase REST API (daily cadence to maintain active status)..."
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X GET "$URL/rest/v1/insect_inspections?select=id&limit=1" \
             -H "apikey: $KEY" \
@@ -29,6 +30,6 @@ jobs:
           if [ "$HTTP_STATUS" -eq 200 ] || [ "$HTTP_STATUS" -eq 204 ] || [ "$HTTP_STATUS" -eq 206 ]; then
             echo "Successfully communicated with Supabase! Database remains active."
           else
-            echo "Unexpected response code: $HTTP_STATUS"
+            echo "Unexpected response code: $HTTP_STATUS (Database might be paused in Supabase Dashboard)"
             exit 1
           fi
