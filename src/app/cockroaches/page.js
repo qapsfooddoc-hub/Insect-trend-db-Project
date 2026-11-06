@@ -139,7 +139,8 @@ const COCKROACH_QUARTERLY_PAGES = [
 ];
 
 // Custom X-axis angled category tick for monthly 23 points chart (-52 degrees)
-const AngledCategoryTick = ({ x, y, payload }) => {
+const AngledCategoryTick = ({ x = 0, y = 0, payload = {} }) => {
+  const val = payload?.value ?? '';
   return (
     <g transform={`translate(${x},${y})`}>
       <text
@@ -153,21 +154,24 @@ const AngledCategoryTick = ({ x, y, payload }) => {
         fontWeight={500}
         transform="rotate(-52)"
       >
-        {payload.value}
+        {val}
       </text>
     </g>
   );
 };
 
 // Boxed label on top of bar [ 18 ] with white background and dark red border (matching Image 1)
-const BoxedBarLabel = (props) => {
-  const { x, y, width, value } = props;
+const BoxedBarLabel = (props = {}) => {
+  const { x = 0, y = 0, width = 0, value } = props;
   if (value === undefined || value === null) return null;
   const labelText = String(value);
+  const numX = Number(x) || 0;
+  const numY = Number(y) || 0;
+  const numW = Number(width) || 0;
   const boxWidth = Math.max(18, labelText.length * 7 + 8);
   const boxHeight = 15;
-  const boxX = x + width / 2 - boxWidth / 2;
-  const boxY = Math.max(2, y - boxHeight - 3);
+  const boxX = numX + numW / 2 - boxWidth / 2;
+  const boxY = Math.max(2, numY - boxHeight - 3);
 
   return (
     <g>
@@ -182,7 +186,7 @@ const BoxedBarLabel = (props) => {
         rx={1}
       />
       <text
-        x={x + width / 2}
+        x={numX + numW / 2}
         y={boxY + boxHeight / 2}
         fill="#8b2522"
         textAnchor="middle"
@@ -1174,36 +1178,43 @@ export default function CockroachesPage() {
   };
 
   const getCockroachZoneReportText = (zone) => {
-    if (zone === 'ภาพรวม 6 โซน') {
-      const maxCount = Math.max(...zoneSummary.map(z => z.count), 0);
-      const topZones = zoneSummary.filter(z => z.count === maxCount && maxCount > 0);
-      if (monthlyGrandTotal === 0) {
-        return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ไม่พบแมลงสาบในทุกจุดตรวจตลอดทั้งเดือน (ยอดตรวจพบรวม 0 ตัว) แสดงว่าสุขาภิบาลโรงงานและการกำจัดเศษอินทรียวัตถุมีประสิทธิภาพสูง อยู่ในเกณฑ์มาตรฐาน GMP/HACCP ของโรงงาน`;
+    try {
+      if (zone === 'ภาพรวม 6 โซน') {
+        const summary = Array.isArray(zoneSummary) ? zoneSummary : [];
+        const maxCount = Math.max(...summary.map(z => z?.count || 0), 0);
+        const topZones = summary.filter(z => (z?.count || 0) === maxCount && maxCount > 0);
+        if (monthlyGrandTotal === 0) {
+          return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ไม่พบแมลงสาบในทุกจุดตรวจตลอดทั้งเดือน (ยอดตรวจพบรวม 0 ตัว) แสดงว่าสุขาภิบาลโรงงานและการกำจัดเศษอินทรียวัตถุมีประสิทธิภาพสูง อยู่ในเกณฑ์มาตรฐาน GMP/HACCP ของโรงงาน`;
+        }
+        if (topZones.length >= 2) {
+          const zoneNames = topZones.map(z => `โซน${z?.fullName || z?.name || ''}`).join(' และ ');
+          return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดเท่ากันคือ ${zoneNames} (พบสะสมโซนละ ${maxCount} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
+        }
+        const topZ = topZones[0] || summary[0] || {};
+        return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดคือ โซน${topZ?.fullName || topZ?.name || 'ทั่วไป'} (พบสะสม ${topZ?.count || 0} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
       }
-      if (topZones.length >= 2) {
-        const zoneNames = topZones.map(z => `โซน${z.fullName}`).join(' และ ');
-        return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดเท่ากันคือ ${zoneNames} (พบสะสมโซนละ ${maxCount} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
+
+      const pts = Array.isArray(customPoints) ? customPoints : [];
+      const zonePts = pts.filter(pt => pt?.zone === zone);
+      const zoneCount = zonePts.reduce((sum, pt) => sum + getPointTotal(pt?.id), 0);
+      const maxPtTotal = Math.max(...zonePts.map(pt => getPointTotal(pt?.id)), 0);
+      const topPts = zonePts.map(pt => ({ ...pt, total: getPointTotal(pt?.id) })).filter(pt => pt.total === maxPtTotal && maxPtTotal > 0);
+
+      if (zoneCount === 0) {
+        return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} ไม่พบแมลงสาบในทุกจุดดักตลอดทั้งเดือน (ยอดตรวจพบ 0 ตัว) มาตรการทำความสะอาดและสุขาภิบาลในพื้นที่อยู่ในเกณฑ์มาตรฐานความปลอดภัยอาหารอย่างดีเยี่ยม`;
       }
-      const topZ = topZones[0] || zoneSummary[0];
-      return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดคือ โซน${topZ?.fullName} (พบสะสม ${topZ?.count} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
+
+      if (topPts.length >= 2) {
+        const ptNames = topPts.map(pt => `"${pt?.name || pt?.no || ''}"`).join(' และ ');
+        return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดเท่ากันคือ ${ptNames} จำนวนจุดละ ${maxPtTotal} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
+      }
+
+      const topPt = topPts[0] || zonePts[0] || {};
+      return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดคือ "${topPt?.name || topPt?.no || 'จุดตรวจ'}" จำนวน ${topPt?.total || 0} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
+    } catch (err) {
+      console.error('Error generating cockroach zone report text:', err);
+      return `จากการตรวจติดตามบ้านแมลงสาบ ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} ตรวจพบรวม ${monthlyGrandTotal} ตัว`;
     }
-
-    const zonePts = customPoints.filter(pt => pt.zone === zone);
-    const zoneCount = zonePts.reduce((sum, pt) => sum + getPointTotal(pt.id), 0);
-    const maxPtTotal = Math.max(...zonePts.map(pt => getPointTotal(pt.id)), 0);
-    const topPts = zonePts.map(pt => ({ ...pt, total: getPointTotal(pt.id) })).filter(pt => pt.total === maxPtTotal && maxPtTotal > 0);
-
-    if (zoneCount === 0) {
-      return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} ไม่พบแมลงสาบในทุกจุดดักตลอดทั้งเดือน (ยอดตรวจพบ 0 ตัว) มาตรการทำความสะอาดและสุขาภิบาลในพื้นที่อยู่ในเกณฑ์มาตรฐานความปลอดภัยอาหารอย่างดีเยี่ยม`;
-    }
-
-    if (topPts.length >= 2) {
-      const ptNames = topPts.map(pt => `"${pt.name}"`).join(' และ ');
-      return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดเท่ากันคือ ${ptNames} จำนวนจุดละ ${maxPtTotal} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
-    }
-
-    const topPt = topPts[0] || zonePts[0];
-    return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดคือ "${topPt?.name}" จำนวน ${topPt?.total || 0} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
   };
 
   // Dynamic point count for any given month/year (prefers user entry in current session or localStorage, falls back to Excel data)
@@ -1273,28 +1284,34 @@ export default function CockroachesPage() {
 
   // Dynamic Y-axis config for quarterly charts with equal steps
   const getQuarterlyYAxisConfig = (chartData) => {
-    const allVals = chartData.flatMap(d => [d.month1 || 0, d.month2 || 0, d.month3 || 0]);
-    const maxVal = Math.max(...allVals, 0);
-    let step = 5;
-    let upper = 25;
-    if (maxVal <= 4) {
-      step = 2;
-      upper = 4;
-    } else if (maxVal <= 10) {
-      step = 2;
-      upper = 10;
-    } else if (maxVal <= 25) {
-      step = 5;
-      upper = 25;
-    } else {
-      step = 5;
-      upper = Math.ceil(maxVal / 5) * 5;
+    try {
+      const safeData = Array.isArray(chartData) ? chartData : [];
+      const allVals = safeData.flatMap(d => [d?.month1 || 0, d?.month2 || 0, d?.month3 || 0]);
+      const maxVal = Math.max(...allVals, 0);
+      let step = 5;
+      let upper = 25;
+      if (maxVal <= 4) {
+        step = 2;
+        upper = 4;
+      } else if (maxVal <= 10) {
+        step = 2;
+        upper = 10;
+      } else if (maxVal <= 25) {
+        step = 5;
+        upper = 25;
+      } else {
+        step = 5;
+        upper = Math.ceil(maxVal / 5) * 5;
+      }
+      const ticks = [];
+      for (let i = 0; i <= upper; i += step) {
+        ticks.push(i);
+      }
+      return { domain: [0, upper], ticks };
+    } catch (err) {
+      console.error('Error calculating quarterly Y axis config:', err);
+      return { domain: [0, 25], ticks: [0, 5, 10, 15, 20, 25] };
     }
-    const ticks = [];
-    for (let i = 0; i <= upper; i += step) {
-      ticks.push(i);
-    }
-    return { domain: [0, upper], ticks };
   };
 
   // Top cockroach point(s) for monthly report - detects multiple points if tied for highest count
@@ -1312,135 +1329,141 @@ export default function CockroachesPage() {
   // Monthly report narrative text following the exact company pattern from "ตัวอย่าง รายงานแมลงสาบ ประจำเดือน.txt"
   // Handles: 0 pests, 1 top point, 2 points tied (same zone or different zones), and 3+ points tied
   const monthlyFormAnalysisText = useMemo(() => {
-    const isRec = isMonthRecorded(selectedMonth, selectedYear) || (recordedMonths.length === 0 && selectedYear === '2569');
-    if (!isRec) {
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} ยังไม่มีการบันทึกข้อมูลผลการตรวจนับ กรุณาไปที่แท็บบันทึกข้อมูลเพื่อเริ่มลงบันทึกผลประจำวัน`;
-    }
+    try {
+      const isRec = isMonthRecorded(selectedMonth, selectedYear) || (recordedMonths.length === 0 && selectedYear === '2569');
+      if (!isRec) {
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} ยังไม่มีการบันทึกข้อมูลผลการตรวจนับ กรุณาไปที่แท็บบันทึกข้อมูลเพื่อเริ่มลงบันทึกผลประจำวัน`;
+      }
 
-    // กรณีที่ 0: ไม่พบแมลงสาบเลยทุกจุด
-    if (topMonthlyPoints.length === 0 || topMonthlyPoint.count === 0) {
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ทุกตำแหน่งที่วางไม่พบแมลงสาบ (พบ 0 ตัว) ดังนั้นควรเน้นเรื่องการทำความสะอาดในทุกพื้นที่ให้สะอาดอยู่เสมอหลังจากการใช้งาน เพื่อป้องกันไม่ให้แมลงสาบเข้ามาในพื้นที่ และรักษาให้จำนวนที่พบเป็น 0 เสมอ`;
-    }
+      const points = Array.isArray(topMonthlyPoints) ? topMonthlyPoints : [];
+      if (points.length === 0 || (topMonthlyPoint && topMonthlyPoint.count === 0)) {
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ทุกตำแหน่งที่วางไม่พบแมลงสาบ (พบ 0 ตัว) ดังนั้นควรเน้นเรื่องการทำความสะอาดในทุกพื้นที่ให้สะอาดอยู่เสมอหลังจากการใช้งาน เพื่อป้องกันไม่ให้แมลงสาบเข้ามาในพื้นที่ และรักษาให้จำนวนที่พบเป็น 0 เสมอ`;
+      }
 
-    // Helper: Location context details according to the exact company patterns
-    const getPointContext = (p) => {
-      const z = p.zone || '';
-      if (z.includes('ล็อกเกอร์') || z.includes('ล็อคเกอร์')) {
-        if (p.no === '15') {
+      // Helper: Location context details according to the exact company patterns
+      const getPointContext = (p) => {
+        const z = p?.zone || '';
+        const no = p?.no || '';
+        if (z.includes('ล็อกเกอร์') || z.includes('ล็อคเกอร์')) {
+          if (no === '15') {
+            return {
+              type: 'locker',
+              desc: `ตำแหน่งที่วาง 15 เป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย`
+            };
+          }
+          if (no === '13') {
+            return {
+              type: 'locker',
+              desc: `ตำแหน่งที่วาง 13 เป็นบริเวณใต้ตู้ล็อคเกอร์ ตัดแต่ง ที่อยู่ใกล้ห้องน้ำและมีความชื้น`
+            };
+          }
           return {
             type: 'locker',
-            desc: `ตำแหน่งที่วาง 15 เป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย`
+            desc: `ตำแหน่งที่วาง ${no} เป็นใต้ตู้ล็อคเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด`
           };
         }
-        if (p.no === '13') {
+        if (z.includes('โรงอาหาร')) {
           return {
-            type: 'locker',
-            desc: `ตำแหน่งที่วาง 13 เป็นบริเวณใต้ตู้ล็อคเกอร์ ตัดแต่ง ที่อยู่ใกล้ห้องน้ำและมีความชื้น`
+            type: 'canteen',
+            desc: `ตำแหน่งที่วาง ${no} (${z}) เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น`
+          };
+        }
+        if (z.includes('ห้องน้ำ')) {
+          return {
+            type: 'toilet',
+            desc: `ตำแหน่งที่วาง ${no} เป็นบริเวณ${z} ซึ่งมีความชื้นสูง และมีท่อระบาย`
           };
         }
         return {
-          type: 'locker',
-          desc: `ตำแหน่งที่วาง ${p.no} เป็นใต้ตู้ล็อคเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด`
+          type: 'other',
+          desc: `ตำแหน่งที่วาง ${no} (${z}) เป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด`
         };
-      }
-      if (z.includes('โรงอาหาร')) {
-        return {
-          type: 'canteen',
-          desc: `ตำแหน่งที่วาง ${p.no} (${z}) เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น`
-        };
-      }
-      if (z.includes('ห้องน้ำ')) {
-        return {
-          type: 'toilet',
-          desc: `ตำแหน่งที่วาง ${p.no} เป็นบริเวณ${z} ซึ่งมีความชื้นสูง และมีท่อระบาย`
-        };
-      }
-      return {
-        type: 'other',
-        desc: `ตำแหน่งที่วาง ${p.no} (${z}) เป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด`
       };
-    };
 
-    // Helper: Correct company action according to zone types
-    const getActionText = (types) => {
-      const hasLocker = types.includes('locker');
-      const hasCanteen = types.includes('canteen');
+      // Helper: Correct company action according to zone types
+      const getActionText = (types = []) => {
+        const hasLocker = types.includes('locker');
+        const hasCanteen = types.includes('canteen');
 
-      if (hasLocker && hasCanteen) {
-        return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามาควรจะปิดมิดชิด และไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
-      }
-      if (hasLocker) {
-        return `ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
-      }
-      if (hasCanteen) {
-        return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
-      }
-      return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
-    };
-
-    // กรณีที่ 1: มีจุดที่พบมากที่สุดเพียง 1 จุด (Single top point)
-    if (topMonthlyPoints.length === 1) {
-      const { no, zone } = topMonthlyPoints[0];
-      const cleanZone = zone || '';
-
-      // แพทเทิร์นที่ 1: โรงอาหาร (เช่น จุด 01 - 12: โรงอาหารตัดแต่งห้องที่ 1, โรงอาหารตัดแต่งห้องที่ 2)
-      if (cleanZone.includes('โรงอาหาร')) {
-        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าว เป็นพื้นที่ ที่มีการนำอาหารเข้ามา และมีความชื้น ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
-      }
-
-      // แพทเทิร์นที่ 2: ใต้ตู้ล็อคเกอร์ / ใต้ตู้ล็อกเกอร์ (เช่น จุด 13 - 16: ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
-      if (cleanZone.includes('ล็อกเกอร์') || cleanZone.includes('ล็อคเกอร์')) {
-        if (no === '15') {
-          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง 15 (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าวเป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        if (hasLocker && hasCanteen) {
+          return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามาควรจะปิดมิดชิด และไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
         }
-        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด โดยบริเวณดังกล่าวเป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด  จึงอาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน  ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        if (hasLocker) {
+          return `ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        }
+        if (hasCanteen) {
+          return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+        }
+        return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+      };
+
+      // กรณีที่ 1: มีจุดที่พบมากที่สุดเพียง 1 จุด (Single top point)
+      if (points.length === 1 && points[0]) {
+        const no = points[0]?.no || '';
+        const cleanZone = points[0]?.zone || '';
+
+        // แพทเทิร์นที่ 1: โรงอาหาร (เช่น จุด 01 - 12: โรงอาหารตัดแต่งห้องที่ 1, โรงอาหารตัดแต่งห้องที่ 2)
+        if (cleanZone.includes('โรงอาหาร')) {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าว เป็นพื้นที่ ที่มีการนำอาหารเข้ามา และมีความชื้น ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+        }
+
+        // แพทเทิร์นที่ 2: ใต้ตู้ล็อคเกอร์ / ใต้ตู้ล็อกเกอร์ (เช่น จุด 13 - 16: ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
+        if (cleanZone.includes('ล็อกเกอร์') || cleanZone.includes('ล็อคเกอร์')) {
+          if (no === '15') {
+            return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง 15 (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าวเป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+          }
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด โดยบริเวณดังกล่าวเป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด  จึงอาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน  ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        }
+
+        // แพทเทิร์นที่ 3: ห้องน้ำ (เช่น จุด 17 - 23: ห้องน้ำหญิง ตัดแต่ง, ห้องน้ำชาย ตัดแต่ง, ห้องน้ำหัวหน้า ตัดแต่ง)
+        if (cleanZone.includes('ห้องน้ำ')) {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${no} เป็นบริเวณ${cleanZone} ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลัง จากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        }
+
+        // แพทเทิร์นกรณีตำแหน่งอื่นๆ
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด ซึ่งเป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
       }
 
-      // แพทเทิร์นที่ 3: ห้องน้ำ (เช่น จุด 17 - 23: ห้องน้ำหญิง ตัดแต่ง, ห้องน้ำชาย ตัดแต่ง, ห้องน้ำหัวหน้า ตัดแต่ง)
-      if (cleanZone.includes('ห้องน้ำ')) {
-        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${no} เป็นบริเวณ${cleanZone} ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลัง จากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+      // กรณีที่ 2: มี 2 จุด/พื้นที่พบมากที่สุดเท่ากัน (Tied top 2 points)
+      if (points.length === 2 && points[0] && points[1]) {
+        const [p1, p2] = points;
+        const c1 = getPointContext(p1);
+        const c2 = getPointContext(p2);
+        const types = [c1.type, c2.type];
+        const actionText = getActionText(types);
+
+        // ถ้าทั้งสองจุดอยู่ในโซนเดียวกัน (เช่น จุด 14 และ 15 ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
+        if (p1?.zone && p2?.zone && p1.zone === p2.zone) {
+          if (c1.desc !== c2.desc) {
+            return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+          }
+          if (c1.type === 'canteen') {
+            return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+          }
+          if (c1.type === 'toilet') {
+            return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณ${p1.zone} พบแมลงสาบมากที่สุด ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+          }
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+        }
+
+        // ถ้าทั้งสองจุดอยู่คนละโซน/คนละพื้นที่
+        const intro1 = `${p1?.no || ''} (${p1?.zone || ''})`;
+        const intro2 = `${p2?.no || ''} (${p2?.zone || ''})`;
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${intro1} และ ตำแหน่งที่วาง ${intro2} พบแมลงสาบมากที่สุดเท่ากัน โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
       }
 
-      // แพทเทิร์นกรณีตำแหน่งอื่นๆ
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด ซึ่งเป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
-    }
-
-    // กรณีที่ 2: มี 2 จุด/พื้นที่พบมากที่สุดเท่ากัน (Tied top 2 points)
-    if (topMonthlyPoints.length === 2) {
-      const [p1, p2] = topMonthlyPoints;
-      const c1 = getPointContext(p1);
-      const c2 = getPointContext(p2);
-      const types = [c1.type, c2.type];
+      // กรณีที่ 3: มากกว่า 2 จุดเสมอกัน (Fallback for 3+ points tied)
+      const pointsList = points.map(p => `ตำแหน่งที่วาง ${p?.no || ''}`).join(', ');
+      const uniqueZones = [...new Set(points.map(p => p?.zone || ''))].filter(Boolean).join(', ');
+      const types = points.map(p => getPointContext(p).type);
       const actionText = getActionText(types);
 
-      // ถ้าทั้งสองจุดอยู่ในโซนเดียวกัน (เช่น จุด 14 และ 15 ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
-      if (p1.zone === p2.zone) {
-        if (c1.desc !== c2.desc) {
-          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
-        }
-        if (c1.type === 'canteen') {
-          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
-        }
-        if (c1.type === 'toilet') {
-          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณ${p1.zone} พบแมลงสาบมากที่สุด ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
-        }
-        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
-      }
-
-      // ถ้าทั้งสองจุดอยู่คนละโซน/คนละพื้นที่
-      const intro1 = `${p1.no} (${p1.zone})`;
-      const intro2 = `${p2.no} (${p2.zone})`;
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${intro1} และ ตำแหน่งที่วาง ${intro2} พบแมลงสาบมากที่สุดเท่ากัน โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ${pointsList} (${uniqueZones}) พบแมลงสาบมากที่สุดเท่ากัน โดยเป็นบริเวณที่มีความชื้น จุดอับ หรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+    } catch (err) {
+      console.error('Error generating monthly form analysis text:', err);
+      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} ตรวจพบแมลงสาบรวม ${monthlyGrandTotal} ตัว ควรเน้นการทำความสะอาดพื้นที่อย่างสม่ำเสมอ`;
     }
-
-    // กรณีที่ 3: มากกว่า 2 จุดเสมอกัน (Fallback for 3+ points tied)
-    const pointsList = topMonthlyPoints.map(p => `ตำแหน่งที่วาง ${p.no}`).join(', ');
-    const uniqueZones = [...new Set(topMonthlyPoints.map(p => p.zone))].join(', ');
-    const types = topMonthlyPoints.map(p => getPointContext(p).type);
-    const actionText = getActionText(types);
-
-    return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ${pointsList} (${uniqueZones}) พบแมลงสาบมากที่สุดเท่ากัน โดยเป็นบริเวณที่มีความชื้น จุดอับ หรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
-  }, [selectedMonth, selectedYear, topMonthlyPoints, topMonthlyPoint, recordedMonths]);
+  }, [selectedMonth, selectedYear, topMonthlyPoints, topMonthlyPoint, recordedMonths, monthlyGrandTotal]);
 
   // Short month abbreviations for quarterly legend
   const currentQuarterMonthsShort = useMemo(() => {
@@ -1483,249 +1506,274 @@ export default function CockroachesPage() {
 
   // Quarterly clustered bar chart data for a zone
   const getZoneQuarterlyChartData = (zone) => {
-    const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
-    const months = qConfig.months;
+    try {
+      const qConfig = QUARTERS_CONFIG[selectedQuarter] || QUARTERS_CONFIG['Q1'];
+      const months = qConfig.months || ['มกราคม', 'กุมภาพันธ์', 'มีนาคม'];
 
-    // Prefer custom points for this zone, falling back to zone.pointIds
-    const zonePoints = customPoints.filter(p => p.zone === zone.name);
-    const activePoints = zonePoints.length > 0 ? zonePoints : zone.pointIds.map(id => COCKROACH_POINTS.find(p => p.id === id)).filter(Boolean);
+      // Prefer custom points for this zone, falling back to zone.pointIds
+      const pts = Array.isArray(customPoints) ? customPoints : [];
+      const zonePoints = pts.filter(p => p?.zone === zone?.name);
+      const activePoints = zonePoints.length > 0 
+        ? zonePoints 
+        : (zone?.pointIds || []).map(id => COCKROACH_POINTS.find(p => p.id === id)).filter(Boolean);
 
-    const isDemo = recordedMonths.length === 0 && selectedYear === '2569';
-    const m1Rec = isDemo || isMonthRecorded(months[0], selectedYear);
-    const m2Rec = isDemo || isMonthRecorded(months[1], selectedYear);
-    const m3Rec = isDemo || isMonthRecorded(months[2], selectedYear);
+      const isDemo = recordedMonths.length === 0 && selectedYear === '2569';
+      const m1Rec = isDemo || isMonthRecorded(months[0], selectedYear);
+      const m2Rec = isDemo || isMonthRecorded(months[1], selectedYear);
+      const m3Rec = isDemo || isMonthRecorded(months[2], selectedYear);
 
-    return activePoints.map(pt => {
-      const ptId = pt.id;
-      const m1Count = m1Rec ? getPointCountForMonth(ptId, months[0], selectedYear) : 0;
-      const m2Count = m2Rec ? getPointCountForMonth(ptId, months[1], selectedYear) : 0;
-      const m3Count = m3Rec ? getPointCountForMonth(ptId, months[2], selectedYear) : 0;
+      return activePoints.map(pt => {
+        const ptId = pt?.id || 0;
+        const m1Count = m1Rec ? getPointCountForMonth(ptId, months[0], selectedYear) : 0;
+        const m2Count = m2Rec ? getPointCountForMonth(ptId, months[1], selectedYear) : 0;
+        const m3Count = m3Rec ? getPointCountForMonth(ptId, months[2], selectedYear) : 0;
 
-      return {
-        no: `No.${pt ? parseInt(pt.no, 10) : ptId}`,
-        pointId: ptId,
-        month1: m1Count,
-        month2: m2Count,
-        month3: m3Count,
-        month1Recorded: m1Rec,
-        month2Recorded: m2Rec,
-        month3Recorded: m3Rec
-      };
-    });
+        return {
+          no: `No.${pt ? (parseInt(pt.no, 10) || pt.no) : ptId}`,
+          pointId: ptId,
+          month1: m1Count,
+          month2: m2Count,
+          month3: m3Count,
+          month1Recorded: m1Rec,
+          month2Recorded: m2Rec,
+          month3Recorded: m3Rec
+        };
+      });
+    } catch (err) {
+      console.error('Error getting zone quarterly chart data:', err);
+      return [];
+    }
   };
 
   // Determine effective zone status (supports 'auto', 'active', 'inactive', 'renovating')
   const getEffectiveZoneStatus = (zoneId, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
-    const key = `${year}_${quarter}_${zoneId}`;
-    const configured = zoneStatuses[key];
-    if (configured && configured !== 'auto') {
-      return configured; // 'active', 'inactive', 'renovating'
-    }
+    try {
+      const key = `${year}_${quarter}_${zoneId}`;
+      const configured = zoneStatuses[key];
+      if (configured && configured !== 'auto') {
+        return configured; // 'active', 'inactive', 'renovating'
+      }
 
-    // Auto-detection logic:
-    const hasData = chartData && chartData.some(d => (d.month1 || 0) > 0 || (d.month2 || 0) > 0 || (d.month3 || 0) > 0);
-    if (hasData) {
+      // Auto-detection logic:
+      const safeData = Array.isArray(chartData) ? chartData : [];
+      const hasData = safeData.some(d => (d?.month1 || 0) > 0 || (d?.month2 || 0) > 0 || (d?.month3 || 0) > 0);
+      if (hasData) {
+        return 'active';
+      }
+
+      // Default for canteens when no data is recorded is 'inactive', for other zones 'active'
+      if (zoneId === 'canteen1' || zoneId === 'canteen2') {
+        return 'inactive';
+      }
+
+      return 'active';
+    } catch (err) {
+      console.error('Error determining zone status:', err);
       return 'active';
     }
-
-    // Default for canteens when no data is recorded is 'inactive', for other zones 'active'
-    if (zoneId === 'canteen1' || zoneId === 'canteen2') {
-      return 'inactive';
-    }
-
-    return 'active';
   };
 
   // Dynamic grouped trend narrative generator following exact company QC style
   const generateTrendAnalysisText = (zoneId, zoneName, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
-    const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
-    const months = qConfig.months;
-    const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
+    try {
+      const safeData = Array.isArray(chartData) ? chartData : [];
+      const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
+      const months = qConfig.months || ['มกราคม', 'กุมภาพันธ์', 'มีนาคม'];
+      const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
 
-    const isDemo = recordedMonths.length === 0 && String(year) === '2569';
-    const m1Recorded = isDemo || isMonthRecorded(months[0], year);
-    const m2Recorded = isDemo || isMonthRecorded(months[1], year);
-    const m3Recorded = isDemo || isMonthRecorded(months[2], year);
+      const isDemo = recordedMonths.length === 0 && String(year) === '2569';
+      const m1Recorded = isDemo || isMonthRecorded(months[0], year);
+      const m2Recorded = isDemo || isMonthRecorded(months[1], year);
+      const m3Recorded = isDemo || isMonthRecorded(months[2], year);
 
-    const recordedCount = (m1Recorded ? 1 : 0) + (m2Recorded ? 1 : 0) + (m3Recorded ? 1 : 0);
+      const recordedCount = (m1Recorded ? 1 : 0) + (m2Recorded ? 1 : 0) + (m3Recorded ? 1 : 0);
 
-    // If no months in this quarter have data yet
-    if (recordedCount === 0) {
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} ยังไม่มีการบันทึกข้อมูลการตรวจนับแมลงสาบในไตรมาสนี้`;
-    }
-
-    const totalQuarter = chartData.reduce((sum, d) => sum + (d.month1 || 0) + (d.month2 || 0) + (d.month3 || 0), 0);
-    if (totalQuarter === 0) {
-      let unrecordedNote = '';
-      if (!m3Recorded && m1Recorded && m2Recorded) {
-        unrecordedNote = ` (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
-      } else if (!m2Recorded && !m3Recorded && m1Recorded) {
-        unrecordedNote = ` (สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
+      // If no months in this quarter have data yet
+      if (recordedCount === 0) {
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} ยังไม่มีการบันทึกข้อมูลการตรวจนับแมลงสาบในไตรมาสนี้`;
       }
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ทุกตำแหน่งไม่พบแมลงสาบ (พบ 0 ตัว)${unrecordedNote} ทางทีมทำความสะอาดควรรักษามาตรฐานความสะอาดอย่างสม่ำเสมอ เพื่อควบคุมให้จำนวนแมลงสาบเป็น 0 เสมอ`;
-    }
 
-    let conclusion = 'ดังนั้นทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง';
-    if (zoneId === 'toiletFemale') {
-      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดในตำแหน่งห้องน้ำหญิงตัดแต่งอย่างสม่ำเสมอ พร้อมทั้งให้หน่วยงานที่เกี่ยวข้องเฝ้าระวังกิจกรรมที่จะก่อให้เกิดแมลงสาบ เพื่อให้แมลงสาบที่พบมีจำนวนลดลงจนเป็น 0';
-    } else if (zoneId === 'toiletMale') {
-      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำชายตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้เป็นประจำ';
-    } else if (zoneId === 'toiletHead') {
-      conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำหัวหน้าตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้';
-    }
-
-    // CASE 1: All 3 months recorded
-    if (m1Recorded && m2Recorded && m3Recorded) {
-      const trendGroups = {};
-      chartData.forEach(d => {
-        const m1 = d.month1 || 0;
-        const m2 = d.month2 || 0;
-        const m3 = d.month3 || 0;
-        const noLabel = d.no;
-
-        let key = '';
-        let desc = '';
-
-        if (m1 === 0 && m2 === 0 && m3 === 0) {
-          key = 'zero';
-          desc = 'ไม่พบแมลงสาบ';
-        } else if (m1 < m2 && m2 < m3) {
-          key = 'increasing';
-          desc = 'มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง';
-        } else if (m1 > m2 && m2 > m3) {
-          key = 'decreasing';
-          desc = 'มีแนวโน้มลดลงอย่างต่อเนื่อง';
-        } else if (m1 < m2 && m2 > m3) {
-          key = 'up_down';
-          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
-        } else if (m1 > m2 && m2 < m3) {
-          key = 'down_up';
-          desc = `มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
-        } else if (m1 === m2 && m2 === m3) {
-          key = 'steady';
-          desc = 'มีแนวโน้มคงที่ตลอดทั้งไตรมาส';
-        } else if (m1 === m2 && m2 < m3) {
-          key = 'steady_up';
-          desc = `มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
-        } else if (m1 === m2 && m2 > m3) {
-          key = 'steady_down';
-          desc = `มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
-        } else if (m1 < m2 && m2 === m3) {
-          key = 'up_steady';
-          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-        } else if (m1 > m2 && m2 === m3) {
-          key = 'down_steady';
-          desc = `มีแนวโน้มลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
-        } else {
-          key = `custom_${m1}_${m2}_${m3}`;
-          desc = `ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
+      const totalQuarter = safeData.reduce((sum, d) => sum + (d?.month1 || 0) + (d?.month2 || 0) + (d?.month3 || 0), 0);
+      if (totalQuarter === 0) {
+        let unrecordedNote = '';
+        if (!m3Recorded && m1Recorded && m2Recorded) {
+          unrecordedNote = ` (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
+        } else if (!m2Recorded && !m3Recorded && m1Recorded) {
+          unrecordedNote = ` (สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ)`;
         }
-
-        if (!trendGroups[key]) {
-          trendGroups[key] = { desc, points: [] };
-        }
-        trendGroups[key].points.push(noLabel);
-      });
-
-      const pointSummaries = Object.values(trendGroups).map(g => {
-        if (g.points.length === 1) {
-          return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
-        }
-        return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
-      });
-
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} ${conclusion}`;
-    }
-
-    // CASE 2: Month 1 & Month 2 recorded, Month 3 NOT recorded yet
-    if (m1Recorded && m2Recorded && !m3Recorded) {
-      const trendGroups = {};
-      chartData.forEach(d => {
-        const m1 = d.month1 || 0;
-        const m2 = d.month2 || 0;
-        const noLabel = d.no;
-
-        let key = '';
-        let desc = '';
-
-        if (m1 === 0 && m2 === 0) {
-          key = 'zero';
-          desc = 'ไม่พบแมลงสาบ';
-        } else if (m1 < m2) {
-          key = 'increasing';
-          desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}`;
-        } else if (m1 > m2) {
-          key = 'decreasing';
-          desc = `มีแนวโน้มลดลงในเดือน${months[1]}`;
-        } else {
-          key = 'steady';
-          desc = `มีจำนวนคงที่ในเดือน${months[0]}-${months[1]}`;
-        }
-
-        if (!trendGroups[key]) {
-          trendGroups[key] = { desc, points: [] };
-        }
-        trendGroups[key].points.push(noLabel);
-      });
-
-      const pointSummaries = Object.values(trendGroups).map(g => {
-        if (g.points.length === 1) {
-          return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
-        }
-        return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
-      });
-
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ) ${conclusion}`;
-    }
-
-    // CASE 3: Only Month 1 recorded
-    if (m1Recorded && !m2Recorded && !m3Recorded) {
-      const maxVal = Math.max(...chartData.map(d => d.month1 || 0), 0);
-      const topPts = chartData.filter(d => (d.month1 || 0) === maxVal && maxVal > 0);
-      const m1Total = chartData.reduce((sum, d) => sum + (d.month1 || 0), 0);
-      let topPtDesc = '';
-      if (topPts.length >= 2) {
-        topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPts.map(p => p.no).join(' และ ')} จำนวนจุดละ ${maxVal} ตัวเท่ากัน`;
-      } else {
-        const topPt = topPts[0] || chartData[0];
-        topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPt?.no || 'จุดตรวจ'} จำนวน ${topPt?.month1 || 0} ตัว`;
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ทุกตำแหน่งไม่พบแมลงสาบ (พบ 0 ตัว)${unrecordedNote} ทางทีมทำความสะอาดควรรักษามาตรฐานความสะอาดอย่างสม่ำเสมอ เพื่อควบคุมให้จำนวนแมลงสาบเป็น 0 เสมอ`;
       }
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า บันทึกผลในเดือน${months[0]} ตรวจพบรวม ${m1Total} ตัว (${topPtDesc}) สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ ${conclusion}`;
-    }
 
-    // Fallback for other combinations
-    return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ข้อมูลอยู่ระหว่างการบันทึกผลตรวจนับ (ยอดตรวจพบรวม ${totalQuarter} ตัว) ${conclusion}`;
+      let conclusion = 'ดังนั้นทางทีมทำความสะอาดต้องเฝ้าระวังอย่างเคร่งครัด และทำความสะอาดอย่างสม่ำเสมอ เพื่อให้แมลงสาบที่พบมีจำนวนลดลง';
+      if (zoneId === 'toiletFemale') {
+        conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดในตำแหน่งห้องน้ำหญิงตัดแต่งอย่างสม่ำเสมอ พร้อมทั้งให้หน่วยงานที่เกี่ยวข้องเฝ้าระวังกิจกรรมที่จะก่อให้เกิดแมลงสาบ เพื่อให้แมลงสาบที่พบมีจำนวนลดลงจนเป็น 0';
+      } else if (zoneId === 'toiletMale') {
+        conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำชายตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้เป็นประจำ';
+      } else if (zoneId === 'toiletHead') {
+        conclusion = 'ดังนั้นทีมทำความสะอาดจึงต้องทำความสะอาดตำแหน่งห้องน้ำหัวหน้าตัดแต่งอย่างสม่ำเสมอ และรักษาความสะอาดบริเวณนี้';
+      }
+
+      // CASE 1: All 3 months recorded
+      if (m1Recorded && m2Recorded && m3Recorded) {
+        const trendGroups = {};
+        safeData.forEach(d => {
+          const m1 = d?.month1 || 0;
+          const m2 = d?.month2 || 0;
+          const m3 = d?.month3 || 0;
+          const noLabel = d?.no || 'จุดตรวจ';
+
+          let key = '';
+          let desc = '';
+
+          if (m1 === 0 && m2 === 0 && m3 === 0) {
+            key = 'zero';
+            desc = 'ไม่พบแมลงสาบ';
+          } else if (m1 < m2 && m2 < m3) {
+            key = 'increasing';
+            desc = 'มีแนวโน้มเพิ่มขึ้นอย่างต่อเนื่อง';
+          } else if (m1 > m2 && m2 > m3) {
+            key = 'decreasing';
+            desc = 'มีแนวโน้มลดลงอย่างต่อเนื่อง';
+          } else if (m1 < m2 && m2 > m3) {
+            key = 'up_down';
+            desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และลดลงในเดือน${months[2]}`;
+          } else if (m1 > m2 && m2 < m3) {
+            key = 'down_up';
+            desc = `มีแนวโน้มลดลงในเดือน${months[1]}และเพิ่มขึ้นในเดือน${months[2]}`;
+          } else if (m1 === m2 && m2 === m3) {
+            key = 'steady';
+            desc = 'มีแนวโน้มคงที่ตลอดทั้งไตรมาส';
+          } else if (m1 === m2 && m2 < m3) {
+            key = 'steady_up';
+            desc = `มีจำนวนคงที่และเพิ่มขึ้นในเดือน${months[2]}`;
+          } else if (m1 === m2 && m2 > m3) {
+            key = 'steady_down';
+            desc = `มีจำนวนคงที่และลดลงในเดือน${months[2]}`;
+          } else if (m1 < m2 && m2 === m3) {
+            key = 'up_steady';
+            desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
+          } else if (m1 > m2 && m2 === m3) {
+            key = 'down_steady';
+            desc = `มีแนวโน้มลดลงในเดือน${months[1]}และคงที่ในเดือน${months[2]}`;
+          } else {
+            key = `custom_${m1}_${m2}_${m3}`;
+            desc = `ตรวจพบ ${m1}, ${m2}, ${m3} ตัวตามลำดับ`;
+          }
+
+          if (!trendGroups[key]) {
+            trendGroups[key] = { desc, points: [] };
+          }
+          trendGroups[key].points.push(noLabel);
+        });
+
+        const pointSummaries = Object.values(trendGroups).map(g => {
+          if (g.points.length === 1) {
+            return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
+          }
+          return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
+        });
+
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} ${conclusion}`;
+      }
+
+      // CASE 2: Month 1 & Month 2 recorded, Month 3 NOT recorded yet
+      if (m1Recorded && m2Recorded && !m3Recorded) {
+        const trendGroups = {};
+        safeData.forEach(d => {
+          const m1 = d?.month1 || 0;
+          const m2 = d?.month2 || 0;
+          const noLabel = d?.no || 'จุดตรวจ';
+
+          let key = '';
+          let desc = '';
+
+          if (m1 === 0 && m2 === 0) {
+            key = 'zero';
+            desc = 'ไม่พบแมลงสาบ';
+          } else if (m1 < m2) {
+            key = 'increasing';
+            desc = `มีแนวโน้มเพิ่มขึ้นในเดือน${months[1]}`;
+          } else if (m1 > m2) {
+            key = 'decreasing';
+            desc = `มีแนวโน้มลดลงในเดือน${months[1]}`;
+          } else {
+            key = 'steady';
+            desc = `มีจำนวนคงที่ในเดือน${months[0]}-${months[1]}`;
+          }
+
+          if (!trendGroups[key]) {
+            trendGroups[key] = { desc, points: [] };
+          }
+          trendGroups[key].points.push(noLabel);
+        });
+
+        const pointSummaries = Object.values(trendGroups).map(g => {
+          if (g.points.length === 1) {
+            return `ในตำแหน่ง ${g.points[0]} ${g.desc}`;
+          }
+          return `ตำแหน่ง ${g.points.join(', ')} ${g.desc}`;
+        });
+
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ${pointSummaries.join(' ')} (สำหรับเดือน${months[2]}ยังไม่มีการบันทึกผลการตรวจ) ${conclusion}`;
+      }
+
+      // CASE 3: Only Month 1 recorded
+      if (m1Recorded && !m2Recorded && !m3Recorded) {
+        const maxVal = Math.max(...safeData.map(d => d?.month1 || 0), 0);
+        const topPts = safeData.filter(d => (d?.month1 || 0) === maxVal && maxVal > 0);
+        const m1Total = safeData.reduce((sum, d) => sum + (d?.month1 || 0), 0);
+        let topPtDesc = '';
+        if (topPts.length >= 2) {
+          topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPts.map(p => p?.no || 'จุดตรวจ').join(' และ ')} จำนวนจุดละ ${maxVal} ตัวเท่ากัน`;
+        } else {
+          const topPt = topPts[0] || safeData[0];
+          topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPt?.no || 'จุดตรวจ'} จำนวน ${topPt?.month1 || 0} ตัว`;
+        }
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า บันทึกผลในเดือน${months[0]} ตรวจพบรวม ${m1Total} ตัว (${topPtDesc}) สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ ${conclusion}`;
+      }
+
+      // Fallback for other combinations
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า ข้อมูลอยู่ระหว่างการบันทึกผลตรวจนับ (ยอดตรวจพบรวม ${totalQuarter} ตัว) ${conclusion}`;
+    } catch (err) {
+      console.error('Error generating trend analysis text:', err);
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} ข้อมูลอยู่ระหว่างการบันทึกและประมวลผล`;
+    }
   };
 
   // Quarterly narrative text for a zone
   const getQuarterlyZoneNarrative = (zoneId, zoneName, chartData = [], year = selectedYear, quarter = selectedQuarter) => {
-    const key = `${year}_${quarter}_${zoneId}`;
-    if (customNarratives[key]) {
-      return customNarratives[key];
+    try {
+      const key = `${year}_${quarter}_${zoneId}`;
+      if (customNarratives[key]) {
+        return customNarratives[key];
+      }
+
+      const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
+      const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
+      const status = getEffectiveZoneStatus(zoneId, chartData, year, quarter);
+
+      // ปิดใช้งาน / ไม่มีการใช้งานพื้นที่
+      if (status === 'inactive') {
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName}\nเดือน${cleanRange} พ.ศ. ${year}\nไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่`;
+      }
+
+      // ปรับปรุงพื้นที่
+      if (status === 'renovating') {
+        return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พื้นที่อยู่ระหว่างปรับปรุงและปิดใช้งานจึงไม่มีการวางบ้านแมลงสาบในพื้นที่ ดังนั้นทีมทำความสะอาดต้องทำความสะอาดตำแหน่ง${zoneName}อย่างสม่ำเสมอ จนกว่าจะมีการเปิดใช้งานอีกครั้ง เพื่อควบคุมแนวโน้มแมลงที่มีจำนวนลดลง`;
+      }
+
+      // เปิดใช้งาน (Active)
+      // Fallback to exact memo text for demo year 2569 ONLY if no records exist at all
+      const isDemo = recordedMonths.length === 0 && String(year) === '2569';
+      if (isDemo && QUARTERLY_EXACT_NARRATIVES[quarter]?.[zoneId] && zoneId !== 'canteen1' && zoneId !== 'canteen2') {
+        return QUARTERLY_EXACT_NARRATIVES[quarter][zoneId].replace('{year}', year);
+      }
+
+      return generateTrendAnalysisText(zoneId, zoneName, chartData, year, quarter);
+    } catch (err) {
+      console.error('Error getting quarterly zone narrative:', err);
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} ข้อมูลอยู่ระหว่างการบันทึกและประมวลผล`;
     }
-
-    const qConfig = QUARTERS_CONFIG[quarter] || QUARTERS_CONFIG['Q1'];
-    const cleanRange = (qConfig.rangeText || '').replace(/\s*-\s*/g, '-');
-    const status = getEffectiveZoneStatus(zoneId, chartData, year, quarter);
-
-    // ปิดใช้งาน / ไม่มีการใช้งานพื้นที่
-    if (status === 'inactive') {
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName}\nเดือน${cleanRange} พ.ศ. ${year}\nไม่มีการใช้งานพื้นที่จึงไม่มีการวางบ้านแมลงสาบในพื้นที่`;
-    }
-
-    // ปรับปรุงพื้นที่
-    if (status === 'renovating') {
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พื้นที่อยู่ระหว่างปรับปรุงและปิดใช้งานจึงไม่มีการวางบ้านแมลงสาบในพื้นที่ ดังนั้นทีมทำความสะอาดต้องทำความสะอาดตำแหน่ง${zoneName}อย่างสม่ำเสมอ จนกว่าจะมีการเปิดใช้งานอีกครั้ง เพื่อควบคุมแนวโน้มแมลงที่มีจำนวนลดลง`;
-    }
-
-    // เปิดใช้งาน (Active)
-    // Fallback to exact memo text for demo year 2569 ONLY if no records exist at all
-    const isDemo = recordedMonths.length === 0 && String(year) === '2569';
-    if (isDemo && QUARTERLY_EXACT_NARRATIVES[quarter]?.[zoneId] && zoneId !== 'canteen1' && zoneId !== 'canteen2') {
-      return QUARTERLY_EXACT_NARRATIVES[quarter][zoneId].replace('{year}', year);
-    }
-
-    return generateTrendAnalysisText(zoneId, zoneName, chartData, year, quarter);
   };
 
   // Render Monthly Print Page (matches Image 1)
@@ -2412,7 +2460,7 @@ export default function CockroachesPage() {
                           label={{ value: 'จำนวน (ตัว)', angle: -90, position: 'insideLeft', offset: -5, style: { fontSize: 10, fill: '#64748b' } }} 
                         />
                         <Tooltip 
-                          formatter={(val, _, props) => [`${val} ตัว`, props.payload.name]}
+                          formatter={(val, _, props) => [`${val} ตัว`, props?.payload?.name || '']}
                           contentStyle={{ borderRadius: '12px', fontSize: '11px' }}
                         />
                         <Bar dataKey="count" name="จำนวนแมลงสาบ (ตัว)" fill="#9E2A2B" barSize={26}>
@@ -3821,9 +3869,9 @@ export default function CockroachesPage() {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" className="hidden dark:block" />
                         <XAxis dataKey="no" stroke="#64748b" fontSize={9.5} tickLine={false} tick={<AngledCategoryTick />} interval={0} />
                         <YAxis stroke="#64748b" fontSize={9.5} tickLine={false} allowDecimals={false} domain={monthlyYAxisConfig.domain} ticks={monthlyYAxisConfig.ticks} />
-                        <Tooltip formatter={(val, _, props) => [`${val} ตัว`, props.payload.name]} />
+                        <Tooltip formatter={(val, _, props) => [`${val} ตัว`, props?.payload?.name || '']} />
                         <Bar dataKey="count" name="จำนวนแมลงสาบ (ตัว)" fill="#C0504D" isAnimationActive={false}>
-                          <LabelList content={<BoxedBarLabel />} />
+                          <LabelList dataKey="count" content={<BoxedBarLabel />} />
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
