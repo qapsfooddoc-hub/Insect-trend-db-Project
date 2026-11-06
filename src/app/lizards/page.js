@@ -689,21 +689,125 @@ export default function LizardsPage() {
                     name={st.name}
                     stroke={st.color}
                     strokeWidth={2}
-                    dot={{ r: 4, fill: st.color }}
+                    dot={{ r: 4, fill: st.color, stroke: '#ffffff', strokeWidth: 1.5 }}
                     isAnimationActive={false}
                   >
                     <LabelList
                       dataKey={st.key}
                       position="top"
-                      content={({ x, y, value }) => {
+                      content={({ x, y, value, index, payload }) => {
                         if (value === undefined || value === null) return null;
+                        const numVal = Number(value);
+
+                        // จุดที่เป็น 0 ให้แสดงทับซ้อนกันที่ตำแหน่งปกติได้ตามที่ผู้ใช้กำหนด
+                        if (isNaN(numVal) || numVal === 0) {
+                          return (
+                            <text
+                              x={x}
+                              y={Number(y) - 6}
+                              fill={st.color}
+                              stroke="#ffffff"
+                              strokeWidth={2}
+                              paintOrder="stroke fill"
+                              textAnchor="middle"
+                              fontSize={10.5}
+                              fontWeight="bold"
+                            >
+                              {value}
+                            </text>
+                          );
+                        }
+
+                        // ข้อมูลเดือนของจุดนี้
+                        const monthIdx = typeof index === 'number'
+                          ? index
+                          : (payload?.month ? overallTrendData.findIndex(d => d.month === payload.month) : -1);
+                        const monthData = (monthIdx >= 0 && overallTrendData[monthIdx])
+                          ? overallTrendData[monthIdx]
+                          : (payload || {});
+
+                        // หาสถานีที่พบจำนวนเท่ากันในเดือนนี้ (> 0)
+                        const tiedStations = STATION_CONFIG.filter(s => Number(monthData[s.key]) === numVal);
+
+                        // ถ้ามีสถานีเดียวที่ได้ค่านี้ แสดงตำแหน่งบนปกติ
+                        if (tiedStations.length <= 1) {
+                          return (
+                            <text
+                              x={x}
+                              y={Number(y) - 6}
+                              fill={st.color}
+                              stroke="#ffffff"
+                              strokeWidth={2.5}
+                              paintOrder="stroke fill"
+                              textAnchor="middle"
+                              fontSize={11}
+                              fontWeight="bold"
+                            >
+                              {value}
+                            </text>
+                          );
+                        }
+
+                        // กรณีมี 2 สถานีขึ้นไปพบจำนวนเท่ากัน (> 0) แยกตำแหน่งเลเบลไม่ให้ทับซ้อน
+                        const tieIndex = tiedStations.findIndex(s => s.key === st.key);
+                        let posX = x;
+                        let posY = Number(y) - 7;
+                        let textAnchor = 'middle';
+
+                        if (tiedStations.length === 2) {
+                          // ตรวจสอบทิศทางของเส้น: เส้นที่ไต่ขึ้นมาจากด้านล่างให้แสดงเลเบลด้านล่างจุด ส่วนเส้นที่คงที่หรือมาจากด้านบนให้แสดงด้านบน
+                          const prevMonthData = monthIdx > 0 ? overallTrendData[monthIdx - 1] : null;
+                          const prev0 = prevMonthData ? Number(prevMonthData[tiedStations[0].key] || 0) : numVal;
+                          const prev1 = prevMonthData ? Number(prevMonthData[tiedStations[1].key] || 0) : numVal;
+
+                          let topStationKey = tiedStations[0].key;
+                          if (prev0 < numVal && prev1 >= numVal) {
+                            topStationKey = tiedStations[1].key;
+                          } else if (prev1 < numVal && prev0 >= numVal) {
+                            topStationKey = tiedStations[0].key;
+                          } else {
+                            topStationKey = tiedStations[0].key;
+                          }
+
+                          const isTop = (st.key === topStationKey);
+                          posY = isTop ? Number(y) - 7 : Number(y) + 16;
+                        } else if (tiedStations.length === 3) {
+                          if (tieIndex === 0) {
+                            posY = Number(y) - 7;
+                          } else if (tieIndex === 1) {
+                            posY = Number(y) + 16;
+                          } else {
+                            posX = Number(x) + 11;
+                            posY = Number(y) + 4;
+                            textAnchor = 'start';
+                          }
+                        } else {
+                          // 4 สถานีขึ้นไป
+                          if (tieIndex === 0) {
+                            posY = Number(y) - 7;
+                          } else if (tieIndex === 1) {
+                            posY = Number(y) + 16;
+                          } else if (tieIndex === 2) {
+                            posX = Number(x) + 11;
+                            posY = Number(y) + 4;
+                            textAnchor = 'start';
+                          } else {
+                            posX = Number(x) - 11;
+                            posY = Number(y) + 4;
+                            textAnchor = 'end';
+                          }
+                        }
+
                         return (
                           <text
-                            x={x}
-                            y={Number(y) - 6}
+                            x={posX}
+                            y={posY}
                             fill={st.color}
-                            textAnchor="middle"
-                            fontSize={10.5}
+                            stroke="#ffffff"
+                            strokeWidth={2.5}
+                            paintOrder="stroke fill"
+                            textAnchor={textAnchor}
+                            fontSize={11}
                             fontWeight="bold"
                           >
                             {value}
