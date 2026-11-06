@@ -1175,22 +1175,35 @@ export default function CockroachesPage() {
 
   const getCockroachZoneReportText = (zone) => {
     if (zone === 'ภาพรวม 6 โซน') {
-      const topZ = [...zoneSummary].sort((a, b) => b.count - a.count)[0];
+      const maxCount = Math.max(...zoneSummary.map(z => z.count), 0);
+      const topZones = zoneSummary.filter(z => z.count === maxCount && maxCount > 0);
       if (monthlyGrandTotal === 0) {
         return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ไม่พบแมลงสาบในทุกจุดตรวจตลอดทั้งเดือน (ยอดตรวจพบรวม 0 ตัว) แสดงว่าสุขาภิบาลโรงงานและการกำจัดเศษอินทรียวัตถุมีประสิทธิภาพสูง อยู่ในเกณฑ์มาตรฐาน GMP/HACCP ของโรงงาน`;
       }
+      if (topZones.length >= 2) {
+        const zoneNames = topZones.map(z => `โซน${z.fullName}`).join(' และ ');
+        return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดเท่ากันคือ ${zoneNames} (พบสะสมโซนละ ${maxCount} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
+      }
+      const topZ = topZones[0] || zoneSummary[0];
       return `จากการตรวจติดตามบ้านแมลงสาบครอบคลุม 6 โซนตรวจวัด (23 จุดดัก) ประจำเดือน ${selectedMonth} พ.ศ. ${selectedYear} ตรวจพบแมลงสาบรวมทั้งสิ้น ${monthlyGrandTotal} ตัว โดยโซนที่ตรวจพบมากที่สุดคือ โซน${topZ?.fullName} (พบสะสม ${topZ?.count} ตัว) แนะนำให้ฝ่ายควบคุมคุณภาพดำเนินการตรวจสอบความสมบูรณ์ของบ้านแมลงสาบ และปฏิบัติตามมาตรฐานเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด พร้อมทั้งฉีดล้างทำความสะอาดร่องระบายน้ำและจุดอับชื้นรอบโซนดังกล่าวทันที`;
     }
 
     const zonePts = customPoints.filter(pt => pt.zone === zone);
     const zoneCount = zonePts.reduce((sum, pt) => sum + getPointTotal(pt.id), 0);
-    const topPt = [...zonePts].map(pt => ({ ...pt, total: getPointTotal(pt.id) })).sort((a, b) => b.total - a.total)[0];
+    const maxPtTotal = Math.max(...zonePts.map(pt => getPointTotal(pt.id)), 0);
+    const topPts = zonePts.map(pt => ({ ...pt, total: getPointTotal(pt.id) })).filter(pt => pt.total === maxPtTotal && maxPtTotal > 0);
 
     if (zoneCount === 0) {
       return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} ไม่พบแมลงสาบในทุกจุดดักตลอดทั้งเดือน (ยอดตรวจพบ 0 ตัว) มาตรการทำความสะอาดและสุขาภิบาลในพื้นที่อยู่ในเกณฑ์มาตรฐานความปลอดภัยอาหารอย่างดีเยี่ยม`;
     }
 
-    return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดคือ "${topPt?.name}" จำนวน ${topPt?.total} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
+    if (topPts.length >= 2) {
+      const ptNames = topPts.map(pt => `"${pt.name}"`).join(' และ ');
+      return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดเท่ากันคือ ${ptNames} จำนวนจุดละ ${maxPtTotal} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
+    }
+
+    const topPt = topPts[0] || zonePts[0];
+    return `จากการตรวจนับจำนวนแมลงสาบ ของทีม ${zone} ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบแมลงสาบสะสมรวมทั้งสิ้น ${zoneCount} ตัว โดยจุดที่พบมากที่สุดคือ "${topPt?.name}" จำนวน ${topPt?.total || 0} ตัว เนื่องจากเป็นจุดอับชื้นและมีสิ่งของวางใกล้แนวผนัง ดังนั้นจึงควรตรวจสอบและเปลี่ยนบ้านแมลงสาบทุก 1 สัปดาห์อย่างเคร่งครัด ปิดม่านพลาสติกและทำความสะอาดพื้นลดการสะสมของคราบไขมัน ทั้งนี้ เพื่อรักษาและควบคุมจำนวนแมลงสาบในพื้นที่ให้เป็น 0 ตัวต่อไป`;
   };
 
   // Dynamic point count for any given month/year (prefers user entry in current session or localStorage, falls back to Excel data)
@@ -1284,14 +1297,20 @@ export default function CockroachesPage() {
     return { domain: [0, upper], ticks };
   };
 
-  // Top cockroach point for monthly report
-  const topMonthlyPoint = useMemo(() => {
-    const sorted = [...monthly23PointsData].sort((a, b) => b.count - a.count);
-    return sorted[0] || { no: '14', zone: 'ใต้ตู้ล็อกเกอร์ ตัดแต่ง', count: 0 };
+  // Top cockroach point(s) for monthly report - detects multiple points if tied for highest count
+  const topMonthlyPoints = useMemo(() => {
+    const maxVal = Math.max(...monthly23PointsData.map(d => d.count || 0), 0);
+    if (maxVal === 0) return [];
+    return monthly23PointsData.filter(d => (d.count || 0) === maxVal);
   }, [monthly23PointsData]);
 
+  // Primary single top point fallback for compatibility
+  const topMonthlyPoint = useMemo(() => {
+    return topMonthlyPoints[0] || { no: '14', zone: 'ใต้ตู้ล็อกเกอร์ ตัดแต่ง', count: 0 };
+  }, [topMonthlyPoints]);
+
   // Monthly report narrative text following the exact company pattern from "ตัวอย่าง รายงานแมลงสาบ ประจำเดือน.txt"
-  // Strictly matches the 3 core patterns: โรงอาหาร, ใต้ตู้ล็อคเกอร์, ห้องน้ำ
+  // Handles: 0 pests, 1 top point, 2 points tied (same zone or different zones), and 3+ points tied
   const monthlyFormAnalysisText = useMemo(() => {
     const isRec = isMonthRecorded(selectedMonth, selectedYear) || (recordedMonths.length === 0 && selectedYear === '2569');
     if (!isRec) {
@@ -1299,31 +1318,129 @@ export default function CockroachesPage() {
     }
 
     // กรณีที่ 0: ไม่พบแมลงสาบเลยทุกจุด
-    if (topMonthlyPoint.count === 0) {
+    if (topMonthlyPoints.length === 0 || topMonthlyPoint.count === 0) {
       return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ทุกตำแหน่งที่วางไม่พบแมลงสาบ (พบ 0 ตัว) ดังนั้นควรเน้นเรื่องการทำความสะอาดในทุกพื้นที่ให้สะอาดอยู่เสมอหลังจากการใช้งาน เพื่อป้องกันไม่ให้แมลงสาบเข้ามาในพื้นที่ และรักษาให้จำนวนที่พบเป็น 0 เสมอ`;
     }
 
-    const { no, zone } = topMonthlyPoint;
-    const cleanZone = zone || '';
+    // Helper: Location context details according to the exact company patterns
+    const getPointContext = (p) => {
+      const z = p.zone || '';
+      if (z.includes('ล็อกเกอร์') || z.includes('ล็อคเกอร์')) {
+        if (p.no === '15') {
+          return {
+            type: 'locker',
+            desc: `ตำแหน่งที่วาง 15 เป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย`
+          };
+        }
+        if (p.no === '13') {
+          return {
+            type: 'locker',
+            desc: `ตำแหน่งที่วาง 13 เป็นบริเวณใต้ตู้ล็อคเกอร์ ตัดแต่ง ที่อยู่ใกล้ห้องน้ำและมีความชื้น`
+          };
+        }
+        return {
+          type: 'locker',
+          desc: `ตำแหน่งที่วาง ${p.no} เป็นใต้ตู้ล็อคเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด`
+        };
+      }
+      if (z.includes('โรงอาหาร')) {
+        return {
+          type: 'canteen',
+          desc: `ตำแหน่งที่วาง ${p.no} (${z}) เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น`
+        };
+      }
+      if (z.includes('ห้องน้ำ')) {
+        return {
+          type: 'toilet',
+          desc: `ตำแหน่งที่วาง ${p.no} เป็นบริเวณ${z} ซึ่งมีความชื้นสูง และมีท่อระบาย`
+        };
+      }
+      return {
+        type: 'other',
+        desc: `ตำแหน่งที่วาง ${p.no} (${z}) เป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด`
+      };
+    };
 
-    // แพทเทิร์นที่ 1: โรงอาหาร (เช่น จุด 01 - 12: โรงอาหารตัดแต่งห้องที่ 1, โรงอาหารตัดแต่งห้องที่ 2)
-    if (cleanZone.includes('โรงอาหาร')) {
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าว เป็นพื้นที่ ที่มีการนำอาหารเข้ามา และมีความชื้น ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+    // Helper: Correct company action according to zone types
+    const getActionText = (types) => {
+      const hasLocker = types.includes('locker');
+      const hasCanteen = types.includes('canteen');
+
+      if (hasLocker && hasCanteen) {
+        return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามาควรจะปิดมิดชิด และไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+      }
+      if (hasLocker) {
+        return `ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+      }
+      if (hasCanteen) {
+        return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+      }
+      return `ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+    };
+
+    // กรณีที่ 1: มีจุดที่พบมากที่สุดเพียง 1 จุด (Single top point)
+    if (topMonthlyPoints.length === 1) {
+      const { no, zone } = topMonthlyPoints[0];
+      const cleanZone = zone || '';
+
+      // แพทเทิร์นที่ 1: โรงอาหาร (เช่น จุด 01 - 12: โรงอาหารตัดแต่งห้องที่ 1, โรงอาหารตัดแต่งห้องที่ 2)
+      if (cleanZone.includes('โรงอาหาร')) {
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าว เป็นพื้นที่ ที่มีการนำอาหารเข้ามา และมีความชื้น ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวภายหลังจากการใช้งาน ตรวจสอบภาชนะบรรจุอาหารที่นำเข้ามา ควรจะปิดมิดชิดเพื่อป้องกันไม่ให้แมลงสาบเข้าสู่พื้นที่การผลิตได้`;
+      }
+
+      // แพทเทิร์นที่ 2: ใต้ตู้ล็อคเกอร์ / ใต้ตู้ล็อกเกอร์ (เช่น จุด 13 - 16: ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
+      if (cleanZone.includes('ล็อกเกอร์') || cleanZone.includes('ล็อคเกอร์')) {
+        if (no === '15') {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง 15 (${cleanZone}) พบแมลงสาบมากที่สุด พื้นที่ดังกล่าวเป็นบริเวณที่อยู่ใกล้ห้องน้ำ ซึ่งเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+        }
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด โดยบริเวณดังกล่าวเป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด  จึงอาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน  ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+      }
+
+      // แพทเทิร์นที่ 3: ห้องน้ำ (เช่น จุด 17 - 23: ห้องน้ำหญิง ตัดแต่ง, ห้องน้ำชาย ตัดแต่ง, ห้องน้ำหัวหน้า ตัดแต่ง)
+      if (cleanZone.includes('ห้องน้ำ')) {
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${no} เป็นบริเวณ${cleanZone} ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลัง จากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+      }
+
+      // แพทเทิร์นกรณีตำแหน่งอื่นๆ
+      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด ซึ่งเป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
     }
 
-    // แพทเทิร์นที่ 2: ใต้ตู้ล็อคเกอร์ / ใต้ตู้ล็อกเกอร์ (เช่น จุด 13 - 16: ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
-    if (cleanZone.includes('ล็อกเกอร์') || cleanZone.includes('ล็อคเกอร์')) {
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด โดยบริเวณดังกล่าวเป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด  จึงอาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นเรื่องทำความสะอาดในพื้นที่ดังกล่าวให้สะอาดอยู่เสมอหลังจากการใช้งาน  ไม่นำอาหารเข้าไปเก็บที่ตู้ล็อคเกอร์ เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
+    // กรณีที่ 2: มี 2 จุด/พื้นที่พบมากที่สุดเท่ากัน (Tied top 2 points)
+    if (topMonthlyPoints.length === 2) {
+      const [p1, p2] = topMonthlyPoints;
+      const c1 = getPointContext(p1);
+      const c2 = getPointContext(p2);
+      const types = [c1.type, c2.type];
+      const actionText = getActionText(types);
+
+      // ถ้าทั้งสองจุดอยู่ในโซนเดียวกัน (เช่น จุด 14 และ 15 ใต้ตู้ล็อกเกอร์ ตัดแต่ง)
+      if (p1.zone === p2.zone) {
+        if (c1.desc !== c2.desc) {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+        }
+        if (c1.type === 'canteen') {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นพื้นที่ที่มีการนำอาหารเข้ามา และมีความชื้น อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+        }
+        if (c1.type === 'toilet') {
+          return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณ${p1.zone} พบแมลงสาบมากที่สุด ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+        }
+        return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} (${p1.zone}) พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${p1.no} และ ตำแหน่งที่วาง ${p2.no} เป็นบริเวณใต้ตู้ล็อกเกอร์ ตัดแต่ง ซึ่งเป็นบริเวณที่เป็นจุดอับชื้นและมืด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+      }
+
+      // ถ้าทั้งสองจุดอยู่คนละโซน/คนละพื้นที่
+      const intro1 = `${p1.no} (${p1.zone})`;
+      const intro2 = `${p2.no} (${p2.zone})`;
+      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${intro1} และ ตำแหน่งที่วาง ${intro2} พบแมลงสาบมากที่สุดเท่ากัน โดย${c1.desc} และ${c2.desc} อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
     }
 
-    // แพทเทิร์นที่ 3: ห้องน้ำ (เช่น จุด 17 - 23: ห้องน้ำหญิง ตัดแต่ง, ห้องน้ำชาย ตัดแต่ง, ห้องน้ำหัวหน้า ตัดแต่ง)
-    if (cleanZone.includes('ห้องน้ำ')) {
-      return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} พบแมลงสาบมากที่สุด โดยตำแหน่งที่วาง ${no} เป็นบริเวณ${cleanZone} ซึ่งบริเวณดังกล่าวเป็นบริเวณที่มีความชื้นสูง และมีท่อระบาย อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลัง จากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
-    }
+    // กรณีที่ 3: มากกว่า 2 จุดเสมอกัน (Fallback for 3+ points tied)
+    const pointsList = topMonthlyPoints.map(p => `ตำแหน่งที่วาง ${p.no}`).join(', ');
+    const uniqueZones = [...new Set(topMonthlyPoints.map(p => p.zone))].join(', ');
+    const types = topMonthlyPoints.map(p => getPointContext(p).type);
+    const actionText = getActionText(types);
 
-    // แพทเทิร์นกรณีตำแหน่งอื่นๆ
-    return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ตำแหน่งที่วาง ${no} (${cleanZone}) พบแมลงสาบมากที่สุด ซึ่งเป็นบริเวณที่มีความชื้นหรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ดังนั้นควรเน้นทำความสะอาดพื้นที่ดังกล่าวให้สะอาดอยู่เสมอภายหลังจากการใช้งาน เพื่อป้องกันแมลงสาบเข้าพื้นที่การผลิตได้`;
-  }, [selectedMonth, selectedYear, topMonthlyPoint]);
+    return `จากการตรวจนับแมลงสาบในเดือน ${selectedMonth} ${selectedYear} พบว่า ${pointsList} (${uniqueZones}) พบแมลงสาบมากที่สุดเท่ากัน โดยเป็นบริเวณที่มีความชื้น จุดอับ หรือมีปัจจัยดึงดูด อาจส่งผลให้พบแมลงสาบได้ ${actionText}`;
+  }, [selectedMonth, selectedYear, topMonthlyPoints, topMonthlyPoint, recordedMonths]);
 
   // Short month abbreviations for quarterly legend
   const currentQuarterMonthsShort = useMemo(() => {
@@ -1563,9 +1680,17 @@ export default function CockroachesPage() {
 
     // CASE 3: Only Month 1 recorded
     if (m1Recorded && !m2Recorded && !m3Recorded) {
-      const topPt = [...chartData].sort((a, b) => (b.month1 || 0) - (a.month1 || 0))[0];
+      const maxVal = Math.max(...chartData.map(d => d.month1 || 0), 0);
+      const topPts = chartData.filter(d => (d.month1 || 0) === maxVal && maxVal > 0);
       const m1Total = chartData.reduce((sum, d) => sum + (d.month1 || 0), 0);
-      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า บันทึกผลในเดือน${months[0]} ตรวจพบรวม ${m1Total} ตัว (พบมากที่สุดที่ ${topPt?.no || 'จุดตรวจ'} จำนวน ${topPt?.month1 || 0} ตัว) สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ ${conclusion}`;
+      let topPtDesc = '';
+      if (topPts.length >= 2) {
+        topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPts.map(p => p.no).join(' และ ')} จำนวนจุดละ ${maxVal} ตัวเท่ากัน`;
+      } else {
+        const topPt = topPts[0] || chartData[0];
+        topPtDesc = `พบมากที่สุดที่ตำแหน่ง ${topPt?.no || 'จุดตรวจ'} จำนวน ${topPt?.month1 || 0} ตัว`;
+      }
+      return `จากกราฟแสดงแนวโน้มจำนวนแมลงสาบ ตำแหน่ง${zoneName} เดือน${cleanRange} พ.ศ. ${year} พบว่า บันทึกผลในเดือน${months[0]} ตรวจพบรวม ${m1Total} ตัว (${topPtDesc}) สำหรับเดือน${months[1]}และ${months[2]}ยังไม่มีการบันทึกผลการตรวจ ${conclusion}`;
     }
 
     // Fallback for other combinations
@@ -1744,13 +1869,40 @@ export default function CockroachesPage() {
         </div>
 
         {/* 4 Main Frames (2 Rows x 2 Columns) - Fixed Equal Template */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '8px', minHeight: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '6px', minHeight: 0 }}>
           {pageConfig.zones.map(zone => {
             const chartData = getZoneQuarterlyChartData(zone);
             const status = getEffectiveZoneStatus(zone.id, chartData, selectedYear, selectedQuarter);
             const narrative = getQuarterlyZoneNarrative(zone.id, zone.narrativeName, chartData, selectedYear, selectedQuarter);
             const yAxisConfig = getQuarterlyYAxisConfig(chartData);
             const isCentered = (status === 'inactive');
+
+            // Typography sizing: Pages 2/3 and 3/3 have larger font size proportioned to text length without overflowing
+            let narrativeFontSize = '9.5pt';
+            let narrativeLineHeight = '1.55';
+            
+            if (pageConfig.page === 1) {
+              narrativeFontSize = isCentered ? '10.5pt' : '9.5pt';
+              narrativeLineHeight = isCentered ? '1.85' : '1.55';
+            } else {
+              // Pages 2/3 and 3/3: Increased font size dynamically proportioned to text length
+              if (isCentered) {
+                narrativeFontSize = '11.5pt';
+                narrativeLineHeight = '1.85';
+              } else {
+                const textLen = (narrative || '').length;
+                if (textLen > 430) {
+                  narrativeFontSize = '10.8pt';
+                  narrativeLineHeight = '1.58';
+                } else if (textLen > 350) {
+                  narrativeFontSize = '11.2pt';
+                  narrativeLineHeight = '1.62';
+                } else {
+                  narrativeFontSize = '11.8pt';
+                  narrativeLineHeight = '1.65';
+                }
+              }
+            }
 
             return (
               <div 
@@ -1760,15 +1912,15 @@ export default function CockroachesPage() {
                   flexDirection: 'row', 
                   alignItems: 'stretch', 
                   justifyContent: 'space-between',
-                  gap: '10px',
-                  height: '326px',
+                  gap: '8px',
+                  height: '320px',
                   boxSizing: 'border-box'
                 }}
               >
-                {/* Left Frame: Chart Box (~56% width) */}
+                {/* Left Frame: Chart Box (~56.5% width) */}
                 <div 
                   style={{ 
-                    width: '56%', 
+                    width: '56.5%', 
                     height: '100%', 
                     border: '1px solid #cbd5e1', 
                     boxSizing: 'border-box',
@@ -1822,7 +1974,7 @@ export default function CockroachesPage() {
                   </div>
                 </div>
 
-                {/* Right Frame: Narrative Box (~44% width) */}
+                {/* Right Frame: Narrative Box (~43.5% width) */}
                 <div 
                   style={{ 
                     width: '43.5%', 
@@ -1834,15 +1986,17 @@ export default function CockroachesPage() {
                     flexDirection: 'column', 
                     justifyContent: isCentered ? 'center' : 'flex-start',
                     alignItems: isCentered ? 'center' : 'flex-start',
-                    padding: isCentered ? '20px 20px' : '20px 24px'
+                    padding: isCentered ? '18px 20px' : '18px 22px',
+                    overflow: 'hidden'
                   }}
                 >
                   <div style={{ 
                     width: '100%', 
                     textAlign: isCentered ? 'center' : 'left',
-                    fontSize: isCentered ? '10.5pt' : '9.5pt', 
-                    lineHeight: isCentered ? '1.85' : '1.55', 
-                    color: '#1e293b' 
+                    fontSize: narrativeFontSize, 
+                    lineHeight: narrativeLineHeight, 
+                    color: '#0f172a',
+                    wordBreak: 'break-word'
                   }}>
                     <p style={{ margin: 0, whiteSpace: isCentered ? 'pre-line' : 'normal' }}>{narrative}</p>
                   </div>
@@ -1852,14 +2006,15 @@ export default function CockroachesPage() {
           })}
         </div>
 
-        {/* Footer Signatures: Balanced 2-Column */}
+        {/* Footer Signatures: Balanced 2-Column with Raised Height */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr', 
           gap: '40px', 
           borderTop: '1px solid #cbd5e1', 
-          paddingTop: '6px', 
-          marginTop: '6px',
+          paddingTop: '12px', 
+          paddingBottom: '2px', 
+          marginTop: '8px',
           width: '100%' 
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -1867,9 +2022,9 @@ export default function CockroachesPage() {
               <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', color: '#1e293b' }}>
                 ผู้จัดทำ
               </span>
-              <div style={{ flex: 1, borderBottom: '1px solid #000', height: '14px' }}></div>
+              <div style={{ flex: 1, borderBottom: '1px solid #000', height: '26px' }}></div>
             </div>
-            <div style={{ width: '100%', maxWidth: '340px', textAlign: 'center', marginTop: '3px', fontSize: '10.5px', color: '#64748b' }}>
+            <div style={{ width: '100%', maxWidth: '340px', textAlign: 'center', marginTop: '6px', fontSize: '10.5px', color: '#64748b' }}>
               วันที่......./......./.......
             </div>
           </div>
@@ -1879,9 +2034,9 @@ export default function CockroachesPage() {
               <span style={{ fontSize: '11px', fontWeight: 'bold', whiteSpace: 'nowrap', marginRight: '8px', color: '#1e293b' }}>
                 ผู้ตรวจสอบ
               </span>
-              <div style={{ flex: 1, borderBottom: '1px solid #000', height: '14px' }}></div>
+              <div style={{ flex: 1, borderBottom: '1px solid #000', height: '26px' }}></div>
             </div>
-            <div style={{ width: '100%', maxWidth: '340px', textAlign: 'center', marginTop: '3px', fontSize: '10.5px', color: '#64748b' }}>
+            <div style={{ width: '100%', maxWidth: '340px', textAlign: 'center', marginTop: '6px', fontSize: '10.5px', color: '#64748b' }}>
               วันที่......./......./.......
             </div>
           </div>
@@ -2574,8 +2729,8 @@ export default function CockroachesPage() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className={`leading-relaxed text-xs sm:text-sm text-slate-800 dark:text-slate-200 w-full ${isCentered ? 'text-center' : 'text-left'}`}>
-                                        <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.6 }}>{narrative}</p>
+                                      <div className={`leading-relaxed ${pageConfig.page > 1 ? 'text-[13.5px] sm:text-[15px]' : 'text-xs sm:text-sm'} text-slate-800 dark:text-slate-200 w-full ${isCentered ? 'text-center' : 'text-left'}`}>
+                                        <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.65 }}>{narrative}</p>
                                       </div>
                                     )}
                                   </div>
@@ -3728,7 +3883,7 @@ export default function CockroachesPage() {
                           </span>
                         </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-3">
                           {pageConfig.zones.map(zone => {
                             const chartData = getZoneQuarterlyChartData(zone);
                             const status = getEffectiveZoneStatus(zone.id, chartData, selectedYear, selectedQuarter);
@@ -3737,7 +3892,7 @@ export default function CockroachesPage() {
                             const isCentered = (status === 'inactive');
 
                             return (
-                              <div key={zone.id} className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                              <div key={zone.id} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
                                 <div className="lg:col-span-7 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl p-4 flex flex-col justify-between shadow-2xs">
                                   <div className="text-center mb-2">
                                     <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -3773,8 +3928,8 @@ export default function CockroachesPage() {
                                 </div>
 
                                 <div className={`lg:col-span-5 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 rounded-2xl p-6 flex flex-col shadow-2xs ${isCentered ? 'justify-center items-center' : 'justify-start items-start'}`}>
-                                  <div className={`leading-relaxed text-xs sm:text-sm text-slate-800 dark:text-slate-200 ${isCentered ? 'text-center' : 'text-left'}`}>
-                                    <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.6 }}>{narrative}</p>
+                                  <div className={`leading-relaxed ${pageConfig.page > 1 ? 'text-[13.5px] sm:text-[15px]' : 'text-xs sm:text-sm'} text-slate-800 dark:text-slate-200 ${isCentered ? 'text-center' : 'text-left'}`}>
+                                    <p className="m-0" style={{ whiteSpace: isCentered ? 'pre-line' : 'normal', lineHeight: isCentered ? 1.85 : 1.65 }}>{narrative}</p>
                                   </div>
                                 </div>
                               </div>
@@ -3782,14 +3937,20 @@ export default function CockroachesPage() {
                           })}
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-4 border-t border-slate-300 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
-                          <div className="lg:col-span-7 text-center">
-                            <p className="font-bold">ผู้จัดทำ .................................</p>
-                            <p className="mt-1 text-slate-500 dark:text-slate-400">วันที่........../............/...........</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-5 pb-1 border-t border-slate-300 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
+                          <div className="flex flex-col items-center">
+                            <div className="flex items-end w-full max-w-[320px]">
+                              <span className="font-bold whitespace-nowrap mr-2 text-slate-800 dark:text-slate-200">ผู้จัดทำ</span>
+                              <div className="flex-1 border-b border-black dark:border-slate-400 h-6"></div>
+                            </div>
+                            <p className="mt-2 text-[10.5px] text-slate-500 dark:text-slate-400">วันที่......./......./.......</p>
                           </div>
-                          <div className="lg:col-span-5 text-center">
-                            <p className="font-bold">ผู้ตรวจสอบ ............................</p>
-                            <p className="mt-1 text-slate-500 dark:text-slate-400">วันที่........../............/...........</p>
+                          <div className="flex flex-col items-center">
+                            <div className="flex items-end w-full max-w-[320px]">
+                              <span className="font-bold whitespace-nowrap mr-2 text-slate-800 dark:text-slate-200">ผู้ตรวจสอบ</span>
+                              <div className="flex-1 border-b border-black dark:border-slate-400 h-6"></div>
+                            </div>
+                            <p className="mt-2 text-[10.5px] text-slate-500 dark:text-slate-400">วันที่......./......./.......</p>
                           </div>
                         </div>
                       </div>
