@@ -309,34 +309,33 @@ export default function RodentsPage() {
   // Analytical summary text for QC/QA report (Monthly Bar Chart)
   const rodentAnalysisText = useMemo(() => {
     if (monthlyTotal === 0) {
-      return `จากกราฟแสดงแนวโน้มจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า จุดวางกับดักหนูทั้ง 10 สถานี เท่ากับ 0 ตัว ไม่พบหนูอยู่ในกระดานกาว ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ`;
+      return `จากกราฟแสดงรายงานการตรวจนับจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ไม่พบหนูเลย ทั้ง 10 สถานี ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดม่านประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ`;
     }
     const infested = currentMonthStationData.filter(s => s.count > 0);
-    const topSt = infested.sort((a, b) => b.count - a.count)[0];
-    return `จากกราฟแสดงแนวโน้มจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ตรวจพบหนูรวมทั้งสิ้น ${monthlyTotal} ตัว โดยพบที่ ${topSt?.name} (${topSt?.code} - ${topSt?.fullName}) จำนวน ${topSt?.count} ตัว ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ และดำเนินการเปลี่ยนแผ่นกาว/ตรวจสอบแนวป้องกันทันที`;
+    const details = infested.map(st => `พบหนูที่${st.name} จำนวน ${st.count} ตัว`).join(' และ');
+    return `จากกราฟแสดงรายงานการตรวจนับจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ${details} รวมทั้งสิ้น ${monthlyTotal} ตัว ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดม่านประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ และดำเนินการเปลี่ยนแผ่นกาว/ตรวจสอบแนวป้องกันทันที`;
   }, [monthlyTotal, currentMonthStationData, selectedMonth, selectedYear]);
 
-  // Overall trend summary text (matches Lizard overall trend narrative format)
+  // Overall trend summary text
   const overallTrendSummaryText = useMemo(() => {
     const counts = {};
     for (let s = 1; s <= 10; s++) {
       counts[s] = Number(stationRecords[s]?.count) || 0;
     }
 
-    const details = [];
+    const infested = [];
     for (let s = 1; s <= 10; s++) {
-      if (s === 1) {
-        details.push(`จำนวนของหนูที่พบในสถานีที่ ${s} มีจำนวนเท่ากับ ${counts[s]} ตัว`);
-      } else if (s === 3) {
-        details.push(`ส่วนจำนวนของหนูที่พบในสถานีที่ ${s} มีจำนวนเท่ากับ ${counts[s]} ตัว`);
-      } else if (s === 10) {
-        details.push(`และจำนวนของหนูที่พบในสถานีที่ ${s} มีจำนวนเท่ากับ ${counts[s]} ตัว`);
-      } else {
-        details.push(`จำนวนของหนูที่พบในสถานีที่ ${s} มีจำนวนเท่ากับ ${counts[s]} ตัว`);
+      if (counts[s] > 0) {
+        infested.push({ id: s, name: `สถานีที่ ${s}`, count: counts[s] });
       }
     }
 
-    return `จากกราฟแสดงแนวโน้มจำนวนหนูของจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ${details.join(' ')} ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดม่านประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ`;
+    if (infested.length === 0) {
+      return `จากกราฟแสดงแนวโน้มจำนวนหนูของจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ไม่พบหนูเลย ทั้ง 10 สถานี ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดม่านประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ`;
+    }
+
+    const details = infested.map(st => `พบหนูที่${st.name} จำนวน ${st.count} ตัว`).join(' และ');
+    return `จากกราฟแสดงแนวโน้มจำนวนหนูของจุดวางกับดักหนูที่สโตร์ ประจำเดือน ${selectedMonth} ${selectedYear} พบว่า ${details} ดังนั้นควรที่จะเน้นให้มีการปฏิบัติตามสุขลักษณะในการปฏิบัติงานอย่างต่อเนื่อง เช่น การไม่นำอาหารเข้าไปในพื้นที่เก็บบรรจุภัณฑ์ การปิดม่านประตู การทำความสะอาดพื้นที่เก็บบรรจุภัณฑ์และบริเวณรอบอาคารให้สะอาดอยู่เสมอ และดำเนินการเปลี่ยนแผ่นกาว/ตรวจสอบแนวป้องกันทันที`;
   }, [stationRecords, selectedMonth, selectedYear]);
 
   // Save handler
@@ -571,6 +570,12 @@ export default function RodentsPage() {
                   align="right"
                   verticalAlign="middle"
                   wrapperStyle={{ right: 5, border: '1px solid #777', padding: '6px 12px', fontSize: '10.5px', lineHeight: '1.6' }}
+                  payload={RODENT_STATION_CONFIG.map((st) => ({
+                    value: st.name,
+                    id: st.key,
+                    type: 'line',
+                    color: st.color
+                  }))}
                 />
                 {RODENT_STATION_CONFIG.map((st) => (
                   <Line
@@ -915,7 +920,15 @@ export default function RodentsPage() {
                         <XAxis dataKey="month" fontSize={11} stroke="#64748b" />
                         <YAxis allowDecimals={false} domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} stroke="#64748b" label={{ value: 'จำนวนที่พบ (ตัว)', angle: -90, position: 'insideLeft', offset: 12, fontSize: 11 }} />
                         <Tooltip contentStyle={{ borderRadius: '12px', fontSize: '12px' }} />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                        <Legend
+                        wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                        payload={RODENT_STATION_CONFIG.map((st) => ({
+                          value: st.name,
+                          id: st.key,
+                          type: 'line',
+                          color: st.color
+                        }))}
+                      />
                         {RODENT_STATION_CONFIG.map((st) => (
                           <Line
                             key={st.key}
@@ -1270,7 +1283,15 @@ export default function RodentsPage() {
                           label={{ value: 'จำนวนที่พบ (ตัว)', angle: -90, position: 'insideLeft', offset: 12, fontSize: 11 }}
                         />
                         <Tooltip contentStyle={{ borderRadius: '12px', fontSize: '12px' }} />
-                        <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                        <Legend
+                        wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                        payload={RODENT_STATION_CONFIG.map((st) => ({
+                          value: st.name,
+                          id: st.key,
+                          type: 'line',
+                          color: st.color
+                        }))}
+                      />
                         {RODENT_STATION_CONFIG.map((st) => (
                           <Line
                             key={st.key}
