@@ -39,6 +39,69 @@ const RODENT_STATION_CONFIG = [
   { key: 'station10', name: 'สถานี 10', id: 10, code: '65', color: '#4b5563' }
 ];
 
+const renderVerticalLegend = (props) => {
+  const { payload } = props || {};
+  if (!payload || !payload.length) return null;
+
+  const sortedPayload = [...payload].sort((a, b) => {
+    const idxA = RODENT_STATION_CONFIG.findIndex(s => s.key === a.dataKey || s.name === a.value);
+    const idxB = RODENT_STATION_CONFIG.findIndex(s => s.key === b.dataKey || s.name === b.value);
+    return idxA - idxB;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5px' }}>
+      {sortedPayload.map((entry, index) => (
+        <div
+          key={`v-item-${index}`}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            fontSize: '11px',
+            color: '#222',
+            lineHeight: '1.45'
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '6px' }}>
+            <svg width="22" height="10" style={{ display: 'inline-block' }}>
+              <line x1="0" y1="5" x2="22" y2="5" stroke={entry.color} strokeWidth="2" />
+              <circle cx="11" cy="5" r="3.5" fill="#ffffff" stroke={entry.color} strokeWidth="1.5" />
+            </svg>
+          </span>
+          <span>{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const renderHorizontalLegend = (props) => {
+  const { payload } = props || {};
+  if (!payload || !payload.length) return null;
+
+  const sortedPayload = [...payload].sort((a, b) => {
+    const idxA = RODENT_STATION_CONFIG.findIndex(s => s.key === a.dataKey || s.name === a.value);
+    const idxB = RODENT_STATION_CONFIG.findIndex(s => s.key === b.dataKey || s.name === b.value);
+    return idxA - idxB;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '12px', paddingTop: '8px' }}>
+      {sortedPayload.map((entry, index) => (
+        <div key={`h-item-${index}`} style={{ display: 'inline-flex', alignItems: 'center', fontSize: '11px', color: '#64748b' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: '5px' }}>
+            <svg width="20" height="10" style={{ display: 'inline-block' }}>
+              <line x1="0" y1="5" x2="20" y2="5" stroke={entry.color} strokeWidth="2" />
+              <circle cx="10" cy="5" r="3" fill="#ffffff" stroke={entry.color} strokeWidth="1.5" />
+            </svg>
+          </span>
+          <span>{entry.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function RodentsPage() {
   const [activeTab, setActiveTab] = useState('chart'); // 'chart', 'entry', 'print'
   const [selectedMonth, setSelectedMonth] = useState('สิงหาคม');
@@ -569,13 +632,8 @@ export default function RodentsPage() {
                   layout="vertical"
                   align="right"
                   verticalAlign="middle"
-                  wrapperStyle={{ right: 5, border: '1px solid #777', padding: '6px 12px', fontSize: '10.5px', lineHeight: '1.6' }}
-                  payload={RODENT_STATION_CONFIG.map((st) => ({
-                    value: st.name,
-                    id: st.key,
-                    type: 'line',
-                    color: st.color
-                  }))}
+                  wrapperStyle={{ right: 5, border: '1px solid #777', padding: '6px 12px', backgroundColor: '#fff' }}
+                  content={renderVerticalLegend}
                 />
                 {RODENT_STATION_CONFIG.map((st) => (
                   <Line
@@ -921,14 +979,8 @@ export default function RodentsPage() {
                         <YAxis allowDecimals={false} domain={[0, 5]} ticks={[0, 1, 2, 3, 4, 5]} stroke="#64748b" label={{ value: 'จำนวนที่พบ (ตัว)', angle: -90, position: 'insideLeft', offset: 12, fontSize: 11 }} />
                         <Tooltip contentStyle={{ borderRadius: '12px', fontSize: '12px' }} />
                         <Legend
-                        wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                        payload={RODENT_STATION_CONFIG.map((st) => ({
-                          value: st.name,
-                          id: st.key,
-                          type: 'line',
-                          color: st.color
-                        }))}
-                      />
+                          content={renderHorizontalLegend}
+                        />
                         {RODENT_STATION_CONFIG.map((st) => (
                           <Line
                             key={st.key}
@@ -1284,14 +1336,8 @@ export default function RodentsPage() {
                         />
                         <Tooltip contentStyle={{ borderRadius: '12px', fontSize: '12px' }} />
                         <Legend
-                        wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
-                        payload={RODENT_STATION_CONFIG.map((st) => ({
-                          value: st.name,
-                          id: st.key,
-                          type: 'line',
-                          color: st.color
-                        }))}
-                      />
+                          content={renderHorizontalLegend}
+                        />
                         {RODENT_STATION_CONFIG.map((st) => (
                           <Line
                             key={st.key}
