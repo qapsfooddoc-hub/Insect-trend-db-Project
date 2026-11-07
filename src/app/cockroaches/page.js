@@ -3615,7 +3615,7 @@ export default function CockroachesPage() {
                         onChange={(e) => setSelectedMonth(e.target.value)}
                         className="w-full px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-amber-500 text-slate-800 dark:text-slate-200 cursor-pointer shadow-2xs"
                       >
-                        {reportAvailableMonths.map(m => (
+                        {availableMonths.map(m => (
                           <option key={m} value={m}>{m}</option>
                         ))}
                       </select>
